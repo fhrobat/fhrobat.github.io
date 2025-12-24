@@ -25,9 +25,11 @@ body[a="dark"] { @include dark-appearance; }
 // see: https://stackoverflow.com/a/61265706
 html, body { 
   background: black;
+  width: 100%;
+  text-align: center;
 }
 
-html { height: 100%; scroll-behavior: smooth; text-align: center;}
+html { height: 100%; scroll-behavior: smooth;}
 
 body {
   color: white;
@@ -37,8 +39,6 @@ body {
   margin: 0;
   min-height: 100%;
   overflow-wrap: break-word;
-  text-align: center;
-  width: 100%;
 }
 
 .post-meta { text-align: right; }
