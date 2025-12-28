@@ -7,7 +7,7 @@ description: > # description of the site (multiple lines allowed)
  I am Francesco Hrobat a Mathematics PhD student at University of Oxford, Linacre College. <br>
  I am supported by the Mathematical Institute Scholarship by Oxford Mathematical Isntitute. <br>
  Previously. I did my bachelor's and master's at Scuola Normale Superiore of Pisa. <br> <br>
- My research focuses on <strong>numerical linear algebra<\strong>, including parturbation theory, randomized linear algebra and Krylov methods.
+ My research focuses on <strong>numerical linear algebra</strong>, including parturbation theory, randomized linear algebra and Krylov methods.
 permalink: /:slug.html
 
 favicon: "logo.png" # name+extension of favicon (which must be put on the root folder)
