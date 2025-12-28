@@ -1,13 +1,16 @@
-# For documentation on this file, see:
-# https://github.com/riggraz/no-style-please#customize-the-menu
-
 entries:
   - title: info
     entries:
-      - title: a (nearly) no-CSS, fast, minimalist Jekyll theme.
-      - title: github repo
-        url: https://github.com/riggraz/no-style-please
-      - title: "used by <a href='https://riggraz.dev'>riggraz.dev</a> and <a href='https://github.com/riggraz/no-style-please/network/dependents'>many others</a>"
+      - title: Francesco Hrobat
+      - title: PhD student in Mathematics — University of Oxford
+      - title: research interests: algebra, number theory, analysis
+
+  - title: research
+    entries:
+      - title: research topics
+      - title: preprints and work in progress
+      - title: publications
+        url: publications.html
 
   - title: all posts
     post_list:
@@ -18,21 +21,19 @@ entries:
 
   - title: posts by category
     post_list:
-      category: example2
+      category: research
       show_more: true
       show_more_text: See more posts...
-      show_more_url: example2-archive.html
+      show_more_url: research-archive.html
 
-  - title: rss
-    url: feed.xml
-  
-  - title: another list
+  - title: teaching
     entries:
-      - title: with subitems
-        entries:
-          - title: with subsubitems
-          - title: example page
-            url: about
-  - title: PRO TIP
+      - title: courses taught
+      - title: teaching material
+        url: teaching.html
+
+  - title: contact
     entries:
-      - title: to edit this menu, edit _data/menu.yml file
+      - title: email — francesco.hrobat@maths.ox.ac.uk
+      - title: github
+        url: https://github.com/fhrobat
