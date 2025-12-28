@@ -2,9 +2,10 @@ title: Francesco Hrobat # name of the site
 author: Francesco Hrobat # name of site's author
 email: francesco.hrobat@maths.ox.ac.uk # email of site's author
 url:  "https://fhrobat.github.io" # root address of the site
+scholar: "https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ"
 baseurl: "/website" # subpath of the site, e.g. "/blog" (leave it blank "" if you're site shouldn't use a subpath)
 description: > # description of the site (multiple lines allowed)
- <a href="mailto:francesco.hrobat@maths.ox.ac.uk.com"> email </a>  <a href="https://github.com/fhrobat"> github </a> <br>
+ <a href="mailto:francesco.hrobat@maths.ox.ac.uk.com"> email </a>  <a href=url> github </a> <a href=scholar> scholar </a><br>
  I am Francesco Hrobat a Mathematics PhD student at University of Oxford, Linacre College. <br>
  I am supported by the Mathematical Institute Scholarship by Oxford Mathematical Isntitute. <br>
  Previously. I did my bachelor's and master's at Scuola Normale Superiore of Pisa. <br> <br>
