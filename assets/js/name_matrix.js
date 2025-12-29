@@ -41,8 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       setTimeout(() => {
         swapText(originalText);
-      }, 2000);
+      }, 10000);
 
-    }, 5000);
+    }, 10000);
   });
 });
