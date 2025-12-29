@@ -1,181 +1,186 @@
-// fall_chars.js
+// fall_chars_sync.js
 document.addEventListener('DOMContentLoaded', () => {
   const BTN_ID = 'trigger-fall';
-  const selectors = '#gravity-zone';
-  const MAX_CHARS = 2000; // sicurezza performance: non splittare pagine enormi
-  const FALL_DELAY = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--char-stagger')) || 18;
-  const GROUP_STAGGER = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--group-stagger')) || 180;
+  // Seleziona cosa splittare; per esempio: '#gravity-zone' o 'main'
+  // Esempio: per far cadere tutto dentro #gravity-zone (puoi mettere id in <p> o container)
+  const SPLIT_SELECTORS = '#gravity-zone'; // <-- METTI QUI il tuo selettore (es. '#gravity-zone' o 'main')
+  const MAX_CHARS = 4000; // safety cap
+  const POP_MAX_DELAY = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--char-pop-max-delay')) || 120;
   const RESET_AFTER = 3000; // ms prima di iniziare la risalita
+
   let running = false;
   let timers = [];
+  const originals = new Map();
 
-  // funzione per convertire un nodo testo in spans per carattere
-  function splitTextNode(node) {
-    const text = node.nodeValue;
-    if (!text || !text.trim()) return null; // evita nodi vuoti o solo spazi (meglio gestire spazi esternamente)
-
-    const frag = document.createDocumentFragment();
-    for (let ch of text) {
-      const span = document.createElement('span');
-      span.className = 'fall-char';
-      // preserva spazi come caratteri visibili con &nbsp; behaviour — useremo ' ' but CSS white-space:pre
-      span.textContent = ch;
-      frag.appendChild(span);
-    }
-    return frag;
-  }
-
-  // wrap: per ogni elemento selezionato, sostituisci i text nodes con span per char
-  function wrapChars() {
-    const elements = Array.from(document.querySelectorAll(selectors));
-    let totalChars = 0;
-    for (const el of elements) {
-      // non splittare elementi vuoti o con only children elements
-      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
-      const textNodes = [];
-      while (walker.nextNode()) textNodes.push(walker.currentNode);
-
-      // se non ci sono text nodes skip
-      if (textNodes.length === 0) continue;
-
-      // calcola chars count
-      const charCount = textNodes.reduce((s, n) => s + n.nodeValue.length, 0);
-      if (totalChars + charCount > MAX_CHARS) {
-        // stop se superiamo limite globale per performance
-        console.warn('fall_chars: limite massimo caratteri raggiunto, skipping remaining elements.');
-        break;
-      }
-      totalChars += charCount;
-
-      // sostituisci ogni nodo testo con fragment di span per char
-      for (const tn of textNodes) {
-        // evita splittare solo whitespace (ma preserva spazi singoli)
-        if (!tn.nodeValue) continue;
-        const frag = splitTextNode(tn);
-        if (frag) tn.parentNode.replaceChild(frag, tn);
-      }
-    }
-  }
-
-  // costruisci elenco di span in document order
-  function collectChars() {
-    return Array.from(document.querySelectorAll('.fall-char'));
-  }
-
-  // raggruppa gli span secondo il tipo del loro genitore (headings, paragraphs, list items, others)
-  function groupByParent(chars) {
-    const groups = { headings: [], paragraphs: [], listitems: [], others: [] };
-    chars.forEach(ch => {
-      const p = ch.closest('h1,h2,h3,h4,h5,h6');
-      if (p) { groups.headings.push(ch); return; }
-      const pg = ch.closest('p');
-      if (pg) { groups.paragraphs.push(ch); return; }
-      const li = ch.closest('li');
-      if (li) { groups.listitems.push(ch); return; }
-      groups.others.push(ch);
-    });
-    return groups;
-  }
-
-  // pulizia timers
   function clearTimers() {
     timers.forEach(t => clearTimeout(t));
     timers = [];
   }
 
-  // sequenza di caduta (stagger per carattere)
-  function fallSequence(chars) {
-    chars.forEach((ch, i) => {
-      // rota casuale
-      const rot = (Math.random() * 30 + 5) * (Math.random() < 0.5 ? -1 : 1);
-      ch.style.setProperty('--r', rot + 'deg');
-      const t = setTimeout(() => {
-        ch.classList.remove('char-rise-active');
-        // trigger fall
-        ch.classList.add('char-fall-active');
-      }, i * FALL_DELAY);
-      timers.push(t);
-    });
-  }
+  // SPLIT: replace text nodes with spans per carattere
+  function splitElementText(el) {
+    if (!originals.has(el)) originals.set(el, el.innerHTML);
+    const childNodes = Array.from(el.childNodes);
+    let total = 0;
 
-  // risalita: applichiamo rise per i gruppi in ordine con group staggering,
-  // e all'interno di ciascun gruppo risaliamo i caratteri con lo stesso FALL_DELAY
-  function riseGroupsInOrder(grouped) {
-    const order = [grouped.headings, grouped.paragraphs, grouped.listitems, grouped.others];
-    let baseOffset = 0;
-    order.forEach((arr) => {
-      if (!arr || arr.length === 0) {
-        baseOffset += GROUP_STAGGER;
-        return;
+    for (const node of childNodes) {
+      if (node.nodeType !== Node.TEXT_NODE) continue;
+      const text = node.nodeValue;
+      if (!text) continue;
+      const frag = document.createDocumentFragment();
+      for (const ch of Array.from(text)) {
+        const span = document.createElement('span');
+        span.className = 'fall-char';
+        span.textContent = (ch === ' ') ? '\u00A0' : ch; // preserve spaces
+        frag.appendChild(span);
       }
-      const t = setTimeout(() => {
-        arr.forEach((ch, i) => {
-          const tt = setTimeout(() => {
-            // rimuovi class fall e applica rise
-            ch.classList.remove('char-fall-active');
-            // trigger reflow to reset animation if necessary
-            void ch.offsetWidth;
-            ch.classList.add('char-rise-active');
-          }, i * FALL_DELAY);
-          timers.push(tt);
-        });
-      }, baseOffset);
-      timers.push(t);
-      baseOffset += (arr.length * FALL_DELAY) + GROUP_STAGGER;
-    });
-
-    // cleanup after all done
-    const cleanupT = setTimeout(() => {
-      const all = collectChars();
-      all.forEach(ch => {
-        ch.classList.remove('char-rise-active', 'char-fall-active');
-        ch.style.removeProperty('--r');
-      });
-      running = false;
-    }, baseOffset + 1200);
-    timers.push(cleanupT);
+      node.parentNode.replaceChild(frag, node);
+      total += text.length;
+    }
+    return total;
   }
 
-  function fallAndReturn() {
+  function prepareChars(selectors) {
+    const elements = Array.from(document.querySelectorAll(selectors));
+    let total = 0;
+    const processed = [];
+    for (const el of elements) {
+      // skip header/nav/footer for safety
+      if (el.closest && el.closest('header,nav,footer')) continue;
+      const count = splitElementText(el);
+      if (count > 0) {
+        total += count;
+        processed.push(el);
+      }
+      if (total > MAX_CHARS) {
+        // rollback
+        processed.forEach(p => {
+          if (originals.has(p)) p.innerHTML = originals.get(p);
+          originals.delete(p);
+        });
+        return { success: false, total: 0, processed: [] };
+      }
+    }
+    return { success: true, total, processed };
+  }
+
+  function collectChars() {
+    return Array.from(document.querySelectorAll('.fall-char'));
+  }
+
+  // fase pop per-lettera con piccoli delay casuali; poi tutte cadono insieme
+  function popThenFallAll(chars) {
+    // pop per char con random delay (ma we will trigger fall for ALL at same startTime)
+    const popDelays = chars.map(() => Math.floor(Math.random() * POP_MAX_DELAY));
+    const popDuration = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--char-pop-duration')) || 180;
+
+    // schedule pops
+    chars.forEach((ch, i) => {
+      const d = popDelays[i];
+      const t = setTimeout(() => {
+        ch.classList.add('char-pop');
+      }, d);
+      timers.push(t);
+    });
+
+    // compute when last pop finishes
+    const maxPopEnd = Math.max(...popDelays) + popDuration + 20;
+
+    // at that moment, start all falls together
+    const tFall = setTimeout(() => {
+      // set rotation var and trigger fall class for all chars simultaneously
+      chars.forEach(ch => {
+        const rot = (Math.random() * 40 + 8) * (Math.random() < 0.5 ? -1 : 1); // larger rotation during fall
+        ch.style.setProperty('--r', rot + 'deg');
+        ch.classList.remove('char-pop');
+        // ensure no rise class present then add fall
+        ch.classList.remove('char-rise-active');
+        ch.classList.add('char-fall-active');
+      });
+    }, maxPopEnd);
+    timers.push(tFall);
+
+    return maxPopEnd + (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--char-fall-duration')) || 1600);
+  }
+
+  // risalita: tutti insieme con rimbalzo
+  function riseAllTogether(chars) {
+    // remove any fall classes and add rise for all simultaneously
+    chars.forEach(ch => {
+      ch.classList.remove('char-fall-active');
+      void ch.offsetWidth;
+      ch.classList.add('char-rise-active');
+    });
+    // estimated duration from CSS variable
+    return parseInt(getComputedStyle(document.documentElement).getPropertyValue('--char-rise-duration')) || 900;
+  }
+
+  // orchestrator
+  function doFallSync() {
     if (running) return;
     running = true;
     clearTimers();
+
+    // disable scrolling & interactions
     document.documentElement.classList.add('falling-mode');
 
-    const chars = collectChars();
-    if (chars.length === 0) {
-      running = false;
+    const prep = prepareChars(SPLIT_SELECTORS);
+    if (!prep.success || prep.total === 0) {
+      // fallback: nothing to do or too many chars -> remove falling-mode and exit
       document.documentElement.classList.remove('falling-mode');
+      running = false;
       return;
     }
 
-    // fase caduta in ordine documentale (carattere per carattere)
-    fallSequence(chars);
-
-    // dopo RESET_AFTER ms iniziamo la risalita per gruppi
-    const tRise = setTimeout(() => {
-      const grouped = groupByParent(chars);
-      riseGroupsInOrder(grouped);
-      // togli falling-mode subito (pointer restore) — gli elementi avranno animazioni ma interazione ok
+    const chars = collectChars();
+    if (!chars.length) {
       document.documentElement.classList.remove('falling-mode');
+      running = false;
+      return;
+    }
+
+    // POP then FALL all together. get duration until fall end
+    const fallEndEst = popThenFallAll(chars);
+
+    // after RESET_AFTER ms from start of fall, trigger rise together
+    const tRise = setTimeout(() => {
+      const riseDur = riseAllTogether(chars);
+
+      // cleanup after rise complete
+      const tCleanup = setTimeout(() => {
+        // restore original DOM content to remove spans
+        for (const [el, html] of originals.entries()) {
+          el.innerHTML = html;
+        }
+        originals.clear();
+
+        // cleanup any inline styles/classes
+        chars.forEach(ch => {
+          ch.classList.remove('char-pop','char-fall-active','char-rise-active');
+          ch.style.removeProperty('--r');
+        });
+
+        // restore interactions/scroll
+        document.documentElement.classList.remove('falling-mode');
+        running = false;
+        clearTimers();
+      }, riseDur + 50);
+      timers.push(tCleanup);
+
     }, RESET_AFTER);
     timers.push(tRise);
   }
 
-  // inizializza: wrap chars (solo una volta)
-  wrapChars();
-
-  // tasto trigger (assicurati di avere un elemento con id BTN_ID)
+  // wire up trigger
   const btn = document.getElementById(BTN_ID);
-  if (btn) btn.addEventListener('click', () => {
-    if (!running) fallAndReturn();
-  });
+  if (btn) btn.addEventListener('click', () => { if (!running) doFallSync(); });
 
-  // opzionale: scorciatoia tastiera 'f'
-  document.addEventListener('keydown', e => {
-    if (e.key === 'f' && !running) fallAndReturn();
-  });
+  // optional key
+  document.addEventListener('keydown', e => { if (e.key === 'f' && !running) doFallSync(); });
 
-  // pulizia on unload
+  // expose for debug
+  window.__fall_chars_sync = doFallSync;
+
+  // cleanup on unload
   window.addEventListener('beforeunload', () => clearTimers());
 });
