@@ -17,8 +17,6 @@ $transition-slow: 300ms ease;
    Contenitore details = il "box"
    ========================= */
 .boxed-toggle {
-  justify-content: center;
-  text-align: center;
   border: 1px solid $btn-border;
   border-radius: $radius;
   background: $btn-bg;
@@ -38,7 +36,10 @@ $transition-slow: 300ms ease;
      ========================= */
   > .boxed-summary {
     display: flex;
+    display: flex;
+    justify-content: center;
     align-items: center;
+    text-align: center;
     gap: .5rem;
     width: 100%;
 
