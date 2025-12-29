@@ -1,6 +1,6 @@
 // name_matrix.js
 document.addEventListener('DOMContentLoaded', () => {
-  const el = document.querySelector('#site-name');
+  const el = document.querySelector('#name_title');
   if (!el) return;
 
   const original = el.textContent;
