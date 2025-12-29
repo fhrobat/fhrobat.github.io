@@ -126,3 +126,9 @@ img {
 .smooth-toggle[open] > .smooth-content {
   opacity: 1;
 }
+
+#name_title {
+  white-space: pre;
+  transition: opacity 300ms ease;
+  font-variant-numeric: lining-nums;
+}
