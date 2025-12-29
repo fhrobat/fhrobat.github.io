@@ -2,9 +2,9 @@
 layout: default
 ---
 <header>
-  <h1 id="name_title" class="fallable">{{ site.title }}</h1>
+  <h1 id="name_title">{{ site.title }}</h1>
   {%-if site.theme_config.show_description-%}
-    <p class="fallable">{{ site.description }} <br> <button id="trigger-fall" aria-pressed="false">---</button> </p>
+    <p>{{ site.description }} <br> <button id="trigger-fall" aria-pressed="false">---</button> </p>
   {%-endif-%}
 </header>
 
