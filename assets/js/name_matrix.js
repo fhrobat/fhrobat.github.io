@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
 ⎢ o  b ⎥
 ⎣ a  t ⎦`;
 
-  const matrixText = `${matrixFrancesco}\n\n${matrixHRobat}`;
+  const matrixText = `${matrixFrancesco}     ${matrixHRobat}`;
 
   function swapText(newText) {
     el.style.opacity = '0';
