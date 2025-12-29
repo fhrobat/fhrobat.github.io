@@ -1,10 +1,9 @@
-// fall_chars_sync.js
+// fall_chars_min.js
 document.addEventListener('DOMContentLoaded', () => {
   // CONFIG
   const BTN_ID = 'trigger-fall';
   const SPLIT_SELECTORS = '#gravity-zone';
   const MAX_CHARS = 4000;
-  const RESET_AFTER = 3000; // rimane come riferimento (non usato se riseTriggerDelay = fallEndEst)
 
   // STATO
   let running = false;
@@ -26,27 +25,17 @@ document.addEventListener('DOMContentLoaded', () => {
     return Number.isNaN(n) ? fallback : n;
   }
 
-  // CONTEGGIO RICORSIVO DEI CARATTERI (prima di mutare il DOM)
-  function countTextCharsRecursively(node) {
-    let count = 0;
-    node.childNodes.forEach(child => {
-      if (child.nodeType === Node.TEXT_NODE) {
-        count += (child.nodeValue || '').length;
-      } else if (child.nodeType === Node.ELEMENT_NODE) {
-        const tag = child.tagName && child.tagName.toLowerCase();
-        if (tag === 'script' || tag === 'style' || tag === 'noscript') return;
-        count += countTextCharsRecursively(child);
-      }
-    });
-    return count;
+  // SEMPLICE CONTEGGIO PER TESTO (textContent è leggero)
+  function countTextCharsSimple(node) {
+    return (node.textContent || '').length;
   }
 
   // SOSTITUISCE I TEXT NODE CON SPAN PER CARATTERE
-  function replaceTextNodesWithSpans(node) {
-    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+  // Assegna inline --pop-delay per char (riduce timers JS)
+  function replaceTextNodesWithSpans(root, popMaxDelay) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(txtNode) {
-        if (!txtNode.nodeValue) return NodeFilter.FILTER_REJECT;
-        // evita text inside script/style/noscript
+        if (!txtNode.nodeValue || !txtNode.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
         let p = txtNode.parentNode;
         while (p) {
           if (p.nodeType === Node.ELEMENT_NODE) {
@@ -62,56 +51,50 @@ document.addEventListener('DOMContentLoaded', () => {
     const textNodes = [];
     while (walker.nextNode()) textNodes.push(walker.currentNode);
 
-    textNodes.forEach(textNode => {
+    for (const textNode of textNodes) {
       const text = textNode.nodeValue || '';
-      if (text.length === 0) return;
+      if (text.length === 0) continue;
       const frag = document.createDocumentFragment();
       for (const ch of Array.from(text)) {
         const span = document.createElement('span');
         span.className = 'fall-char';
-        // usa lo spazio normale: permette giustificazione
         span.textContent = ch;
+        // assegna delay casuale inline: usiamo percentuale del popMaxDelay
+        const d = Math.floor(Math.random() * popMaxDelay);
+        span.style.setProperty('--pop-delay', d + 'ms');
         frag.appendChild(span);
       }
       textNode.parentNode.replaceChild(frag, textNode);
-    });
+    }
   }
 
   // PREPARA I CONTAINER: conta, salva innerHTML e sostituisce text nodes
   function prepareChars(selectors) {
     const elements = Array.from(document.querySelectorAll(selectors));
-    if (!elements.length) {
-      console.warn('[fall_chars] selettore non ha trovato elementi:', selectors);
-      return { success: false, total: 0, processed: [] };
-    }
+    if (!elements.length) return { success: false, total: 0, processed: [] };
 
     let total = 0;
     const processed = [];
 
     for (const el of elements) {
-      const c = countTextCharsRecursively(el);
-      console.log('[fall_chars] elemento trovato:', el, 'chars:', c);
+      const c = countTextCharsSimple(el);
       if (c === 0) continue;
       total += c;
       processed.push(el);
       if (total > MAX_CHARS) {
-        console.warn('[fall_chars] MAX_CHARS superato durante il conteggio. Tot=', total, 'MAX=', MAX_CHARS);
+        // abort se troppo grande
         return { success: false, total: 0, processed: [] };
       }
     }
 
-    if (processed.length === 0) {
-      console.warn('[fall_chars] nessun elemento processabile trovato dopo filtro.');
-      return { success: false, total: 0, processed: [] };
-    }
+    if (processed.length === 0) return { success: false, total: 0, processed: [] };
 
-    // effettua la trasformazione: salva innerHTML e replace ricorsivo
+    const POP_MAX_DELAY = cssVarNumber('--char-pop-max-delay', 120);
     processed.forEach(el => {
       if (!originals.has(el)) originals.set(el, el.innerHTML);
-      replaceTextNodesWithSpans(el);
+      replaceTextNodesWithSpans(el, POP_MAX_DELAY);
     });
 
-    console.log('[fall_chars] preparazione completata. Caratteri totali:', total, 'elementi:', processed.length);
     return { success: true, total, processed };
   }
 
@@ -119,65 +102,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return Array.from(document.querySelectorAll('.fall-char'));
   }
 
-  // pop per-char con delay random, poi fall simultanea; ritorna stima durata caduta (ms)
-  function popThenFallAll(chars) {
-    if (!chars.length) return 0;
-    const POP_MAX_DELAY = cssVarNumber('--char-pop-max-delay', 120);
-    const popDuration = cssVarNumber('--char-pop-duration', 180);
-    const fallDuration = cssVarNumber('--char-fall-duration', 1600);
-
-    const popDelays = chars.map(() => Math.floor(Math.random() * POP_MAX_DELAY));
-
-    chars.forEach((ch, i) => {
-      const d = popDelays[i];
-      const t = setTimeout(() => {
-        ch.classList.add('char-pop');
-      }, d);
-      timers.push(t);
-    });
-
-    const maxPopDelay = Math.max(...popDelays);
-    const maxPopEnd = maxPopDelay + popDuration + 20;
-
-    const tFall = setTimeout(() => {
-      chars.forEach(ch => {
-        const rot = (Math.random() * 40 + 8) * (Math.random() < 0.5 ? -1 : 1);
-        ch.style.setProperty('--r', rot + 'deg');
-        ch.classList.remove('char-pop');
-        void ch.offsetWidth; // force reflow
-        ch.classList.remove('char-rise-active');
-        ch.classList.add('char-fall-active');
-      });
-    }, maxPopEnd);
-    timers.push(tFall);
-
-    return maxPopEnd + fallDuration;
-  }
-
-  // rise together; ritorna durata stimata (ms)
-  function riseAllTogether(chars) {
-    const riseDur = cssVarNumber('--char-rise-duration', 900);
-    chars.forEach(ch => {
-      ch.classList.remove('char-fall-active');
-      void ch.offsetWidth;
-      ch.classList.add('char-rise-active');
-    });
-    return riseDur;
-  }
-
-  // ORCHESTRATORE
+  // orchestratore semplificato
   function doFallSync() {
-    if (running) {
-      console.log('[fall_chars] già in esecuzione');
-      return;
-    }
+    if (running) return;
     running = true;
     clearTimers();
     document.documentElement.classList.add('falling-mode');
 
     const prep = prepareChars(SPLIT_SELECTORS);
     if (!prep.success || prep.total === 0) {
-      console.warn('[fall_chars] nessun carattere processato o superato limite');
       document.documentElement.classList.remove('falling-mode');
       running = false;
       return;
@@ -185,52 +118,81 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const chars = collectChars();
     if (!chars.length) {
-      console.warn('[fall_chars] .fall-char non trovati dopo split');
       document.documentElement.classList.remove('falling-mode');
       running = false;
       return;
     }
 
-    console.log('[fall_chars] chars raccolti:', chars.length);
+    const POP_MAX_DELAY = cssVarNumber('--char-pop-max-delay', 120);
+    const popDuration = cssVarNumber('--char-pop-duration', 180);
+    const fallDuration = cssVarNumber('--char-fall-duration', 1600);
+    const riseDur = cssVarNumber('--char-rise-duration', 900);
 
-    const fallEndEst = popThenFallAll(chars);
+    // aggiunge la classe di pop a tutti i char (CSS leggerà --pop-delay)
+    for (const ch of chars) {
+      ch.classList.add('char-pop');
+    }
 
-    // rise sync sulla fine stimata della caduta
-    const riseTriggerDelay = fallEndEst;
+    // calcola max pop delay a partire dallo stile inline (se presente), altrimenti POP_MAX_DELAY
+    let maxPopDelay = 0;
+    for (const ch of chars) {
+      const raw = ch.style.getPropertyValue('--pop-delay');
+      const parsed = raw ? parseInt(raw.replace('ms',''), 10) : NaN;
+      if (!Number.isNaN(parsed) && parsed > maxPopDelay) maxPopDelay = parsed;
+    }
+    if (maxPopDelay === 0) maxPopDelay = POP_MAX_DELAY;
 
-    const tRise = setTimeout(() => {
-      const riseDur = riseAllTogether(chars);
+    // unico timeout per attivare la caduta dopo il pop
+    const fallTriggerDelay = maxPopDelay + popDuration + 20;
+    const tFall = setTimeout(() => {
+      for (const ch of chars) {
+        const rot = (Math.random() * 40 + 8) * (Math.random() < 0.5 ? -1 : 1);
+        ch.style.setProperty('--r', rot + 'deg');
+        ch.classList.remove('char-pop');
+        // forzare reflow minimo
+        void ch.offsetWidth;
+        ch.classList.add('char-fall-active');
+      }
+    }, fallTriggerDelay);
+    timers.push(tFall);
+
+    // programma il rise dopo la caduta completa
+    const totalToRise = fallTriggerDelay + fallDuration;
+    const tRiseAndCleanup = setTimeout(() => {
+      // rise insieme
+      for (const ch of chars) {
+        ch.classList.remove('char-fall-active');
+        void ch.offsetWidth;
+        ch.classList.add('char-rise-active');
+      }
+
+      // cleanup dopo il rise
       const tCleanup = setTimeout(() => {
-        // ripristina innerHTML originale
         for (const [el, html] of originals.entries()) {
           el.innerHTML = html;
         }
         originals.clear();
-
-        // pulizia eventuale
-        chars.forEach(ch => {
+        // rimuovo eventuali classi/residue
+        for (const ch of chars) {
           ch.classList.remove('char-pop','char-fall-active','char-rise-active');
           ch.style.removeProperty('--r');
-        });
-
+          ch.style.removeProperty('--pop-delay');
+        }
         document.documentElement.classList.remove('falling-mode');
         running = false;
         clearTimers();
-        console.log('[fall_chars] ciclo completato e DOM ripristinato');
       }, riseDur + 50);
-      timers.push(tCleanup);
-    }, riseTriggerDelay);
-    timers.push(tRise);
 
-    console.log('[fall_chars] stima durata caduta (ms):', fallEndEst, 'rise trigger (ms):', riseTriggerDelay);
+      timers.push(tCleanup);
+    }, totalToRise);
+    timers.push(tRiseAndCleanup);
   }
 
-  // BIND UI & debug
+  // BIND UI minimale
   const btn = document.getElementById(BTN_ID);
   if (btn) btn.addEventListener('click', () => { if (!running) doFallSync(); });
   document.addEventListener('keydown', e => { if (e.key === 'f' && !running) doFallSync(); });
 
-  // exposure for debug
-  window.__fall_chars_sync = doFallSync;
+  // pulizia se lascia la pagina (opzionale)
   window.addEventListener('beforeunload', () => clearTimers());
 });
