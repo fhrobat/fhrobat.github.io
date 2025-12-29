@@ -1,6 +1,7 @@
 entries:
   - title: publications
     url: publications.html
+    content: ciao
 
   - title: teaching
     url: teaching.html
