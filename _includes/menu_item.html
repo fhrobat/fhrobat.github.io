@@ -11,7 +11,7 @@
           </p>
         </div>
       </details>
-    {%- elseif item.content -%}
+    {%- elsif item.content -%}
       <details class="smooth-toggle">
         <summary> {{item.title}} </summary>
         <div class="smooth-content">
@@ -21,7 +21,7 @@
           </p>
         </div>
       </details>
-    {%- elseif item.url -%}
+    {%- elsif item.url -%}
       <a href="{{ item.url }}">{{ item.title }}</a>
     {%- else -%}
       {{item.title}}
