@@ -101,3 +101,5 @@
     initAll();
   }
 })();
+
+import './name_matrix.js';
