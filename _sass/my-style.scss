@@ -114,3 +114,15 @@ img {
   border-radius: 50%;
   max-width: 80%;
 }
+
+.smooth-toggle > .smooth-content {
+  overflow: hidden;
+  height: 0;
+  transition: height 300ms ease, opacity 200ms ease;
+  opacity: 0;
+}
+
+/* contenuto visibile */
+.smooth-toggle[open] > .smooth-content {
+  opacity: 1;
+}
