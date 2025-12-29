@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const originalText = el.textContent;
 
+  /* -------- matrici -------- */
   const matrixFrancesco =
 `⎡ F  r  a ⎤
 ⎢ n  c  e ⎥
@@ -14,17 +15,23 @@ document.addEventListener('DOMContentLoaded', () => {
 ⎢ o  b ⎥
 ⎣ a  t ⎦`;
 
-  const matrixText = `${matrixFrancesco}     ${matrixHRobat}`;
+  const matrixText = `${matrixFrancesco}  ${matrixHRobat}`;
 
+  /* -------- timing (ms) -------- */
+  const DELAY_BEFORE = 5000; // attesa prima di mostrare le matrici
+  const SHOW_TIME   = 5000; // durata delle matrici
+  const FADE_TIME   = 300;  // deve matchare il CSS
+
+  /* -------- helper fade -------- */
   function swapText(newText) {
     el.style.opacity = '0';
     setTimeout(() => {
       el.textContent = newText;
       el.style.opacity = '1';
-    }, 300);
+    }, FADE_TIME);
   }
 
-  /* ---- FISSIAMO L'ALTEZZA MASSIMA (anti-salto) ---- */
+  /* -------- fissiamo altezza massima (anti-salto) -------- */
   el.textContent = matrixText;
   el.style.visibility = 'hidden';
 
@@ -35,14 +42,25 @@ document.addEventListener('DOMContentLoaded', () => {
     el.textContent = originalText;
     el.style.visibility = 'visible';
 
-    /* ---- TIMELINE ---- */
-    setTimeout(() => {
-      swapText(matrixText);
-
+    /* -------- LOOP -------- */
+    function loop() {
+      // dopo 5s → mostra matrici
       setTimeout(() => {
-        swapText(originalText);
-      }, 10000);
+        swapText(matrixText);
 
-    }, 10000);
+        // dopo 2s → torna testo normale
+        setTimeout(() => {
+          swapText(originalText);
+
+          // richiama il loop
+          loop();
+
+        }, SHOW_TIME);
+
+      }, DELAY_BEFORE);
+    }
+
+    // avvio
+    loop();
   });
 });
