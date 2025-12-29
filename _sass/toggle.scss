@@ -1,0 +1,126 @@
+/* =========================
+   Variabili
+   ========================= */
+$btn-bg: #ffffff;
+$btn-border: #d8dce0;
+$btn-hover: rgba(1, 42, 74, 0.06);
+$btn-open-bg: #f5f8fb;
+$btn-accent: #012a4a;
+
+$btn-radius: 8px;
+$btn-padding: 0.6rem 0.9rem;
+$transition-fast: 200ms ease;
+$transition-slow: 300ms ease;
+
+
+/* =========================
+   Toggle container
+   ========================= */
+.smooth-toggle {
+  margin: 0.5rem 0;
+
+  /* ---------- contenuto animato ---------- */
+  > .smooth-content {
+    overflow: hidden;
+    height: 0;
+    opacity: 0;
+    transition: height $transition-slow, opacity $transition-fast;
+  }
+
+  &[open] {
+    > .smooth-content {
+      opacity: 1;
+    }
+  }
+}
+
+
+/* =========================
+   Summary come bottone
+   ========================= */
+.boxed-toggle {
+  > .boxed-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    padding: $btn-padding;
+    border: 1px solid $btn-border;
+    border-radius: $btn-radius;
+    background: $btn-bg;
+    color: $btn-accent;
+
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+
+    transition:
+      background $transition-fast,
+      box-shadow $transition-fast,
+      transform $transition-fast,
+      border-color $transition-fast;
+
+    /* rimuove marker nativo */
+    &::-webkit-details-marker {
+      display: none;
+    }
+    &::marker {
+      content: none;
+    }
+
+    /* caret */
+    &::before {
+      content: "";
+      display: inline-block;
+      width: 0.55em;
+      height: 0.55em;
+      margin-right: 0.45rem;
+
+      border-right: 2px solid $btn-accent;
+      border-bottom: 2px solid $btn-accent;
+
+      transform: rotate(45deg);
+      opacity: 0.9;
+      transition: transform $transition-fast;
+    }
+
+    /* hover / focus */
+    &:hover,
+    &:focus {
+      background: $btn-hover;
+      border-color: rgba(1, 42, 74, 0.12);
+      box-shadow: 0 6px 18px rgba(1, 42, 74, 0.06);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+
+    &:focus-visible {
+      box-shadow: 0 0 0 3px rgba(1, 42, 74, 0.12);
+    }
+
+    /* variante full-width (opzionale) */
+    &.fullwidth {
+      display: flex;
+      width: 100%;
+      justify-content: space-between;
+    }
+  }
+
+  /* ---------- stato open ---------- */
+  &[open] {
+    > .boxed-summary {
+      background: $btn-open-bg;
+      border-color: rgba(1, 42, 74, 0.09);
+      box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.02);
+
+      &::before {
+        transform: rotate(135deg);
+      }
+    }
+  }
+}
