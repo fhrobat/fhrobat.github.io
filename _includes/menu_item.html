@@ -2,7 +2,7 @@
   {%-for item in include.collection-%}
     <li>
     {%- if item.url and item.content-%}
-      <details class="smooth-toggle">
+      <details class="smooth-toggle" open>
         <summary> {{item.title}} </summary>
         <div class="smooth-content">
           <p>
