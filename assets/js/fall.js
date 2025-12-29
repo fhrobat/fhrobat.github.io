@@ -1,12 +1,9 @@
-// fall_chars_sync.js
+// fall_chars_sync.fixed.js
 document.addEventListener('DOMContentLoaded', () => {
   const BTN_ID = 'trigger-fall';
-  // Seleziona cosa splittare; per esempio: '#gravity-zone' o 'main'
-  // Esempio: per far cadere tutto dentro #gravity-zone (puoi mettere id in <p> o container)
-  const SPLIT_SELECTORS = '#gravity-zone'; // <-- METTI QUI il tuo selettore (es. '#gravity-zone' o 'main')
+  const SPLIT_SELECTORS = '#gravity-zone'; // selettore principale
   const MAX_CHARS = 4000; // safety cap
-  const POP_MAX_DELAY = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--char-pop-max-delay')) || 120;
-  const RESET_AFTER = 3000; // ms prima di iniziare la risalita
+  const RESET_AFTER = 3000; // ms prima di iniziare la risalita (from start of fall)
 
   let running = false;
   let timers = [];
@@ -17,7 +14,17 @@ document.addEventListener('DOMContentLoaded', () => {
     timers = [];
   }
 
-  // SPLIT: replace text nodes with spans per carattere
+  function cssVarNumber(varName, fallback) {
+    const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    if (!val) return fallback;
+    // strip non-digit prefix/suffix (e.g. "1600ms") and parse int base 10
+    const m = val.match(/-?\d+/);
+    if (!m) return fallback;
+    const n = parseInt(m[0], 10);
+    return Number.isNaN(n) ? fallback : n;
+  }
+
+  // Replace direct text nodes of el with spans per character
   function splitElementText(el) {
     if (!originals.has(el)) originals.set(el, el.innerHTML);
     const childNodes = Array.from(el.childNodes);
@@ -45,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let total = 0;
     const processed = [];
     for (const el of elements) {
-      // skip header/nav/footer for safety
+      // skip if inside header/nav/footer
       if (el.closest && el.closest('header,nav,footer')) continue;
       const count = splitElementText(el);
       if (count > 0) {
@@ -53,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
         processed.push(el);
       }
       if (total > MAX_CHARS) {
-        // rollback
+        console.warn('[fall_chars] MAX_CHARS superato, effettuo rollback');
         processed.forEach(p => {
           if (originals.has(p)) p.innerHTML = originals.get(p);
           originals.delete(p);
@@ -68,12 +75,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return Array.from(document.querySelectorAll('.fall-char'));
   }
 
-  // fase pop per-lettera con piccoli delay casuali; poi tutte cadono insieme
   function popThenFallAll(chars) {
-    // pop per char con random delay (ma we will trigger fall for ALL at same startTime)
-    const popDelays = chars.map(() => Math.floor(Math.random() * POP_MAX_DELAY));
-    const popDuration = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--char-pop-duration')) || 180;
+    if (!chars.length) return 0;
+    // fetch timings from CSS variables with safe fallbacks
+    const POP_MAX_DELAY = cssVarNumber('--char-pop-max-delay', 120);
+    const popDuration = cssVarNumber('--char-pop-duration', 180);
+    const fallDuration = cssVarNumber('--char-fall-duration', 1600);
 
+    // per-char random pop delay
+    const popDelays = chars.map(() => Math.floor(Math.random() * POP_MAX_DELAY));
     // schedule pops
     chars.forEach((ch, i) => {
       const d = popDelays[i];
@@ -84,69 +94,74 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // compute when last pop finishes
-    const maxPopEnd = Math.max(...popDelays) + popDuration + 20;
+    const maxPopDelay = Math.max(...popDelays);
+    const maxPopEnd = maxPopDelay + popDuration + 20;
 
     // at that moment, start all falls together
     const tFall = setTimeout(() => {
       // set rotation var and trigger fall class for all chars simultaneously
       chars.forEach(ch => {
-        const rot = (Math.random() * 40 + 8) * (Math.random() < 0.5 ? -1 : 1); // larger rotation during fall
+        const rot = (Math.random() * 40 + 8) * (Math.random() < 0.5 ? -1 : 1);
         ch.style.setProperty('--r', rot + 'deg');
         ch.classList.remove('char-pop');
-        // ensure no rise class present then add fall
+        // force reflow before adding fall
+        void ch.offsetWidth;
         ch.classList.remove('char-rise-active');
         ch.classList.add('char-fall-active');
       });
     }, maxPopEnd);
     timers.push(tFall);
 
-    return maxPopEnd + (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--char-fall-duration')) || 1600);
+    // return estimated time (ms) from start of pop to end of fall
+    return maxPopEnd + fallDuration;
   }
 
-  // risalita: tutti insieme con rimbalzo
   function riseAllTogether(chars) {
-    // remove any fall classes and add rise for all simultaneously
+    const riseDur = cssVarNumber('--char-rise-duration', 900);
     chars.forEach(ch => {
       ch.classList.remove('char-fall-active');
+      // force reflow
       void ch.offsetWidth;
       ch.classList.add('char-rise-active');
     });
-    // estimated duration from CSS variable
-    return parseInt(getComputedStyle(document.documentElement).getPropertyValue('--char-rise-duration')) || 900;
+    return riseDur;
   }
 
-  // orchestrator
   function doFallSync() {
-    if (running) return;
+    if (running) {
+      console.log('[fall_chars] già in esecuzione, ignoro trigger');
+      return;
+    }
     running = true;
     clearTimers();
 
-    // disable scrolling & interactions
     document.documentElement.classList.add('falling-mode');
 
     const prep = prepareChars(SPLIT_SELECTORS);
     if (!prep.success || prep.total === 0) {
-      // fallback: nothing to do or too many chars -> remove falling-mode and exit
+      console.warn('[fall_chars] nessun carattere processato o superato limite');
       document.documentElement.classList.remove('falling-mode');
       running = false;
       return;
     }
+
+    console.log('[fall_chars] caratteri processati:', prep.total);
 
     const chars = collectChars();
     if (!chars.length) {
+      console.warn('[fall_chars] non ho trovato span .fall-char dopo split');
       document.documentElement.classList.remove('falling-mode');
       running = false;
       return;
     }
 
-    // POP then FALL all together. get duration until fall end
+    // POP then FALL — otteniamo una stima della durata totale della caduta
     const fallEndEst = popThenFallAll(chars);
 
-    // after RESET_AFTER ms from start of fall, trigger rise together
+    // choose when to rise: qui uso RESET_AFTER (dal tuo codice) — puoi invece usare fallEndEst
+    const riseTriggerDelay = RESET_AFTER; // oppure: Math.min(RESET_AFTER, fallEndEst)
     const tRise = setTimeout(() => {
       const riseDur = riseAllTogether(chars);
-
-      // cleanup after rise complete
       const tCleanup = setTimeout(() => {
         // restore original DOM content to remove spans
         for (const [el, html] of originals.entries()) {
@@ -160,27 +175,26 @@ document.addEventListener('DOMContentLoaded', () => {
           ch.style.removeProperty('--r');
         });
 
-        // restore interactions/scroll
         document.documentElement.classList.remove('falling-mode');
         running = false;
         clearTimers();
+        console.log('[fall_chars] ciclo completato e DOM ripristinato');
       }, riseDur + 50);
       timers.push(tCleanup);
-
-    }, RESET_AFTER);
+    }, riseTriggerDelay);
     timers.push(tRise);
+
+    // debug info
+    console.log('[fall_chars] stima durata caduta (ms):', fallEndEst,
+                'rise trigger in (ms):', riseTriggerDelay);
   }
 
-  // wire up trigger
+  // bind trigger button/key
   const btn = document.getElementById(BTN_ID);
   if (btn) btn.addEventListener('click', () => { if (!running) doFallSync(); });
 
-  // optional key
   document.addEventListener('keydown', e => { if (e.key === 'f' && !running) doFallSync(); });
 
-  // expose for debug
   window.__fall_chars_sync = doFallSync;
-
-  // cleanup on unload
   window.addEventListener('beforeunload', () => clearTimers());
 });
