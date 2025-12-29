@@ -1,7 +1,7 @@
 // fall_chars.js
 document.addEventListener('DOMContentLoaded', () => {
   const BTN_ID = 'trigger-fall';
-  const selectors = 'h1,h2,h3,h4,h5,h6,p,li'; // elementi da "splitter" in caratteri
+  const SPLIT_SELECTORS = '#gravity-zone h1, #gravity-zone h2, #gravity-zone p, #gravity-zone li';
   const MAX_CHARS = 2000; // sicurezza performance: non splittare pagine enormi
   const FALL_DELAY = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--char-stagger')) || 18;
   const GROUP_STAGGER = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--group-stagger')) || 180;
