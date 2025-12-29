@@ -1,4 +1,3 @@
-<script>
 document.querySelectorAll(".smooth-toggle").forEach(details => {
   const content = details.querySelector(".smooth-content");
 
@@ -18,4 +17,3 @@ document.querySelectorAll(".smooth-toggle").forEach(details => {
     }
   });
 });
-</script>
