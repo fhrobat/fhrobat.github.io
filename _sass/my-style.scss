@@ -129,6 +129,9 @@ img {
 
 #name_title {
   white-space: pre;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: opacity 300ms ease;
-  font-variant-numeric: lining-nums;
 }
+
