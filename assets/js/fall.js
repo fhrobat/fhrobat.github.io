@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const BTN_ID = 'trigger-fall';
   // Seleziona cosa splittare; per esempio: '#gravity-zone' o 'main'
   // Esempio: per far cadere tutto dentro #gravity-zone (puoi mettere id in <p> o container)
-  const SPLIT_SELECTORS = '#gravity-zone'; // <-- METTI QUI il tuo selettore (es. '#gravity-zone' o 'main')
+  const selectors = '#gravity-zone'; // <-- METTI QUI il tuo selettore (es. '#gravity-zone' o 'main')
   const MAX_CHARS = 4000; // safety cap
   const POP_MAX_DELAY = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--char-pop-max-delay')) || 120;
   const RESET_AFTER = 3000; // ms prima di iniziare la risalita
