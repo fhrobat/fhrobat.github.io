@@ -5,7 +5,7 @@ url:  "https://fhrobat.github.io" # root address of the site
 scholar: "https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ"
 baseurl: "/website" # subpath of the site, e.g. "/blog" (leave it blank "" if you're site shouldn't use a subpath)
 description: > # description of the site (multiple lines allowed)
-<div class="row">
+ <div class="row">
   <div class="column">
   Ciao
   </div>
