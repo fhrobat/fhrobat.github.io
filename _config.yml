@@ -7,7 +7,7 @@ baseurl: "/website" # subpath of the site, e.g. "/blog" (leave it blank "" if yo
 description: > # description of the site (multiple lines allowed)
  <div class="row">
   <div class="column">
-  Ciao
+  <img src="hrobat.jpg" alt="portrait">
   </div>
   <div class="column">
   <a href="mailto:francesco.hrobat@maths.ox.ac.uk"> email </a>  <a href="https://fhrobat.github.io"> github </a> <a href="https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ"> scholar </a> <a href="https://arxiv.org/search/math?searchtype=author&query=Hrobat,+F"> arxiv </a> <a href="https://www.linkedin.com/in/francesco-hrobat"> linkedin </a> <a href="https://orcid.org/0009-0002-5304-8107"> orcid </a> <br>
