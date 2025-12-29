@@ -1,22 +1,33 @@
 :root{
-  --char-fall-duration: 900ms;
-  --char-rise-duration: 900ms;
-  --char-stagger: 18ms;     /* ritardo tra caratteri */
-  --group-stagger: 180;     /* ritardo tra gruppi (headings -> paras -> others) */
+  --char-pop-duration: 180ms;    /* pop prima della caduta */
+  --char-fall-duration: 1600ms;  /* durata caduta (più lenta) */
+  --char-rise-duration: 900ms;   /* durata risalita */
+  --char-pop-max-delay: 120;     /* max delay random prima del pop (ms) */
+  --char-stagger: 18ms;          /* usato per fallback, non per caduta sincronizzata */
   --max-fall-y: 120vh;
   --shadow-start: 0 6px 12px rgba(0,0,0,0.06);
   --shadow-mid:   0 18px 36px rgba(0,0,0,0.12);
 }
 
-/* ogni carattere è inline-block per poter trasformare */
+/* ogni carattere è inline-block per trasformazioni */
 .fall-char {
   display: inline-block;
-  white-space: pre; /* preserva spazi */
+  white-space: pre; /* preserve spaces */
   will-change: transform, opacity, box-shadow;
   transform-origin: center;
 }
 
-/* CADUTA: sposta giù, ruota e aumenta ombra */
+/* ===== small pop (sbalzo) prima di cadere ===== */
+@keyframes char-pop {
+  0%   { transform: translateY(0) scale(1); }
+  40%  { transform: translateY(-8px) scale(1.03); }
+  100% { transform: translateY(0) scale(1); }
+}
+.char-pop {
+  animation: char-pop var(--char-pop-duration) cubic-bezier(.2,.9,.3,1) forwards;
+}
+
+/* ===== CADUTA: trasla giù, ruota e aumenta ombra ===== */
 @keyframes char-fall {
   0% {
     transform: translateY(0) rotate(0deg) scale(1);
@@ -35,7 +46,7 @@
   }
 }
 
-/* RISALITA con overshoot e rimbalzo */
+/* ===== RISALITA con overshoot (rimbalzo) ===== */
 @keyframes char-rise {
   0% {
     transform: translateY(var(--max-fall-y)) rotate(calc(var(--r) * 1.2)) scale(0.98);
@@ -58,17 +69,17 @@
   }
 }
 
-/* classi aggiunte via JS */
+/* classi attivate dal JS */
+.char-pop { /* vedi sopra */ }
 .char-fall-active {
   animation: char-fall var(--char-fall-duration) cubic-bezier(0.2,0.8,0.2,1) forwards;
 }
-
 .char-rise-active {
   animation: char-rise var(--char-rise-duration) cubic-bezier(0.2,1,0.3,1) forwards;
 }
 
-/* disabilita selezione / pointer mentre animazione in corso */
-.falling-mode, .falling-mode * {
-  pointer-events: none;
-  user-select: none;
+/* durante l'effetto blocca scroll e interazioni per evitare scrollbubbles */
+.falling-mode {
+  overflow: hidden !important;
 }
+.falling-mode * { pointer-events: none; user-select: none; }
