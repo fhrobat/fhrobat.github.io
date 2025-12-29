@@ -3,124 +3,105 @@
    ========================= */
 $btn-bg: #ffffff;
 $btn-border: #d8dce0;
-$btn-hover: rgba(1, 42, 74, 0.06);
-$btn-open-bg: #f5f8fb;
+$btn-hover: rgba(1, 42, 74, 0.04);
+$btn-open-bg: #fbfdff; /* sfondo leggermente diverso per l'area interna */
 $btn-accent: #012a4a;
 
-$btn-radius: 8px;
-$btn-padding: 0.6rem 0.9rem;
+$radius: 10px;
+$padding-summary: 0.55rem 0.85rem;
+$padding-content: 0.9rem;
 $transition-fast: 200ms ease;
 $transition-slow: 300ms ease;
 
-
 /* =========================
-   Toggle container
-   ========================= */
-.smooth-toggle {
-  margin: 0.5rem 0;
-
-  /* ---------- contenuto animato ---------- */
-  > .smooth-content {
-    overflow: hidden;
-    height: 0;
-    opacity: 0;
-    transition: height $transition-slow, opacity $transition-fast;
-  }
-
-  &[open] {
-    > .smooth-content {
-      opacity: 1;
-    }
-  }
-}
-
-
-/* =========================
-   Summary come bottone
+   Contenitore details = il "box"
    ========================= */
 .boxed-toggle {
-  > .boxed-summary {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
+  border: 1px solid $btn-border;
+  border-radius: $radius;
+  background: $btn-bg;
+  overflow: hidden;       /* importante: mantiene il contenuto dentro il box */
+  transition: box-shadow $transition-fast, border-color $transition-fast, background $transition-fast;
 
-    padding: $btn-padding;
-    border: 1px solid $btn-border;
-    border-radius: $btn-radius;
+  /* effetto highlight quando si passa sul sommario (illumina tutto il box) */
+  &:hover,
+  &:focus-within {
     background: $btn-bg;
-    color: $btn-accent;
+    box-shadow: 0 8px 20px rgba(1,42,74,0.04);
+    border-color: rgba(1,42,74,0.10);
+  }
 
+  /* =========================
+     Summary (intestazione) – non ha bordo proprio
+     ========================= */
+  > .boxed-summary {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    width: 100%;
+
+    /* sembra un bottone ma senza duplicare il bordo: padding esterno */
+    padding: $padding-summary;
+    margin: 0;                 /* summary ha margine 0 per non aggiungere spazi */
+    background: transparent;
+    color: $btn-accent;
     font-weight: 600;
-    line-height: 1;
     cursor: pointer;
     user-select: none;
 
-    transition:
-      background $transition-fast,
-      box-shadow $transition-fast,
-      transform $transition-fast,
-      border-color $transition-fast;
+    /* rimuovi marker nativo */
+    &::-webkit-details-marker { display: none; }
+    &::marker { content: none; }
 
-    /* rimuove marker nativo */
-    &::-webkit-details-marker {
-      display: none;
-    }
-    &::marker {
-      content: none;
-    }
-
-    /* caret */
+    /* caret minimal */
     &::before {
       content: "";
-      display: inline-block;
+      display:inline-block;
       width: 0.55em;
       height: 0.55em;
       margin-right: 0.45rem;
-
       border-right: 2px solid $btn-accent;
       border-bottom: 2px solid $btn-accent;
-
       transform: rotate(45deg);
-      opacity: 0.9;
       transition: transform $transition-fast;
     }
 
-    /* hover / focus */
     &:hover,
     &:focus {
-      background: $btn-hover;
-      border-color: rgba(1, 42, 74, 0.12);
-      box-shadow: 0 6px 18px rgba(1, 42, 74, 0.06);
+      /* illumina l'intero box via parent :hover; qui teniamo solo cursor/visual */
       outline: none;
-      transform: translateY(-1px);
-    }
-
-    &:active {
-      transform: translateY(0);
-    }
-
-    &:focus-visible {
-      box-shadow: 0 0 0 3px rgba(1, 42, 74, 0.12);
-    }
-
-    /* variante full-width (opzionale) */
-    &.fullwidth {
-      display: flex;
-      width: 100%;
-      justify-content: space-between;
     }
   }
 
-  /* ---------- stato open ---------- */
-  &[open] {
-    > .boxed-summary {
-      background: $btn-open-bg;
-      border-color: rgba(1, 42, 74, 0.09);
-      box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.02);
+  /* caret ruota quando open */
+  &[open] > .boxed-summary::before {
+    transform: rotate(135deg);
+  }
 
-      &::before {
-        transform: rotate(135deg);
-      }
+  /* =========================
+     Contenuto (dentro lo stesso box)
+     ========================= */
+  > .smooth-content {
+    /* stato iniziale: chiuso */
+    overflow: hidden;
+    height: 0;
+    padding: 0 $padding-content; /* manteniamo padding orizzontale sempre; verticale animiamo */
+    opacity: 0;
+    transition: height $transition-slow, opacity $transition-fast, padding $transition-fast;
+
+    /* interno: quando visibile usa uno sfondo leggermente diverso (opzionale) */
+    background: $btn-open-bg;
+
+    /* contenuto vero: margini interni */
+    & > * {
+      margin: 0.6rem 0;
     }
+  }
+
+  /* quando aperto: JS imposterà height -> auto, e l'opacità è attivata */
+  &[open] > .smooth-content {
+    opacity: 1;
+    padding-top: $padding-content;
+    padding-bottom: $padding-content;
   }
 }
