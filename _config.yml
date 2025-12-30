@@ -18,8 +18,8 @@ description: >
       <img src="hrobat.jpg" class="img-portrait" alt="Francesco Hrobat, portrait">
     </div>
 
-    <div class="column">
-      <div class="column-inner" id="gravity-zone">
+    <div class="column" id="gravity-zone">
+      <div class="column-inner">
         <p>
         I am a Mathematics PhD student at the University of Oxford, Linacre College. I am supported by the Mathematical Institute Scholarship by Oxford Mathematical Institute.
         <br> <br>
