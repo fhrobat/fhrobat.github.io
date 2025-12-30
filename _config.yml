@@ -21,7 +21,7 @@ description: > # description of the site (multiple lines allowed)
   <div class="column">
     <div class="column-inner" id="gravity-zone">
       <p>
-        I am a Mathematics PhD student at the University of Oxford, Linacre College. I am supported by the Mathematical Institute Scholarship by Oxford Mathematical Institute. Previously, I completed my bachelor's and master's degrees at Scuola Normale Superiore of Pisa and University of Pisa. <br>
+        I am a Mathematics PhD student at the University of Oxford, Linacre College. I am supported by the Mathematical Institute Scholarship by Oxford Mathematical Institute. Previously, I completed my bachelor's and master's degrees at Scuola Normale Superiore of Pisa and University of Pisa. <br><br>
         My research focuses on <strong>numerical linear algebra</strong>, including perturbation theory, randomized linear algebra and Krylov methods.
       </p>
     </div>
