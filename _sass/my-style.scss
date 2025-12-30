@@ -74,6 +74,8 @@ li { margin: 0.4rem 0; }
   box-sizing: border-box;
   text-align: justify;
   hyphens: auto;
+  flex: 0 0 calc(50% - 16px);
+  min-width: 0;
 }
 
 /* colonna immagine: centra immagine */
