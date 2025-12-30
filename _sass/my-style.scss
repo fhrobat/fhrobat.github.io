@@ -65,11 +65,14 @@ li { margin: 0.4rem 0; }
 
 .column {
   flex: 50%;
-  display: flex;
-  align-items: center;      /* verticale */
-  justify-content: center;  /* orizzontale */
   text-align: justify;
   hyphens: auto;
+}
+
+.column-inner{
+  height: 100%;
+  display: flex;
+  align-items: center;   /* centro verticale */
 }
 
 hr {
