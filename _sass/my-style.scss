@@ -258,5 +258,50 @@ img {
   outline-offset: 4px;
 }
 
+/* Reveal base */
+.reveal {
+  opacity: 0;
+  transform: translateY(-20px);
+  transition-property: opacity, transform;
+  transition-duration: 700ms;
+  transition-timing-function: cubic-bezier(.22,.9,.35,1);
+  will-change: opacity, transform;
+}
+
+/* Stato attivo (quando entra in viewport) */
+.reveal.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Se vuoi una cascata sui figli (es. dentro details) */
+.reveal.cascade > * {
+  opacity: 0;
+  transform: translateY(-12px);
+  transition: opacity 560ms ease-out, transform 560ms ease-out;
+}
+
+/* Quando il contenitore cascade diventa active, i figli usano delay via JS */
+.reveal.cascade.active > * {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Pulizia per elementi inline (link semplici ecc.) */
+.reveal.inline {
+  display: inline-block;
+}
+
+/* Se l'utente preferisce ridurre le animazioni */
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal.cascade > * {
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
+
+
 
 
