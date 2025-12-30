@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
       for (const ch of Array.from(text)) {
         const span = document.createElement('span');
         span.className = 'fall-char';
-        span.textContent = ch;
+        span.textContent = (ch === ' ') ? '\u00A0' : ch;
         frag.appendChild(span);
       }
       textNode.parentNode.replaceChild(frag, textNode);
