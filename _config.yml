@@ -10,7 +10,7 @@ description: > # description of the site (multiple lines allowed)
   <img src="hrobat.jpg" class="img-portrait" alt="portrait">
   </div>
   <div class="column" id="gravity-zone">
-  <a href="mailto:francesco.hrobat@maths.ox.ac.uk"> email </a>  <a href="https://github.com/fhrobat/"> github </a> <a href="https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ"> scholar </a> <a href="https://arxiv.org/search/math?searchtype=author&query=Hrobat,+F"> arxiv </a> <a href="https://www.linkedin.com/in/francesco-hrobat"> linkedin </a> <a href="https://orcid.org/0009-0002-5304-8107"> orcid </a> <br>
+  <a href="mailto:francesco.hrobat@maths.ox.ac.uk"> email </a>  <a href="https://github.com/fhrobat/"> github </a> <a href="https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ"> scholar </a> <a href="https://arxiv.org/search/?searchtype=author&query=Hrobat%2C+F"> arxiv </a> <a href="https://www.linkedin.com/in/francesco-hrobat"> linkedin </a> <a href="https://orcid.org/0009-0002-5304-8107"> orcid </a> <br>
   I am a Mathematics PhD student at University of Oxford, Linacre College.
   I am supported by the Mathematical Institute Scholarship by Oxford Mathematical Institute.
   Previously, I completed my bachelor's and master's degrees at Scuola Normale Superiore of Pisa and University of Pisa. <br> <br>
