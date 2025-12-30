@@ -18,7 +18,6 @@ description: > # description of the site (multiple lines allowed)
    My research focuses on <strong>numerical linear algebra</strong>, including perturbation theory, randomized linear algebra and Krylov methods.
    </div>  
   </div>
-  <br> <br>
  </div>
 permalink: /:slug.html
 
