@@ -14,12 +14,12 @@ description: >
    <a href="https://orcid.org/0009-0002-5304-8107" target="_blank" rel="noopener">ORCID</a>
   </p>
   <div class="row">
-    <div class="column column--photo">
+    <div class="column column--photo reveal">
       <img src="hrobat.jpg" class="img-portrait" alt="Francesco Hrobat, portrait">
     </div>
 
-    <div class="column">
-      <div class="column-inner">
+    <div class="column reveal">
+      <div class="column-inner cascade">
         <p>
         I am a Mathematics PhD student at the <strong>University of Oxford</strong>, Linacre College. I am supported by the Mathematical Institute Scholarship by Oxford Mathematical Institute.
         <br> <br>
