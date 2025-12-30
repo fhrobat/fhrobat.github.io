@@ -26,7 +26,7 @@ $transition-slow: 300ms ease;
   /* effetto highlight quando si passa sul sommario (illumina tutto il box) */
   &:hover,
   &:focus-within {
-    background: $btn-bg;
+    background: hotpink;
     box-shadow: 0 8px 20px rgba(1,42,74,0.04);
     border-color: rgba(1,42,74,0.10);
   }
