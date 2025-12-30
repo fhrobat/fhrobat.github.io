@@ -59,21 +59,70 @@ li { margin: 0.4rem 0; }
   padding: 4rem 2rem;
 }
 
-.row {
+/* layout row/columns */
+.row{
   display: flex;
+  gap: 32px;            /* spazio tra colonne */
+  align-items: stretch; /* colonne stesse altezza */
+  flex-wrap: wrap;      /* responsive */
 }
 
-.column {
-  flex: 50%;
+/* ogni column occupa metà (due colonne) */
+.column{
+  flex: 1 1 50%;
+  min-width: 260px;     /* evita collassi su schermi piccoli */
+  box-sizing: border-box;
   text-align: justify;
   hyphens: auto;
 }
 
-.column-inner{
-  height: 100%;
+/* colonna immagine: centra immagine */
+.column--photo{
   display: flex;
   align-items: center;
+  justify-content: center;
+  padding: 12px;
 }
+
+/* wrapper interno che centra verticalmente il contenuto nella column */
+.column-inner{
+  /* IMPORTANT: non trasformiamo la column in flex: la column resta scorrevole.
+     Solo il wrapper interno è flex per centrare verticalmente il blocco */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* CENTRO VERTICALE del contenuto */
+  gap: 12px;
+}
+
+/* contatti: link in linea con spacing */
+.contacts{
+  margin: 0 0 8px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+/* stile link (regola base, adattala) */
+.contacts a{
+  color: #0b47d1;
+  text-decoration: none;
+  font-weight: 600;
+}
+.contacts a:hover,
+.contacts a:focus{
+  text-decoration: underline;
+}
+
+/* accessibility: smal tweaks for small screens */
+@media (max-width: 720px){
+  .row{ gap: 18px; }
+  .column{ flex-basis: 100%; }
+  .img-portrait{ width: 180px; }
+  .column-inner{ padding: 6px 0; }
+}
+
 
 hr {
   text-align: center;
