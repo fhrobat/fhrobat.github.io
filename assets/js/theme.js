@@ -1,4 +1,3 @@
-<script>
 (function() {
   const STORAGE_KEY = 'appearance'; // 'dark' | 'light' | 'auto'
   const body = document.body;
@@ -63,4 +62,3 @@
     });
   }
 })();
-</script>
