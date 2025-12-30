@@ -134,62 +134,53 @@ img {
 }
 
 .pow{
-  position: relative;
-  padding: 28px 60px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px 44px;
   font-family: 'Arial Black', Impact, sans-serif;
-  font-size: 72px;
+  font-size: 48px;
   line-height: 1;
   letter-spacing: 4px;
   text-transform: uppercase;
 
   color: #ffffff;
-  background: #0b2fa3; /* blu centrale */
-  border: 10px solid #000;
-  border-radius: 18px;
+  background-color: #1e3aff;   /* blu pieno */
+  border: 6px solid #000000;
+  border-radius: 14px;
 
-  /* outline nero del testo */
+  /* outline testo stile fumetto */
   text-shadow:
-    -4px -4px 0 #000,
-     4px -4px 0 #000,
-    -4px  4px 0 #000,
-     4px  4px 0 #000,
-     0px  4px 0 #000,
-     4px  0px 0 #000,
-    -4px  0px 0 #000,
-     0px -4px 0 #000;
+    -2px -2px 0 #000,
+     2px -2px 0 #000,
+    -2px  2px 0 #000,
+     2px  2px 0 #000;
 
   cursor: pointer;
   user-select: none;
 
-  transform: scale(0.5);
+  font-size: 14px;
+  padding: 6px 10px;
+  border-width: 3px;
+  letter-spacing: 1px;
 }
 
-/* CORNICE AZZURRA */
-.pow::before{
-  content: "";
-  position: absolute;
-  inset: -18px;
-  background: #7fd3ef;
-  border: 10px solid #000;
-  border-radius: 26px;
-  z-index: -1;
+/* hover semplice */
+.pow:hover{
+  background-color: #2a4cff;
 }
 
-/* INSERTI BLU SUPERIORE E INFERIORE */
-.pow::after{
-  content: "";
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  top: -14px;
-  height: 26px;
-  background: #1339c7;
-  border: 6px solid #000;
-  border-radius: 12px;
-  box-shadow:
-    0 calc(100% + 62px) 0 #1339c7,
-    0 calc(100% + 62px) 0 6px #000;
-  z-index: -1;
+/* press */
+.pow:active{
+  transform: translateY(4px);
 }
+
+/* focus accessibile */
+.pow:focus-visible{
+  outline: 3px solid #000;
+  outline-offset: 4px;
+}
+
 
 
