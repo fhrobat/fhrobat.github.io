@@ -86,8 +86,7 @@ li { margin: 0.4rem 0; }
 
 /* wrapper interno che centra verticalmente il contenuto nella column */
 .column-inner{
-  /* IMPORTANT: non trasformiamo la column in flex: la column resta scorrevole.
-     Solo il wrapper interno è flex per centrare verticalmente il blocco */
+  direction: ltr;
   height: 100%;
   display: flex;
   flex-direction: column;
