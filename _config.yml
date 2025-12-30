@@ -6,9 +6,12 @@ scholar: "https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ"
 baseurl: "/website" # subpath of the site, e.g. "/blog" (leave it blank "" if you're site shouldn't use a subpath)
 description: >
   <p class="contacts">
-    <a href="mailto:francesco.hrobat@maths.ox.ac.uk">Email</a>
-    <a href="https://github.com/fhrobat/" target="_blank" rel="noopener">GitHub</a>
-    <a href="https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ" target="_blank" rel="noopener">Google Scholar</a>
+   <a href="mailto:francesco.hrobat@maths.ox.ac.uk">Email</a>
+   <a href="https://github.com/fhrobat/" target="_blank" rel="noopener">GitHub</a>
+   <a href="https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ" target="_blank" rel="noopener">Google Scholar</a>
+   <a href="https://arxiv.org/search/?searchtype=author&query=Hrobat%2C+F" target="_blank" rel="noopener">arXiv</a>
+   <a href="https://www.linkedin.com/in/francesco-hrobat" target="_blank" rel="noopener">LinkedIn</a>
+   <a href="https://orcid.org/0009-0002-5304-8107" target="_blank" rel="noopener">ORCID</a>
   </p>
   <div class="row">
     <div class="column column--photo">
