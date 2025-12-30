@@ -106,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function setPerCharVarsForPop(ch) {
     // vibrazione più pronunciata: ampiezza maggiore + micro rotazione
-    const shake = (Math.random() * 6 + 6);   // 6px → 12px
+    const shake = (Math.random() * 1 + 1);   // 6px → 12px
     const rot   = (Math.random() * 10 + 6) * (Math.random() < 0.5 ? -1 : 1); // ±6°..±16°
     ch.style.setProperty('--pop-shake', shake.toFixed(1) + 'px');
     ch.style.setProperty('--pop-rot', rot.toFixed(1) + 'deg');
