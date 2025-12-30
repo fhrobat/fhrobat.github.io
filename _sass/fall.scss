@@ -40,26 +40,37 @@ html.falling-mode body{
 }
 
 .char-pop{
-  animation: charQuake calc(var(--char-pop-duration) * 1ms)
+  animation: charQuakeX calc(var(--char-pop-duration) * 1ms)
     steps(1, end) both;
   transform-origin: center center;
 }
 
-@keyframes charQuake{
-  0%  { transform: translate3d(0,0,0) rotate(0deg); }
+@keyframes charQuakeX{
+  0%  { transform: translate3d(0,0,0); }
 
-  10% { transform: translate3d(var(--qx1), var(--qy1),0) rotate(var(--qr1)); }
-  20% { transform: translate3d(var(--qx2), var(--qy2),0) rotate(var(--qr2)); }
-  30% { transform: translate3d(var(--qx3), var(--qy3),0) rotate(var(--qr3)); }
-  40% { transform: translate3d(var(--qx4), var(--qy4),0) rotate(var(--qr4)); }
-  50% { transform: translate3d(var(--qx5), var(--qy5),0) rotate(var(--qr5)); }
-  60% { transform: translate3d(var(--qx6), var(--qy6),0) rotate(var(--qr6)); }
-  70% { transform: translate3d(var(--qx7), var(--qy7),0) rotate(var(--qr7)); }
-  80% { transform: translate3d(var(--qx8), var(--qy8),0) rotate(var(--qr8)); }
-  90% { transform: translate3d(var(--qx9), var(--qy9),0) rotate(var(--qr9)); }
+  5%  { transform: translate3d(var(--shake-x),0,0); }
+  10% { transform: translate3d(calc(-1 * var(--shake-x)),0,0); }
+  15% { transform: translate3d(var(--shake-x),0,0); }
+  20% { transform: translate3d(calc(-1 * var(--shake-x)),0,0); }
+  25% { transform: translate3d(var(--shake-x),0,0); }
+  30% { transform: translate3d(calc(-1 * var(--shake-x)),0,0); }
+  35% { transform: translate3d(var(--shake-x),0,0); }
+  40% { transform: translate3d(calc(-1 * var(--shake-x)),0,0); }
+  45% { transform: translate3d(var(--shake-x),0,0); }
+  50% { transform: translate3d(calc(-1 * var(--shake-x)),0,0); }
+  55% { transform: translate3d(var(--shake-x),0,0); }
+  60% { transform: translate3d(calc(-1 * var(--shake-x)),0,0); }
+  65% { transform: translate3d(var(--shake-x),0,0); }
+  70% { transform: translate3d(calc(-1 * var(--shake-x)),0,0); }
+  75% { transform: translate3d(var(--shake-x),0,0); }
+  80% { transform: translate3d(calc(-1 * var(--shake-x)),0,0); }
+  85% { transform: translate3d(var(--shake-x),0,0); }
+  90% { transform: translate3d(calc(-1 * var(--shake-x)),0,0); }
+  95% { transform: translate3d(var(--shake-x),0,0); }
 
-  100%{ transform: translate3d(0,0,0) rotate(0deg); }
+  100%{ transform: translate3d(0,0,0); }
 }
+
 
 
 
