@@ -24,6 +24,7 @@ description: >
         I am a Mathematics PhD student at the University of Oxford, Linacre College. I am supported by the Mathematical Institute Scholarship by Oxford Mathematical Institute.
         <br> <br>
         My research focuses on <strong>numerical linear algebra</strong>, including perturbation theory, randomized linear algebra and Krylov methods.
+        <button id="theme-toggle" type="button" aria-pressed="false" aria-label="Toggle theme"> <span id="theme-icon">🌓</span> </button>
         </p>
       </div>
     </div>
