@@ -1,39 +1,40 @@
 entries:
   - title: Publications
     url: publications.html
-    content: > 
-    <ol>
-      <li>
-      <strong> Lanczos with compression for symmetric matrix Lyapunov equations </strong> <br>
-      <em> Angelo A. Casulli, Francesco Hrobat, Daniel Kressner </em><br>
-      2025, <a href="https://arxiv.org/abs/2505.22498">ArXiv<a> 
-      </li>
-      <li>
-      <strong> Generalized Friendship Paradoxes in Network Science </strong> <br>
-      <em> Desmond J. Higham, Francesco Hrobat, Francesco Tudisco </em> <br>
-      2025, <a href="https://arxiv.org/abs/2511.11742">ArXiv<a>
-      </li>
-    </ol>
+    content: |
+      <ol>
+        <li>
+          <strong> Lanczos with compression for symmetric matrix Lyapunov equations </strong><br>
+          <em> Angelo A. Casulli, Francesco Hrobat, Daniel Kressner </em><br>
+          2025, <a href="https://arxiv.org/abs/2505.22498">ArXiv</a>
+        </li>
+        <li>
+          <strong> Generalized Friendship Paradoxes in Network Science </strong><br>
+          <em> Desmond J. Higham, Francesco Hrobat, Francesco Tudisco </em><br>
+          2025, <a href="https://arxiv.org/abs/2511.11742">ArXiv</a>
+        </li>
+      </ol>
+
   - title: Talks and visits
     url: talks.html
-    content: >
-    <ol>
-      <li>
-      <strong>Lanczos with compression for symmetric Lyapunov equations</strong> <br>
-      <em>24/06/2025 &emsp ILAS 2025, Kaohsiung, Taiwan</em> <br>
-      Invited speaker at Advances in Krylov subspace methods and their applications minisymposium
-      </li>
-      <li>
-      <strong> Lanczos with compression for symmetric Lyapunov equations </strong> <br>
-      <em> 20/01/2025 &emsp Due giorni di Algebra Lineare Numerica, Pisa, Italy </em> <br>
-      Poster session
-      </li>
-      <li>
-      <strong>Calcolo della SVD tramite funzioni di Zolotarev</strong>
-      <em> 21/03/2025 &emsp SIAM Student Chapter UniPi-SNS, Pisa, Italy</em>
-      </li>
-    </ol>
-    
+    content: |
+      <ol>
+        <li>
+          <strong>Lanczos with compression for symmetric Lyapunov equations</strong><br>
+          <em>24/06/2025 &emsp; ILAS 2025, Kaohsiung, Taiwan</em><br>
+          Invited speaker at Advances in Krylov subspace methods and their applications minisymposium
+        </li>
+        <li>
+          <strong> Lanczos with compression for symmetric Lyapunov equations </strong><br>
+          <em>20/01/2025 &emsp; Due giorni di Algebra Lineare Numerica, Pisa, Italy</em><br>
+          Poster session
+        </li>
+        <li>
+          <strong>Calcolo della SVD tramite funzioni di Zolotarev</strong><br>
+          <em>21/03/2025 &emsp; SIAM Student Chapter UniPi-SNS, Pisa, Italy</em>
+        </li>
+      </ol>
 
   - title: teaching
     url: teaching.html
+    content: ""    # oppure rimuovi questa riga se non serve
