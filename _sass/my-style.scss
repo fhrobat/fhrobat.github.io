@@ -65,6 +65,7 @@ li { margin: 0.4rem 0; }
   gap: 32px;            /* spazio tra colonne */
   align-items: stretch; /* colonne stesse altezza */
   flex-wrap: wrap;      /* responsive */
+  margin: 2rem 0;
 }
 
 /* ogni column occupa metà (due colonne) */
