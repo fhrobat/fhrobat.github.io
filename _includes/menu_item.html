@@ -4,7 +4,7 @@
     {%- if item.url and item.content-%}
       <details class="smooth-toggle boxed-toggle">
         <summary class="boxed-summary"> {{item.title}} </summary>
-        <div class="smooth-content">
+        <div class="smooth-content cascade">
           <p>
             {{item.content}} <br>
             <a href="{{ item.url }}">{{ item.title }}</a>
@@ -14,7 +14,7 @@
     {%- elsif item.content -%}
       <details class="smooth-toggle boxed-toggle">
         <summary class="boxed-summary"> {{item.title}} </summary>
-        <div class="smooth-content">
+        <div class="smooth-content cascade">
           <p>
             {{item.content}}
           </p>
