@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function setPerCharVarsForPop(ch) {
   const shakeX = Math.random() * 2 + 2; 
   ch.style.setProperty('--shake-x', shakeX.toFixed(1) + 'px');
-}
+  }
 
 }
 
