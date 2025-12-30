@@ -6,19 +6,32 @@ scholar: "https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ"
 baseurl: "/website" # subpath of the site, e.g. "/blog" (leave it blank "" if you're site shouldn't use a subpath)
 description: > # description of the site (multiple lines allowed)
  <div class="row">
-  <div class="column">
-  <img src="hrobat.jpg" class="img-portrait" alt="portrait">
+  <div class="column column--photo" aria-hidden="true">
+    <img src="hrobat.jpg" class="img-portrait" alt="Francesco Hrobat, portrait">
   </div>
+
   <div class="column" id="gravity-zone">
-   <div class="column-inner">
-   <a href="mailto:francesco.hrobat@maths.ox.ac.uk"> email </a>  <a href="https://github.com/fhrobat/"> github </a> <a href="https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ"> scholar </a> <a href="https://arxiv.org/search/?searchtype=author&query=Hrobat%2C+F"> arxiv </a> <a href="https://www.linkedin.com/in/francesco-hrobat"> linkedin </a> <a href="https://orcid.org/0009-0002-5304-8107"> orcid </a> <br>
-   I am a Mathematics PhD student at University of Oxford, Linacre College.
-   I am supported by the Mathematical Institute Scholarship by Oxford Mathematical Institute.
-   Previously, I completed my bachelor's and master's degrees at Scuola Normale Superiore of Pisa and University of Pisa. <br> <br>
-   My research focuses on <strong>numerical linear algebra</strong>, including perturbation theory, randomized linear algebra and Krylov methods.
-   </div>  
+    <div class="column-inner">
+      <p class="contacts">
+        <a href="mailto:francesco.hrobat@maths.ox.ac.uk">Email</a>
+        <a href="https://github.com/fhrobat/" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ" target="_blank" rel="noopener">Google Scholar</a>
+        <a href="https://arxiv.org/search/?searchtype=author&query=Hrobat%2C+F" target="_blank" rel="noopener">arXiv</a>
+        <a href="https://www.linkedin.com/in/francesco-hrobat" target="_blank" rel="noopener">LinkedIn</a>
+        <a href="https://orcid.org/0009-0002-5304-8107" target="_blank" rel="noopener">ORCID</a>
+      </p>
+
+      <p>
+        I am a Mathematics PhD student at the University of Oxford, Linacre College. I am supported by the Mathematical Institute Scholarship by Oxford Mathematical Institute. Previously, I completed my bachelor's and master's degrees at Scuola Normale Superiore of Pisa and University of Pisa.
+      </p>
+
+      <p>
+        My research focuses on <strong>numerical linear algebra</strong>, including perturbation theory, randomized linear algebra and Krylov methods.
+      </p>
+    </div>
   </div>
- </div>
+</div>
+
 permalink: /:slug.html
 
 favicon: "logo.png" # name+extension of favicon (which must be put on the root folder)
