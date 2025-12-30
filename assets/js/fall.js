@@ -105,8 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setPerCharVarsForPop(ch) {
-  const ampX = Math.random() * 10 + 10; // 10–20px
-  const ampY = Math.random() * 6 + 4;   // 4–10px
+  const ampX = Math.random() * 2 + 2; // 10–20px
+  const ampY = Math.random() * 0.1 + 0.1;   // 4–10px
   const rotA = Math.random() * 14 + 6;  // 6–20deg
 
   for (let i = 1; i <= 9; i++) {
