@@ -65,7 +65,9 @@ li { margin: 0.4rem 0; }
 
 .column {
   flex: 50%;
-  float: left;
+  display: flex;
+  align-items: center;      /* verticale */
+  justify-content: center;  /* orizzontale */
   text-align: justify;
   hyphens: auto;
 }
