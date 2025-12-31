@@ -9,8 +9,6 @@ layout: default
     >
 </div>
 
-<button id="theme-toggle" type="button" aria-pressed="false" aria-label="Toggle theme"> <span id="theme-icon">🌓</span> </button>
-
 <div id="site-wrapper">
 <header>
   <h1 id="name_title">{{ site.title }}</h1>
@@ -23,4 +21,6 @@ layout: default
 
 {{ content }}
 </div>
+
+<button id="theme-toggle" type="button" aria-pressed="false" aria-label="Toggle theme"> <span id="theme-icon">🌓</span> </button>
 <script type="module" src="{{ '/assets/js/home.js' | relative_url }}"></script>
