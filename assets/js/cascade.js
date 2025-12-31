@@ -1,12 +1,11 @@
 (function () {
   /* ================= CONFIG ================= */
-  const CASCADE_CHILD_DELAY = 80; // ms
-  const IO_THRESHOLD = 0.15;      // % visibilità richiesta
+  const CASCADE_CHILD_DELAY = 80;   // ms
+  const IO_THRESHOLD = 0.15;
   const WAIT_AFTER_LOADER_MS = 50;
-  const debug = true;             // metti false in produzione
+  const REVEAL_DURATION_MS = 900;   // rallenta la discesa (SCSS resta a 700ms)
   /* ========================================== */
 
-  const log = (...a) => debug && console.log('[reveal]', ...a);
   const prefersReduced =
     window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -35,13 +34,15 @@
 
   function activateReveal(el) {
     if (!el || el.dataset.revealDone === 'true') return;
-
     el.dataset.revealDone = 'true';
 
     if (prefersReduced) {
       el.classList.add('active');
       return;
     }
+
+    // rallenta leggermente la discesa
+    el.style.transitionDuration = `${REVEAL_DURATION_MS}ms`;
 
     if (el.classList.contains('cascade')) {
       [...el.children].forEach((child, i) => {
@@ -63,17 +64,13 @@
         entries.forEach((entry) => {
           const el = entry.target;
 
-          // 🛑 GUARDIA FONDAMENTALE
-          if (!loaderFinished()) {
-            log('ignoro entry (loader visibile)', el);
-            return;
-          }
+          // non attivare se il loader è visibile
+          if (!loaderFinished()) return;
 
           if (
             entry.isIntersecting &&
             entry.intersectionRatio >= IO_THRESHOLD
           ) {
-            log('activate', el);
             activateReveal(el);
             observer.unobserve(el);
           }
@@ -87,10 +84,7 @@
 
   function observeAll() {
     const items = document.querySelectorAll('.reveal');
-    if (!items.length) {
-      log('nessun .reveal trovato');
-      return;
-    }
+    if (!items.length) return;
 
     const obs = createObserver();
     items.forEach((el) => {
@@ -98,14 +92,13 @@
       obs.observe(el);
     });
 
-    // 🔍 check immediato per elementi già visibili
+    // check immediato per elementi già visibili
     requestAnimationFrame(() => {
       items.forEach((el) => {
         if (el.dataset.revealDone === 'true') return;
         const r = el.getBoundingClientRect();
         const visible = r.top < window.innerHeight && r.bottom > 0;
         if (visible && loaderFinished()) {
-          log('visibile subito -> activate', el);
           activateReveal(el);
           obs.unobserve(el);
         }
@@ -117,17 +110,13 @@
 
   function startAfterLoader() {
     if (loaderFinished()) {
-      log('loader già finito -> start');
       setTimeout(observeAll, WAIT_AFTER_LOADER_MS);
       return;
     }
 
     window.addEventListener(
       'page-loader-finished',
-      () => {
-        log('page-loader-finished ricevuto');
-        setTimeout(observeAll, WAIT_AFTER_LOADER_MS);
-      },
+      () => setTimeout(observeAll, WAIT_AFTER_LOADER_MS),
       { once: true }
     );
   }
