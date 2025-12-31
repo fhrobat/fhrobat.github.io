@@ -38,7 +38,7 @@
       }
 
       // Se l'elemento è COMPLETELY inside viewport (quasi 1)
-      const fullyVisible = ratio >= 0.5;
+      const fullyVisible = ratio >= 0.1;
       // Se l'elemento è COMPLETELY out (zero intersezione)
       const completelyOut = ratio === 0;
 
