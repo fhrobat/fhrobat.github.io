@@ -51,7 +51,7 @@
 
       if (completelyOut) {
         // elemento completamente fuori: rimuovo active e pulisco i delay
-        el.classList.remove('active');
+        // el.classList.remove('active');
         clearCascade();
         return;
       }
