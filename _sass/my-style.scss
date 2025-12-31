@@ -35,6 +35,27 @@ body[a="dark"] #page-loader {
   }
 }
 
+body[a="dark"],
+body[data-appearance="dark"] {
+  background-color: #0f1113 !important; /* scuro, cambia se preferisci */
+  color: #efefef !important;
+}
+
+/* supporto per auto (prefers-color-scheme) */
+@media (prefers-color-scheme: dark) {
+  body[a="auto"],
+  body[data-appearance="auto"] {
+    background-color: #0f1113 !important;
+    color: #efefef !important;
+  }
+}
+
+html.dark,
+html[data-appearance="dark"] {
+  background-color: #0f1113 !important;
+  color: #efefef !important;
+}
+
 // -------------------------------------------- //
 
 // bg color is also needed in html in order to
