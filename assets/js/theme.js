@@ -1,64 +1,58 @@
 (function() {
-  const STORAGE_KEY = 'appearance'; // 'dark' | 'light' | 'auto'
+  const STORAGE_KEY = 'appearance'; // valori possibili: 'dark' | 'light' | 'auto'
   const body = document.body;
   const btn = document.getElementById('theme-toggle');
-  const icon = document.getElementById('theme-icon');
 
-  if (!btn || !icon) return;
+  if (!btn) return; // niente da fare se il bottone non esiste
 
-  // Legge scelta salvata
-  const saved = localStorage.getItem(STORAGE_KEY);
-
-  // Imposta l'attributo 'a' sul body (fallback su 'auto' se niente)
+  // Applica l'attributo 'a' sul body
   function applyAttribute(value) {
     body.setAttribute('a', value);
     updateButtonUI(value);
   }
 
-  // Determina stato effettivo dark (tenendo conto di 'auto')
+  // Determina se la modalità effettiva è dark (considera 'auto')
   function isEffectiveDark(attrValue) {
     if (attrValue === 'dark') return true;
     if (attrValue === 'light') return false;
-    // auto -> controlla preferenza sistema
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
-  // Aggiorna icona / aria-pressed / label del bottone
+  // Aggiorna UI del bottone (icon, aria-pressed, title)
   function updateButtonUI(attrValue) {
     const dark = isEffectiveDark(attrValue);
     btn.setAttribute('aria-pressed', String(dark));
-    // Icona e testo (personalizza se vuoi)
-    icon.textContent = dark ? '☀️' : '🌙';
+    btn.textContent = dark ? '☀️' : '🌙';
     btn.title = dark ? 'Passa a light (doppio click = auto)' : 'Passa a dark (doppio click = auto)';
   }
 
-  // Inizializza: se saved -> usa saved, altrimenti usa 'auto'
+  // Inizializza dal localStorage (fallback 'auto')
+  const saved = localStorage.getItem(STORAGE_KEY);
   applyAttribute(saved === 'dark' || saved === 'light' ? saved : 'auto');
 
-  // Click = INVERTI modalità (salvando la scelta manuale)
+  // Click = inverte e salva
   btn.addEventListener('click', () => {
     const currentAttr = body.getAttribute('a') || 'auto';
     const currentlyDark = isEffectiveDark(currentAttr);
-    const newAttr = currentlyDark ? 'light' : 'dark'; // inverti rispetto all'effettivo
+    const newAttr = currentlyDark ? 'light' : 'dark';
     localStorage.setItem(STORAGE_KEY, newAttr);
     applyAttribute(newAttr);
   });
 
-  // Doppio click = TORNA AD AUTO (rimuove la scelta salvata)
+  // Doppio click = torna ad 'auto' (rimuovi scelta)
   btn.addEventListener('dblclick', () => {
     localStorage.removeItem(STORAGE_KEY);
     applyAttribute('auto');
   });
 
-  // (Opzionale) Se l'utente cambia la preferenza di sistema, aggiorna UI quando siamo in 'auto'
+  // Se l'utente cambia preferenza di sistema, aggiorna UI quando siamo in 'auto'
   if (window.matchMedia) {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    mq.addEventListener ? mq.addEventListener('change', (e) => {
+    const onChange = () => {
       const currentAttr = body.getAttribute('a') || 'auto';
       if (currentAttr === 'auto') updateButtonUI('auto');
-    }) : mq.addListener((e) => {
-      const currentAttr = body.getAttribute('a') || 'auto';
-      if (currentAttr === 'auto') updateButtonUI('auto');
-    });
+    };
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else mq.addListener(onChange);
   }
 })();
