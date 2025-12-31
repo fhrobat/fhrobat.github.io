@@ -1,13 +1,23 @@
 (function () {
-  // === CONFIG ===
-  const pulseDuration = 1100; // ms (deve corrispondere a loader-pulse)
-  const pulseCount = 2;       // quante pulsazioni mostrare prima di nascondere
-  const cascadeDelayStep = 90; // ms tra elementi cascade
+  // CONFIG
+  const pulseDuration = 1100;  // ms -> deve corrispondere all'animazione CSS
+  const pulseCount = 2;        // quante pulsazioni aspettare
+  const cascadeDelayStep = 90; // ms per ogni figlio in cascade
 
-  // Imposta loading flag subito
+  // Immediately mark page as loading to stop reveals
   document.body.classList.add('loading');
+  // Also lock scroll
+  function lockPageScroll() {
+    document.documentElement.classList.add('no-scroll');
+    document.body.classList.add('no-scroll');
+  }
+  function unlockPageScroll() {
+    document.documentElement.classList.remove('no-scroll');
+    document.body.classList.remove('no-scroll');
+  }
+  lockPageScroll();
 
-  // --- finishPageLoader: rimuove loader e rilascia observer ---
+  // Ensure finishPageLoader exists
   if (typeof window.finishPageLoader !== 'function') {
     window.finishPageLoader = function finishPageLoader() {
       const loaderEl = document.getElementById('page-loader');
@@ -15,42 +25,35 @@
         loaderEl.classList.add('hidden');
         loaderEl.setAttribute('aria-hidden', 'true');
       }
-      // togli flag loading: ora l'observer potrà reagire
+      // unlock page scrolling first
+      unlockPageScroll();
+      // now allow observer to react
       document.body.classList.remove('loading');
-
-      // dispatch evento per eventuali listener
+      // dispatch an event for post-loader actions
       window.dispatchEvent(new CustomEvent('page-loader-finished'));
     };
   }
 
-  // Quando la pagina ha finito il caricamento, aspetta pulseCount pulsazioni e chiama finishPageLoader
+  // On window load, wait pulseCount * pulseDuration and then finish
   function onLoadFinish() {
     const delay = pulseDuration * pulseCount;
     setTimeout(() => {
       if (typeof window.finishPageLoader === 'function') window.finishPageLoader();
     }, delay);
   }
+  if (document.readyState === 'complete') onLoadFinish();
+  else window.addEventListener('load', onLoadFinish, { once: true });
 
-  if (document.readyState === 'complete') {
-    // se già caricato
-    onLoadFinish();
-  } else {
-    window.addEventListener('load', onLoadFinish, { once: true });
-  }
-
-  // --- IntersectionObserver SETUP ---
-  // Se preferenze ridotte: attiva tutto e non osservare
-  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  // If user prefers reduced motion, skip reveals
+  const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReduced) {
     document.querySelectorAll('.reveal').forEach(el => el.classList.add('active'));
-    return;
-  }
-  if (!('IntersectionObserver' in window)) {
-    // fallback
-    document.querySelectorAll('.reveal').forEach(el => el.classList.add('active'));
+    // also hide loader immediately
+    if (typeof window.finishPageLoader === 'function') window.finishPageLoader();
     return;
   }
 
-  // helper cascade init/clear
+  // IntersectionObserver helper functions
   function initCascade(el) {
     if (el.classList.contains('cascade') && !el.dataset.cascadeInitialized) {
       [...el.children].forEach((child, i) => {
@@ -65,33 +68,32 @@
       delete el.dataset.cascadeInitialized;
     }
   }
-
-  // fully visible check (geometric)
   function isFullyVisibleRect(rect) {
     const vh = window.innerHeight || document.documentElement.clientHeight;
     return rect.top >= 0 && rect.bottom <= vh;
   }
-
-  // Build thresholds for smoother observer events
   function buildThresholdList(steps = 20) {
     const list = [];
     for (let i = 0; i <= steps; i++) list.push(i / steps);
     return list;
   }
 
-  // main observer callback
+  // Setup observer
+  if (!('IntersectionObserver' in window)) {
+    document.querySelectorAll('.reveal').forEach(el => el.classList.add('active'));
+    return;
+  }
+
   const observer = new IntersectionObserver((entries) => {
-    // if loading, ignore events
+    // if loader still active, ignore all reveals
     if (document.body.classList.contains('loading')) return;
 
     entries.forEach(entry => {
       const el = entry.target;
       const ratio = entry.intersectionRatio;
-
-      // fully out if ratio === 0
-      const completelyOut = ratio === 0;
       const rect = entry.boundingClientRect;
       const fullyVisible = isFullyVisibleRect(rect);
+      const completelyOut = ratio === 0;
 
       if (fullyVisible) {
         initCascade(el);
@@ -105,7 +107,7 @@
         return;
       }
 
-      // partial: toggle off but keep cascade initialized (avoid flicker)
+      // partially visible: remove active but keep cascade init (to avoid flicker)
       if (el.classList.contains('active')) el.classList.remove('active');
     });
   }, {
@@ -114,10 +116,10 @@
     threshold: buildThresholdList(20)
   });
 
-  // observe all reveals
+  // Observe existing reveals
   document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 
-  // handle dynamic details (if you use them)
+  // Handle dynamic <details> content
   document.addEventListener('toggle', (e) => {
     const details = e.target;
     if (details && details.tagName && details.tagName.toLowerCase() === 'details') {
@@ -129,30 +131,22 @@
     }
   }, true);
 
-  // run a one-off check after loader finito
+  // After loader finished, run a one-off check to activate already-visible reveals
   function runRevealCheck() {
     document.querySelectorAll('.reveal').forEach(el => {
       const rect = el.getBoundingClientRect();
-      const fullyVisible = isFullyVisibleRect(rect);
-      if (fullyVisible) {
+      if (isFullyVisibleRect(rect)) {
         if (el.classList.contains('cascade') && !el.dataset.cascadeInitialized) {
           [...el.children].forEach((child, i) => child.style.transitionDelay = `${i * cascadeDelayStep}ms`);
           el.dataset.cascadeInitialized = '1';
         }
         el.classList.add('active');
-      } else {
-        // opzionale: rimuovi active su quelli parziali
-        // el.classList.remove('active');
       }
     });
   }
-
-  // ascolta l'evento che abbiamo dispatchato in finishPageLoader()
   window.addEventListener('page-loader-finished', () => {
-    // piccolo delay per lasciare tempo al layout di stabilizzarsi
+    // small timeout to allow layout stabilization
     setTimeout(runRevealCheck, 20);
   });
 
-  // (opzionale) se vuoi che l'observer non parta finché loader attivo,
-  // potresti callare observer.observe dopo finishPageLoader invece di sopra.
 })();
