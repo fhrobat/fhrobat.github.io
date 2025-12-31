@@ -1,4 +1,5 @@
- // CONFIG
+(function () {
+  // CONFIG
   const CASCADE_CHILD_DELAY = 80;     // ms stagger per i figli .reveal.cascade > *
   const IO_THRESHOLD = 0.12;          // soglia intersectionRatio per considerare "in viewport"
   const WAIT_AFTER_LOADER_MS = 60;    // micro-delay dopo che il loader ha finito
