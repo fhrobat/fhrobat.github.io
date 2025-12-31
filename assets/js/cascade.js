@@ -3,7 +3,7 @@
   const CASCADE_CHILD_DELAY = 80;   // ms
   const IO_THRESHOLD = 0.15;
   const WAIT_AFTER_LOADER_MS = 50;
-  const REVEAL_DURATION_MS = 900;   // rallenta la discesa (SCSS resta a 700ms)
+  const REVEAL_DURATION_MS = 1500;   // rallenta la discesa (SCSS resta a 700ms)
   /* ========================================== */
 
   const prefersReduced =
