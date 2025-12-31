@@ -2,9 +2,9 @@
   // CONFIG
   const CASCADE_CHILD_DELAY = 80;     // ms stagger per i figli .reveal.cascade > *
   const IO_THRESHOLD = 0.12;          // quanto "entrato" deve essere per considerarlo visibile
-  const DEFAULT_WAIT_AFTER_LOADER_MS = 60; // attesa dopo evento loader (puoi aumentare se serve)
+  const DEFAULT_WAIT_AFTER_LOADER_MS = 500; // attesa dopo evento loader (puoi aumentare se serve)
   const EXTRA_CLEANUP_PADDING = 150;  // padding ms per cleanup inline styles
-  const debug = false;                // true per log in console
+  const debug = true;                // true per log in console
 
   function log(...args) { if (debug) console.log('[reveal-io]', ...args); }
 
