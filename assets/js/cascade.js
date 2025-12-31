@@ -1,27 +1,25 @@
-(function () {
-  // CONFIG
+ // CONFIG
   const CASCADE_CHILD_DELAY = 80;     // ms stagger per i figli .reveal.cascade > *
-  const IO_THRESHOLD = 0.12;          // quanto "entrato" deve essere per considerarlo visibile
-  const DEFAULT_WAIT_AFTER_LOADER_MS = 500; // attesa dopo evento loader (puoi aumentare se serve)
-  const EXTRA_CLEANUP_PADDING = 150;  // padding ms per cleanup inline styles
-  const debug = true;                // true per log in console
+  const IO_THRESHOLD = 0.12;          // soglia intersectionRatio per considerare "in viewport"
+  const WAIT_AFTER_LOADER_MS = 60;    // micro-delay dopo che il loader ha finito
+  const EXTRA_CLEANUP_PADDING = 150;
+  const debug = true;                 // metti true per vedere i log (tu l'hai già messo true)
 
   function log(...args) { if (debug) console.log('[reveal-io]', ...args); }
 
   const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Parse "700ms" / "0.7s" / "0.2s, 0.3s" -> ritorna massimo in ms
-  function parseTimeToMs(timeStr) {
-    if (!timeStr) return 0;
-    return Math.max(...timeStr.split(',').map(s => s.trim()).map(s => {
-      if (s.endsWith('ms')) return parseFloat(s);
-      if (s.endsWith('s')) return parseFloat(s) * 1000;
-      const n = parseFloat(s);
-      return Number.isFinite(n) ? n : 0;
+  // parse "700ms" / "0.7s" -> ms
+  function parseTimeToMs(s) {
+    if (!s) return 0;
+    return Math.max(...s.split(',').map(x => x.trim()).map(x => {
+      if (x.endsWith('ms')) return parseFloat(x);
+      if (x.endsWith('s')) return parseFloat(x) * 1000;
+      const n = parseFloat(x); return Number.isFinite(n) ? n : 0;
     }));
   }
 
-  // Calcola tempo massimo transition-duration+delay per cleanup dinamico (considera stagger inline)
+  // calcola cleanup timeout dinamico
   function getCleanupTimeoutMs(selectorRoot = '.reveal') {
     let max = 0;
     try {
@@ -29,48 +27,47 @@
         const csRoot = getComputedStyle(root);
         const rootMax = parseTimeToMs(csRoot.transitionDuration) + parseTimeToMs(csRoot.transitionDelay);
         max = Math.max(max, rootMax);
-
         if (root.classList.contains('cascade')) {
-          const children = Array.from(root.children);
-          children.forEach((child, i) => {
+          Array.from(root.children).forEach((child, i) => {
             const cs = getComputedStyle(child);
             const childMax = parseTimeToMs(cs.transitionDuration) + parseTimeToMs(cs.transitionDelay) + (i * CASCADE_CHILD_DELAY);
             max = Math.max(max, childMax);
           });
         }
       });
-    } catch (e) {
-      log('errore getCleanupTimeoutMs', e);
-    }
+    } catch (e) { log('err getCleanup', e); }
     return Math.ceil(max) + EXTRA_CLEANUP_PADDING;
   }
 
-  // Forza repaint
+  // check se il loader è visibile/finito
+  function loaderAlreadyFinished() {
+    const loader = document.getElementById('page-loader');
+    if (!loader) {
+      // fallback: body.loading rimosso o document ready complete
+      return !document.body.classList.contains('loading') || document.readyState === 'complete';
+    }
+    const cs = getComputedStyle(loader);
+    return loader.classList.contains('hidden') || loader.classList.contains('done') || cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0;
+  }
+
   function forceRepaint(el) { if (!el) return; el.getBoundingClientRect(); }
 
-  // Attiva reveal (single element) o cascade (container)
+  // attiva reveal (single o cascade) e segna data-revealdone
   function activateReveal(el) {
-    if (!el) return;
-    if (el.dataset.revealDone === 'true') return; // già attivato
-
+    if (!el || el.dataset.revealDone === 'true') return;
     if (prefersReduced) {
       el.classList.add('active');
       el.dataset.revealDone = 'true';
       return;
     }
-
     if (el.classList.contains('cascade')) {
-      const children = Array.from(el.children);
-      children.forEach((child, i) => {
-        child.style.transitionDelay = `${i * CASCADE_CHILD_DELAY}ms`;
-      });
+      Array.from(el.children).forEach((ch, i) => ch.style.transitionDelay = `${i * CASCADE_CHILD_DELAY}ms`);
       forceRepaint(el);
       requestAnimationFrame(() => {
         el.classList.add('active');
         el.dataset.revealDone = 'true';
       });
     } else {
-      // singolo elemento
       requestAnimationFrame(() => {
         el.classList.add('active');
         el.dataset.revealDone = 'true';
@@ -78,92 +75,90 @@
     }
   }
 
-  // cleanup inline delays (dopo che le transizioni sono finite)
+  // cleanup inline delays
   function scheduleCleanup() {
-    const timeout = getCleanupTimeoutMs();
-    log('cleanup timeout (ms):', timeout);
+    const t = getCleanupTimeoutMs();
+    log('cleanup timeout (ms):', t);
     setTimeout(() => {
-      document.querySelectorAll('.reveal.cascade > *').forEach(ch => {
-        ch.style.transitionDelay = '';
-      });
+      document.querySelectorAll('.reveal.cascade > *').forEach(ch => ch.style.transitionDelay = '');
       log('cleanup: transitionDelay rimossi');
-    }, timeout);
+    }, t);
   }
 
-  // MAIN: crea IntersectionObserver e osserva tutte le .reveal
-  function startObserver() {
-    if (prefersReduced) {
-      // utenti con preferenze ridotte -> attiva tutto subito (una sola volta)
-      document.querySelectorAll('.reveal').forEach(el => {
-        if (el.dataset.revealDone !== 'true') {
-          el.classList.add('active');
-          el.dataset.revealDone = 'true';
-        }
-      });
-      return;
-    }
-
-    const observer = new IntersectionObserver((entries, obs) => {
+  // --- MAIN: crea IntersectionObserver ma NON osserva ancora gli elementi ---
+  let io = null;
+  function createObserver() {
+    if (io) return io;
+    io = new IntersectionObserver((entries, observer) => {
       entries.forEach(entry => {
         const el = entry.target;
-        // consideriamo "entrato" solo se è intersecting e supera la threshold
+        // GUARD: se il loader non è ancora finito, ignoro questa entry
+        if (!loaderAlreadyFinished()) {
+          log('entry ignorata perché loader ancora visibile', el);
+          return;
+        }
+        // considera "entrato" solo se intersecting e oltre la soglia
         if (entry.isIntersecting && entry.intersectionRatio >= IO_THRESHOLD) {
           log('intersection -> activate', el);
           activateReveal(el);
-          obs.unobserve(el); // run once per elemento
+          observer.unobserve(el);
         }
       });
     }, {
       threshold: IO_THRESHOLD
-      // puoi aggiungere rootMargin se vuoi anticipare l'entrata: e.g. '0px 0px -10% 0px'
     });
+    return io;
+  }
 
+  // osserva tutti gli elementi .reveal (chiamare SOLO dopo che loader è finito)
+  function observeAllReveals() {
     const items = Array.from(document.querySelectorAll('.reveal'));
-    if (!items.length) {
-      log('Nessun .reveal trovato da osservare');
-      return;
-    }
-
+    if (!items.length) { log('observeAllReveals: nessun .reveal trovato'); return; }
+    const observer = createObserver();
     items.forEach(it => {
-      // se già attivato (es. markup server-side) skip
       if (it.dataset.revealDone === 'true') return;
       observer.observe(it);
     });
-
-    // pulisci eventuali transitionDelay dopo durata dinamica
     scheduleCleanup();
+    // esegui un check immediato per attivare gli elementi già visibili ora che loader è finito
+    // (non ci fidiamo soltanto dell'IO perché alcune browser non triggerano subito)
+    requestAnimationFrame(() => {
+      items.forEach(it => {
+        if (it.dataset.revealDone === 'true') return;
+        const rect = it.getBoundingClientRect();
+        const visible = rect.top < (window.innerHeight || document.documentElement.clientHeight) && rect.bottom > 0;
+        if (visible) {
+          log('hit-check: elemento già visibile -> activate', it);
+          activateReveal(it);
+          try { createObserver().unobserve(it); } catch(e) {}
+        }
+      });
+    });
   }
 
-  // Controlla se il loader è già finito (se lo script viene caricato dopo)
-  function loaderAlreadyFinished() {
-    const loader = document.getElementById('page-loader');
-    if (!loader) {
-      return !document.body.classList.contains('loading') || document.readyState === 'complete';
-    }
-    const cs = getComputedStyle(loader);
-    return loader.classList.contains('hidden') || loader.classList.contains('done') || cs.display === 'none' || cs.opacity === '0' || cs.visibility === 'hidden';
-  }
-
-  // Hook: aspetta che il page-loader sia finito, poi avvia observer
+  // Hook: aspetta che il page-loader sia finito, poi inizia a osservare
   function hookToLoaderFinish() {
+    // se già finito -> avvia subito
     if (loaderAlreadyFinished()) {
-      log('loader già finito -> avvio observer');
-      setTimeout(startObserver, DEFAULT_WAIT_AFTER_LOADER_MS);
+      log('loader già finito -> avvio observer tra', WAIT_AFTER_LOADER_MS, 'ms');
+      setTimeout(observeAllReveals, WAIT_AFTER_LOADER_MS);
       return;
     }
 
+    // ascolta evento custom che il tuo finishPageLoader dispatcha
     window.addEventListener('page-loader-finished', () => {
-      log('ricevuto page-loader-finished -> avvio observer');
-      setTimeout(startObserver, DEFAULT_WAIT_AFTER_LOADER_MS);
+      log('ricevuto page-loader-finished -> avvio observer tra', WAIT_AFTER_LOADER_MS, 'ms');
+      setTimeout(observeAllReveals, WAIT_AFTER_LOADER_MS);
     }, { once: true });
 
-    // fallback: window.load
+    // fallback ulteriore
     window.addEventListener('load', () => {
-      log('fallback window.load -> avvio observer');
-      setTimeout(startObserver, DEFAULT_WAIT_AFTER_LOADER_MS);
+      log('fallback window.load ricevuto -> avvio observer tra', WAIT_AFTER_LOADER_MS, 'ms');
+      setTimeout(observeAllReveals, WAIT_AFTER_LOADER_MS);
     }, { once: true });
   }
 
-  // init
+  // Inizializza
   document.addEventListener('DOMContentLoaded', hookToLoaderFinish);
+
 })();
