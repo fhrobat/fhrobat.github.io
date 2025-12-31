@@ -18,13 +18,13 @@
 
 /* quando il tema è forzato su dark (body[a="dark"]) */
 body[a="dark"] #page-loader {
-  background: #0f1113;
+  background: #f0eeec;
 }
 
 /* quando il tema è auto e il sistema è in dark mode */
 @media (prefers-color-scheme: dark) {
   body[a="auto"] #page-loader {
-    background: #0f1113;
+    background: #f0eeec;
   }
 }
 
