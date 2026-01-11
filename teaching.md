@@ -1,6 +1,6 @@
 ---
 layout: page
-title: Teachin
+title: Teaching
 custom_js: theme
 ---
 
