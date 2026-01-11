@@ -1,5 +1,6 @@
 entries:
   - title: Publications
+    id: publications
     url: publications.html
     content: |
       <ol>
@@ -16,6 +17,7 @@ entries:
       </ol>
 
   - title: Talks and visits
+    id: talks
     url: talks.html
     content: |
       <ol>
@@ -36,6 +38,7 @@ entries:
       </ol>
 
   - title: Education
+    id: education
     url: education.html
     content: |
       <ul>
@@ -57,6 +60,7 @@ entries:
       </ol>
 
   - title: Teaching
+    id: teaching
     url: teaching.html
     content: |
      <ul>
@@ -64,6 +68,8 @@ entries:
          <strong>MT25:</strong> TA for Practical Numerical Analysis
      </ul>
   - title: Extra activities and awards
+    id: extra
+    url: extra.html
     content: |
      <ul>
       <li>
