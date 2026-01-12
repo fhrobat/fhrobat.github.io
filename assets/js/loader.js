@@ -1,5 +1,23 @@
 (function () {
 
+  // SKIP LOADER SE ARRIVO DAL BACK-LINK
+  if (sessionStorage.getItem('skip-home-loader') === 'true') {
+    sessionStorage.removeItem('skip-home-loader');
+
+    const loaderEl = document.getElementById('page-loader');
+    if (loaderEl) {
+      loaderEl.classList.add('hidden');
+      loaderEl.setAttribute('aria-hidden', 'true');
+    }
+
+    document.body.classList.remove('loading');
+    document.documentElement.classList.remove('no-scroll');
+    document.body.classList.remove('no-scroll');
+
+    window.dispatchEvent(new CustomEvent('page-loader-finished'));
+    return;
+  }
+
   // ===============================
   // SKIP LOADER SU BACK/FORWARD
   // ===============================
