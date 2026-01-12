@@ -7,7 +7,7 @@
         <div class="smooth-content cascade">
           <p>
             <div class="short">
-            {{item.content}}
+            {{item.content | safeHTML}}
             </div> 
             <br>
             <a href="{{ item.url }}">More</a>
@@ -20,7 +20,7 @@
         <div class="smooth-content cascade">
           <p>
             <div class="short">
-            {{item.content}}
+            {{item.content | safeHTML}}
             </div>
           </p>
         </div>
