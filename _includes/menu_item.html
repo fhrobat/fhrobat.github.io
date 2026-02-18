@@ -10,18 +10,7 @@
             {{item.content | safeHTML}}
             </div> 
             <br>
-            <a href="javascript:void(0)" onclick="document.getElementById('finestraTalks').showModal()" style="color: blue; text-decoration: underline; cursor: pointer;">More</a>
-
-            <dialog id="finestraTalks" style="width: 80%; max-width: 800px; border: none; border-radius: 8px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
-              <div style="text-align: right; margin-bottom: 20px;">
-                <button onclick="document.getElementById('finestraTalks').close()" style="cursor: pointer; padding: 5px 15px;">Chiudi</button>
-              </div>
-  
-              <div>
-                {% assign talks_finestra = site.data.menu.entries | where: "id", "talks" | first %}
-                {{ item.content }}
-              </div>
-            </dialog>
+            <a href="{{item.url}}" onclick="window.open(this.href, 'finestraTalks', 'width=800,height=700,scrollbars=yes,resizable=yes'); return false;" style="color: blue; text-decoration: underline; cursor: pointer;">more</a>
           </p>
         </div>
       </details>
