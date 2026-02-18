@@ -3,7 +3,7 @@ author: Francesco Hrobat # name of site's author
 email: francesco.hrobat@maths.ox.ac.uk # email of site's author
 url:  "https://fhrobat.github.io" # root address of the site
 scholar: "https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ"
-baseurl: "/website" # subpath of the site, e.g. "/blog" (leave it blank "" if you're site shouldn't use a subpath)
+baseurl: "" # subpath of the site, e.g. "/blog" (leave it blank "" if you're site shouldn't use a subpath)
 description: >
   <p class="contacts">
    <a href="mailto:francesco.hrobat@maths.ox.ac.uk">Email</a>
