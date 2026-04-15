@@ -366,7 +366,8 @@ img {
   transition: color 0.2s ease;
 }
 
-.minimal-footer a:hover {
-  color: #333; /* Colore quando ci passi sopra col mouse */
-  text-decoration: underline;
+.minimal-footer a {
+  color: inherit;
+  text-decoration: underline; 
+}
 }
