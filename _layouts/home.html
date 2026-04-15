@@ -20,6 +20,10 @@ layout: default
 {%-include menu_item.html collection=site.data.menu.entries-%}
 
 {{ content }}
+
+<footer class="minimal-footer">
+  Last updated: {{ site.time | date: "%B %d, %Y" }}
+</footer>  
 </div>
 
 <button id="theme-toggle" type="button" aria-pressed="false" aria-label="Toggle theme"> <span id="theme-icon">🌓</span> </button>
