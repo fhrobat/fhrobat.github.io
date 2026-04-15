@@ -21,10 +21,12 @@ layout: default
 
 {{ content }}
 
-<footer class="minimal-footer">
-  Last updated: {{ site.time | date: "%B %d, %Y" }}
-</footer>  
 </div>
+
+<footer class="minimal-footer">
+  <p>Last updated: {{ site.time | date: "%B %d, %Y" }}</p>
+  <p>Template by <a href="https://github.com/riggraz/no-style-please" target="_blank" rel="noopener noreferrer">no-style-please</a>.</p>
+</footer>  
 
 <button id="theme-toggle" type="button" aria-pressed="false" aria-label="Toggle theme"> <span id="theme-icon">🌓</span> </button>
 <script type="module" src="{{ '/assets/js/home.js' | relative_url }}"></script>
