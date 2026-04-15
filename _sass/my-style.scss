@@ -359,3 +359,14 @@ img {
   color: #888;
   font-family: inherit;
 }
+
+.minimal-footer a {
+  color: #888; /* Colore del link nel footer */
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.minimal-footer a:hover {
+  color: #333; /* Colore quando ci passi sopra col mouse */
+  text-decoration: underline;
+}
