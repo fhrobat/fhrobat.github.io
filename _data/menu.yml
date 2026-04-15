@@ -5,14 +5,19 @@ entries:
     content: |
       <ol>
         <li>
-          <strong> Lanczos with compression for symmetric matrix Lyapunov equations </strong><br>
-          <em> Angelo A. Casulli, Francesco Hrobat, Daniel Kressner </em><br>
-          2025, <a href="https://arxiv.org/abs/2505.22498">ArXiv</a>
+          <strong> Matrix Perturbation Theory in the Tangent Space of Isospectral Matrices </strong><br>
+          <em> Francesco Hrobat, Yuji Nakatsukasa </em><br>
+          2025, <a href="https://arxiv.org/abs/2602.22084">ArXiv</a>
         </li>
         <li>
           <strong> Generalized Friendship Paradoxes in Network Science </strong><br>
           <em> Desmond J. Higham, Francesco Hrobat, Francesco Tudisco </em><br>
           2025, <a href="https://arxiv.org/abs/2511.11742">ArXiv</a>
+        </li>
+        <li>
+          <strong> Lanczos with compression for symmetric matrix Lyapunov equations </strong><br>
+          <em> Angelo A. Casulli, Francesco Hrobat, Daniel Kressner </em><br>
+          2025, <a href="https://arxiv.org/abs/2505.22498">ArXiv</a>
         </li>
       </ol>
 
@@ -21,6 +26,15 @@ entries:
     url: talks.html
     content: |
       <ol>
+        <li>
+          <strong>Are your friends more important than you?</strong><br>
+          <em>08/05/2026 &emsp; Italian Linacre Society Annual Meeting, Oxford, United Kingdom</em><br>
+        </li>
+        <li>
+          <strong>Lanczos with compression for symmetric Lyapunov equations</strong><br>
+          <em>12/03/2026 &emsp; Internal Seminar, Oxford, United Kingdom</em><br>
+          Invited speaker at "Advances in Krylov Subspace Methods and their Applications" Minisymposium
+        </li>
         <li>
           <strong>Lanczos with compression for symmetric Lyapunov equations</strong><br>
           <em>24/06/2025 &emsp; ILAS 2025, Kaohsiung, Taiwan</em><br>
@@ -75,6 +89,12 @@ entries:
     content: |
      <ul>
       <li>
+        <em>2025 - 2029</em> &emsp; <strong>Mathematical Institute Scholarship</strong> 
+      </li>
+      <li>
+         <em>2020 - 2025</em> &emsp; <strong>Scuola Normale Superiore merit-based full Scholarship</strong> 
+      </li>
+      <li>
         <em>Nov 2024 - Jul 2025</em> &emsp; <strong>SIAM Student Chapter officer</strong> for UniPi-SNS chapter
       </li>
       <li>
@@ -95,10 +115,16 @@ entries:
         <em>Mar 2023 - Jun 2023</em> &emsp; <strong>Parallel Computing (Calcolo Parallelo dall’Infrastruttura alla Matematica)</strong> organized by University of Pisa. The course consisted in theory and practice of parallel computing 
       </li>
       <li>
+        <em>Oct 2020</em> &emsp; <strong> 7th place – Italian Mathematical Kangourou </strong> - Student Category
+      </li>
+      <li>
         <em>Mag 2020</em> &emsp; <strong>Silver Medal – Italian Mathematical Olympiads</strong>, awarded by UMI
       </li>
       <li>
         <em>Mag 2019</em> &emsp; <strong>Silver Medal – Italian Mathematical Olympiads</strong>, awarded by UMI
+      </li>
+      <li>
+        <em>Mar 2019</em> &emsp; <strong>4th place – Applied Mathematics Grand Prix</strong>, awarded by Universit`a Cattolica del Sacro Cuore
       </li>
       <li>
         <em>Mag 2018</em> &emsp; <strong>Bronze Medal – Italian Mathematical Olympiads</strong>, awarded by UMI
@@ -107,6 +133,9 @@ entries:
         <em>Mag 2018</em> &emsp; <strong>Silver Medal – European Union Science Olympiad (EUSO)</strong>, Ljubljana, Slovenia
       </li>
       <li>
-        <em>Mag 2017</em> &emsp; <strong>First Place – Italian Team Mathematical Olympiads</strong>, awarded by UMI
+        <em>Mag 2017</em> &emsp; <strong>1st Place – Italian Team Mathematical Olympiads</strong>, awarded by UMI
+      </li>
+      <li>
+        <em>2017</em> &emsp; <strong>1st Place – International Championships of Mathematical Games - Teams </strong>, awarded by Bocconi University
       </li>
      </ul>
