@@ -371,3 +371,10 @@ img {
   text-decoration: underline; 
 }
 
+ul, ol {
+  text-align: left;
+  display: inline-block;
+  list-style-position: inside;
+  margin: 1rem 0;
+}
+
