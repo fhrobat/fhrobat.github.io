@@ -374,9 +374,10 @@ img {
 ul, ol {
   text-align: left;
   list-style-position: inside;
-  display: block;        /* Rimuove l'effetto "restringimento" dell'inline-block */
-  width: 100%;           /* Prende lo spazio disponibile... */
-  max-width: 800px;      /* ...fino a un massimo (cambia questo valore come preferisci) */
-  margin: 1rem auto;     /* margin auto a destra e sinistra lo centra perfettamente */
+  display: block;
+  width: 100%;
+  max-width: 800px;     
+  margin: 1rem auto;     
+  padding: 0;
 }
 
