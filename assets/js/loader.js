@@ -52,7 +52,7 @@
   // ===============================
 
   const pulseDuration = 700; // ms
-  const pulseCount = 2;     // pulsazioni
+  const pulseCount = 1;     // pulsazioni
 
   // ===============================
   // LOCK / UNLOCK SCROLL
