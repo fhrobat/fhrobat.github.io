@@ -448,7 +448,7 @@ li.has-anim::after {
 // -------- news box on the home page -------- //
 .news {
   max-width: 800px;
-  margin: 1.5rem auto 1rem;
+  margin: 1.5rem auto 2.75rem;
   padding: 0.6rem 1rem 0.4rem;
   text-align: left;
   border-left: 3px solid #012a4a;
@@ -464,11 +464,15 @@ li.has-anim::after {
   margin: 0;
   max-width: none;
 
-  li { margin: 0.25rem 0; }
+  // date in its own column, so wrapped lines stay aligned with the text
+  li {
+    display: grid;
+    grid-template-columns: 5.5em 1fr;
+    gap: 0.5em;
+    margin: 0.3rem 0;
+  }
 }
 
 .news-date {
-  display: inline-block;
-  min-width: 5.5em;
   font-weight: bold;
 }
