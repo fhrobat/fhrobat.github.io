@@ -21,7 +21,8 @@ entries:
           }
           </pre>
         </li>
-        <li>
+        <li class="has-anim">
+          <video class="paper-anim" src="assets/anims/Perturbation.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: a generic perturbation moves the eigenvalue a lot, a commutator perturbation barely moves it"></video>
           <strong> Matrix Perturbation Theory in the Tangent Space of Isospectral Matrices </strong><br>
           <em> Francesco Hrobat, Yuji Nakatsukasa </em><br>
           2026<br>
