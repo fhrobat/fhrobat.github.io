@@ -9,7 +9,7 @@ entries:
           <strong> Solving a sequence of eigenvalue problems using snapshot and row subsampling </strong><br>
           <em> Francesco Hrobat, Yuji Nakatsukasa </em><br>
           2026<br>
-          <span class="paper-links"><a class="badge" href="https://arxiv.org/abs/2610.19326" target="_blank" rel="noopener">arXiv</a> <a class="badge" href="https://arxiv.org/pdf/2610.19326" target="_blank" rel="noopener">PDF</a> <a class="badge" href="https://fhrobat.github.io/jams_talk/" target="_blank" rel="noopener">Slides</a> <button type="button" class="badge bib-copy" title="Copy BibTeX">BibTeX</button></span>
+          <span class="paper-links"><a class="badge" href="https://arxiv.org/abs/2610.19326" target="_blank" rel="noopener">arXiv</a> <a class="badge" href="https://arxiv.org/pdf/2610.19326" target="_blank" rel="noopener">PDF</a> <a class="badge" href="https://github.com/fhrobat/SubApSnapEig" target="_blank" rel="noopener">Code</a> <a class="badge" href="https://fhrobat.github.io/jams_talk/" target="_blank" rel="noopener">Slides</a> <button type="button" class="badge bib-copy" title="Copy BibTeX">BibTeX</button></span>
           <pre class="bib-src" hidden>
           @misc{hrobat2026sequence,
             title         = {Solving a sequence of eigenvalue problems using snapshot and row subsampling},
@@ -87,6 +87,7 @@ entries:
         <li>
           <strong>Solving sequences of eigenvalue problems using snapshot and row subsampling</strong><br>
           <em>14/09/2026 &emsp; Emerging Numerical Linear Algebra Research Gathering for Exchanging Developments (ENLARGED), Rutherford Appleton Laboratory, Didcot, United Kingdom</em><br>
+          <span class="paper-links"><a class="badge" href="assets/slides/HROBAT_slides_enlarged.pdf" target="_blank" rel="noopener">Slides</a></span>
         </li>
         <li>
           <strong>Are your friends more important than you?</strong><br>
