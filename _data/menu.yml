@@ -56,7 +56,7 @@ entries:
           </pre>
         </li>
         <li class="has-anim">
-          <video class="paper-anim" src="assets/anims/LanczosComp.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: the basis Q_M is compressed by U_{M_k} and then extended again"></video>
+          <video class="paper-anim" src="assets/anims/LanczosComp.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: the basis Q_M is compressed by U_{M,k} and then extended again"></video>
           <strong> Lanczos with compression for symmetric matrix Lyapunov equations </strong><br>
           <em> Angelo A. Casulli, Francesco Hrobat, Daniel Kressner </em><br>
           2025<br>
@@ -120,7 +120,7 @@ entries:
     content: |
       <ul>
         <li>
-          <em>Oct 2025 - Now</em> &emsp; <strong>Phd</strong>, University of Oxford, Linacre College, Oxford, United Kingdom
+          <em>Oct 2025 - Now</em> &emsp; <strong>Phd</strong>, University of Oxford, Linacre College and St Catherine's College, Oxford, United Kingdom
         </li>
         <li>
           <em>Jan 2025 - Feb 2025</em> &emsp; <strong>Visiting student</strong>, EPFL, Lausanne, Switzerland
