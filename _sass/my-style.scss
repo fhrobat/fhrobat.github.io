@@ -12,6 +12,9 @@
   .emoji { filter: invert(1); }
 
   iframe { filter: invert(1); }
+
+  // keep the hues of the paper animations, invert only their lightness
+  video.paper-anim { filter: hue-rotate(180deg); }
 }
 
 /* ===== DARK manuale ===== */
@@ -381,3 +384,30 @@ ul, ol {
   padding: 0;
 }
 
+
+// -------- looping animations next to publications -------- //
+.paper-anim {
+  float: right;
+  width: 210px;
+  aspect-ratio: 16 / 9;
+  margin: 0 0 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #e3e3e3;
+  background: white;
+}
+
+li.has-anim::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+
+@media (max-width: 600px) {
+  .paper-anim {
+    float: none;
+    display: block;
+    width: 100%;
+    max-width: 360px;
+    margin: 0.5rem auto;
+  }
+}

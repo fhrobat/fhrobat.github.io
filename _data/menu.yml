@@ -4,7 +4,8 @@ entries:
     url: publications.html
     content: |
       <ol>
-        <li>
+        <li class="has-anim">
+          <video class="paper-anim" src="assets/anims/EigSeq.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: a point p moves in a domain Omega and the matrix A(p) changes"></video>
           <strong> Solving a sequence of eigenvalue problems using snapshot and row subsampling </strong><br>
           <em> Francesco Hrobat, Yuji Nakatsukasa </em><br>
           2026, <a href="https://arxiv.org/abs/2610.19326">ArXiv</a>
@@ -14,12 +15,14 @@ entries:
           <em> Francesco Hrobat, Yuji Nakatsukasa </em><br>
           2026, <a href="https://arxiv.org/abs/2602.22084">ArXiv</a>
         </li>
-        <li>
+        <li class="has-anim">
+          <video class="paper-anim" src="assets/anims/Friendship.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: random graphs where nodes whose friends have more friends on average turn red"></video>
           <strong> Generalized Friendship Paradoxes in Network Science </strong><br>
           <em> Desmond J. Higham, Francesco Hrobat, Francesco Tudisco </em><br>
           2026, <a href="https://arxiv.org/abs/2511.11742">ArXiv</a>, to appear in SIMAX
         </li>
-        <li>
+        <li class="has-anim">
+          <video class="paper-anim" src="assets/anims/LanczosComp.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: the basis Q_M is compressed by U_{M_k} and then extended again"></video>
           <strong> Lanczos with compression for symmetric matrix Lyapunov equations </strong><br>
           <em> Angelo A. Casulli, Francesco Hrobat, Daniel Kressner </em><br>
           2025, <a href="https://arxiv.org/abs/2505.22498">ArXiv</a>
