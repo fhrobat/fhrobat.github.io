@@ -5,6 +5,11 @@ entries:
     content: |
       <ol>
         <li>
+          <strong> Solving a sequence of eigenvalue problems using snapshot and row subsampling </strong><br>
+          <em> Francesco Hrobat, Yuji Nakatsukasa </em><br>
+          2026, <a href="https://arxiv.org/abs/2610.19326">ArXiv</a>
+        </li>
+        <li>
           <strong> Matrix Perturbation Theory in the Tangent Space of Isospectral Matrices </strong><br>
           <em> Francesco Hrobat, Yuji Nakatsukasa </em><br>
           2026, <a href="https://arxiv.org/abs/2602.22084">ArXiv</a>
@@ -26,6 +31,11 @@ entries:
     url: talks.html
     content: |
       <ol>
+        <li>
+          <strong>Solving a sequence of eigenvalue problems using snapshot and row subsampling</strong><br>
+          <em>20/10/2026 &emsp; Junior Applied Mathematics Seminar (JAMS), Oxford SIAM Student Chapter, Oxford, United Kingdom</em><br>
+          <a href="https://fhrobat.github.io/jams_talk/">Slides</a>
+        </li>
         <li>
           <strong>Solving sequences of eigenvalue problems using snapshot and row subsampling</strong><br>
           <em>14/09/2026 &emsp; Emerging Numerical Linear Algebra Research Gathering for Exchanging Developments (ENLARGED), Rutherford Appleton Laboratory, Didcot, United Kingdom</em><br>
