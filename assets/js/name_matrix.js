@@ -1,6 +1,7 @@
 // name_matrix.js
 // The name alternates with two matrices, [Francesco] and [Hrobat].
-// Hovering the matrices assembles their product, term by term; leaving restores them.
+// Hovering the matrices assembles their product: every letter flies to its place with a light
+// trail; leaving plays the animation backwards.
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.querySelector('#name_title'); // assicurati id corretto
   if (!el) return;
@@ -21,29 +22,153 @@ document.addEventListener('DOMContentLoaded', () => {
     .map((row, i) => row + GAP + matRows(H)[i])
     .join('\n');
 
-  // --- prodotto F*H: l'entrata (i,j) è  F[i][0]H[0][j] + F[i][1]H[1][j] + F[i][2]H[2][j] ---
-  const terms = F.map((row) => H[0].map((_, j) => row.map((f, k) => f + H[k][j])));
-  const N_TERMS = F.length * H[0].length * F[0].length;
-  const ENTRY_W = 3 * 2 + 2; // "FH+ro+aa"
 
-  // testo del prodotto con solo i primi `shown` termini (ordine: riga, colonna, k)
-  function productText(shown) {
-    let left = shown;
-    return terms.map((row, i) => {
-      const entries = row.map((t) => {
-        const take = Math.max(0, Math.min(t.length, left));
-        left -= take;
-        return t.slice(0, take).join('+').padEnd(ENTRY_W, ' ');
+  // --- prodotto F*H: l'entrata (i,j) è  F[i][0]H[0][j] + F[i][1]H[1][j] + F[i][2]H[2][j] ---
+  // Costruiamo il testo del prodotto ricordando, per ogni lettera, da dove viene nelle matrici.
+  const LEFT_W = matRows(F)[0].length + GAP.length;   // dove inizia la matrice H in ogni riga
+  const srcF = (i, k) => i * (matrixText.indexOf('\n') + 1) + 2 + 3 * k;
+  const srcH = (k, j) => k * (matrixText.indexOf('\n') + 1) + LEFT_W + 2 + 3 * j;
+
+  const flights = [];   // { src, dst, order }: una lettera che vola da src a dst (indici nel testo)
+  const pluses = [];    // { dst, order }
+  let productText = '';
+  let order = 0;
+  F.forEach((row, i) => {
+    let line = OPEN[i] + ' ';
+    H[0].forEach((_, j) => {
+      if (j > 0) line += '  ';
+      row.forEach((f, k) => {
+        if (k > 0) { pluses.push({ dst: productText.length + line.length, order }); line += '+'; }
+        flights.push({ src: srcF(i, k), dst: productText.length + line.length, order });
+        flights.push({ src: srcH(k, j), dst: productText.length + line.length + 1, order });
+        line += f + H[k][j];
+        order += 1;
       });
-      return `${OPEN[i]} ${entries.join('  ')} ${CLOSE[i]}`;
-    }).join('\n');
+    });
+    productText += line + ' ' + CLOSE[i] + (i < F.length - 1 ? '\n' : '');
+  });
+
+  /* -------- animazione: le lettere volano al loro posto, con una scia leggera -------- */
+  const STAGGER = 45;     // ritardo tra un termine e il successivo (ms)
+  const FLIGHT = 650;     // durata del volo di una lettera (ms)
+  const TRAIL = [[45, 0.28], [90, 0.16], [135, 0.08]]; // [ritardo, opacità] delle copie-scia
+  const EASE = 'cubic-bezier(.45,.05,.25,1)';
+  const BACK_RATE = 1.8;  // il ritorno è un po' più veloce dell'andata
+
+  let layer = null;       // contenitore delle lettere animate
+  let anims = [];         // tutte le animazioni attive (si invertono all'uscita del mouse)
+  let token = 0;          // invalida i "finished" di animazioni vecchie
+
+  // posizione (relativa a el) di ogni carattere di `text`, misurata sul testo vero
+  function measure(text) {
+    el.textContent = text;
+    const node = el.firstChild;
+    const base = el.getBoundingClientRect();
+    const range = document.createRange();
+    const pos = [];
+    for (let n = 0; n < text.length; n++) {
+      if (text[n] === '\n' || text[n] === ' ') { pos.push(null); continue; }
+      range.setStart(node, n);
+      range.setEnd(node, n + 1);
+      const r = range.getBoundingClientRect();
+      pos.push({ x: r.left - base.left, y: r.top - base.top });
+    }
+    return pos;
+  }
+
+  function glyph(ch, p) {
+    const s = document.createElement('span');
+    s.textContent = ch;
+    s.style.cssText = `position:absolute;left:${p.x}px;top:${p.y}px;white-space:pre;`;
+    layer.appendChild(s);
+    return s;
+  }
+
+  function fade(node, from, to, delay, duration) {
+    anims.push(node.animate([{ opacity: from }, { opacity: to }],
+      { duration, delay, easing: 'ease', fill: 'both' }));
+  }
+
+  function buildLayer() {
+    const src = measure(matrixText);
+    const dst = measure(productText);
+    el.textContent = '';
+    el.style.position = 'relative';
+    layer = document.createElement('div');
+    layer.setAttribute('aria-hidden', 'true');
+    layer.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
+    el.appendChild(layer);
+    anims = [];
+
+    const last = order - 1;
+    // le matrici di partenza svaniscono mentre le lettere partono
+    for (let n = 0; n < matrixText.length; n++) {
+      if (!src[n]) continue;
+      fade(glyph(matrixText[n], src[n]), 1, 0, 0, 350 + STAGGER * last);
+    }
+    // parentesi del prodotto
+    for (let n = 0; n < productText.length; n++) {
+      if (dst[n] && '⎡⎢⎣⎤⎥⎦'.includes(productText[n])) {
+        fade(glyph(productText[n], dst[n]), 0, 1, 150, 500);
+      }
+    }
+    // i "+" compaiono quando il loro termine è arrivato
+    pluses.forEach(({ dst: d, order: o }) => {
+      fade(glyph('+', dst[d]), 0, 1, o * STAGGER + FLIGHT * 0.7, 250);
+    });
+    // le lettere in volo, ognuna con la sua scia
+    flights.forEach(({ src: s, dst: d, order: o }) => {
+      const dx = src[s].x - dst[d].x;
+      const dy = src[s].y - dst[d].y;
+      const ch = productText[d];
+      const path = [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }];
+      const delay = o * STAGGER;
+      anims.push(glyph(ch, dst[d]).animate(path,
+        { duration: FLIGHT, delay, easing: EASE, fill: 'both' }));
+      TRAIL.forEach(([lag, alpha]) => {
+        const ghost = glyph(ch, dst[d]);
+        anims.push(ghost.animate(
+          [{ transform: path[0].transform, opacity: 0 },
+           { transform: path[0].transform, opacity: alpha, offset: 0.05 },
+           { transform: 'translate(0, 0)', opacity: 0 }],
+          { duration: FLIGHT, delay: delay + lag, easing: EASE, fill: 'both' }));
+      });
+    });
+  }
+
+  function teardown() {
+    token += 1;
+    anims.forEach((a) => a.cancel());
+    anims = [];
+    if (layer) { layer.remove(); layer = null; }
+  }
+
+  function startProduct() {
+    mode = 'product';
+    token += 1;
+    if (layer) {                      // stava tornando indietro: riparte in avanti da dov'è
+      anims.forEach((a) => { a.updatePlaybackRate(1); a.play(); });
+      return;
+    }
+    buildLayer();
+  }
+
+  function stopProduct() {
+    mode = 'matrix';
+    if (!layer) { el.textContent = matrixText; return; }
+    const my = ++token;
+    anims.forEach((a) => { a.updatePlaybackRate(-BACK_RATE); a.play(); });
+    Promise.all(anims.map((a) => a.finished)).then(() => {
+      if (my !== token) return;       // nel frattempo il mouse è tornato
+      teardown();
+      el.textContent = matrixText;
+    }).catch(() => {});
   }
 
   /* -------- timing (ms) -------- */
   const DELAY_BEFORE = 5000; // attesa prima di mostrare le matrici
   const SHOW_TIME   = 5000; // durata delle matrici
   const FADE_TIME   = 300;  // deve matchare il CSS transition in ms
-  const TERM_TIME   = 55;   // un termine del prodotto
   const AFTER_HOVER = 2500; // matrici ancora visibili dopo che il mouse se ne va
 
   let mode = 'name';        // 'name' | 'matrix' | 'product'
@@ -54,6 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
     el.style.opacity = '0';
     // attendi FADE_TIME ms (coerente con CSS) e poi sostituisci
     setTimeout(() => {
+      teardown();
       el.textContent = newText;
       el.style.opacity = '1';
       mode = newMode;
@@ -61,27 +187,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, FADE_TIME);
   }
 
-  /* -------- prodotto al passaggio del mouse -------- */
-  let assembleTimer = null;
-
-  function startProduct() {
-    mode = 'product';
-    let shown = 0;
-    clearInterval(assembleTimer);
-    el.textContent = productText(0);
-    assembleTimer = setInterval(() => {
-      shown += 1;
-      el.textContent = productText(shown);
-      if (shown >= N_TERMS) { clearInterval(assembleTimer); assembleTimer = null; }
-    }, TERM_TIME);
-  }
-
-  function stopProduct() {
-    clearInterval(assembleTimer);
-    assembleTimer = null;
-    el.textContent = matrixText;
-    mode = 'matrix';
-  }
 
   /* -------- fissiamo altezza massima (anti-salto) -------- */
   // metti temporaneamente la matrice per misurare altezza
