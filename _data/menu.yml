@@ -8,24 +8,68 @@ entries:
           <video class="paper-anim" src="assets/anims/EigSeq.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: a point p moves in a domain Omega and the matrix A(p) changes"></video>
           <strong> Solving a sequence of eigenvalue problems using snapshot and row subsampling </strong><br>
           <em> Francesco Hrobat, Yuji Nakatsukasa </em><br>
-          2026, <a href="https://arxiv.org/abs/2610.19326">ArXiv</a>
+          2026<br>
+          <span class="paper-links"><a class="badge" href="https://arxiv.org/abs/2610.19326" target="_blank" rel="noopener">arXiv</a> <a class="badge" href="https://arxiv.org/pdf/2610.19326" target="_blank" rel="noopener">PDF</a> <a class="badge" href="https://fhrobat.github.io/jams_talk/" target="_blank" rel="noopener">Slides</a> <button type="button" class="badge bib-copy" title="Copy BibTeX">BibTeX</button></span>
+          <pre class="bib-src" hidden>
+          @misc{hrobat2026sequence,
+            title         = {Solving a sequence of eigenvalue problems using snapshot and row subsampling},
+            author        = {Hrobat, Francesco and Nakatsukasa, Yuji},
+            year          = {2026},
+            eprint        = {2610.19326},
+            archivePrefix = {arXiv},
+            primaryClass  = {math.NA}
+          }
+          </pre>
         </li>
         <li>
           <strong> Matrix Perturbation Theory in the Tangent Space of Isospectral Matrices </strong><br>
           <em> Francesco Hrobat, Yuji Nakatsukasa </em><br>
-          2026, <a href="https://arxiv.org/abs/2602.22084">ArXiv</a>
+          2026<br>
+          <span class="paper-links"><a class="badge" href="https://arxiv.org/abs/2602.22084" target="_blank" rel="noopener">arXiv</a> <a class="badge" href="https://arxiv.org/pdf/2602.22084" target="_blank" rel="noopener">PDF</a> <button type="button" class="badge bib-copy" title="Copy BibTeX">BibTeX</button></span>
+          <pre class="bib-src" hidden>
+          @misc{hrobat2026perturbation,
+            title         = {Matrix Perturbation Theory in the Tangent Space of Isospectral Matrices},
+            author        = {Hrobat, Francesco and Nakatsukasa, Yuji},
+            year          = {2026},
+            eprint        = {2602.22084},
+            archivePrefix = {arXiv},
+            primaryClass  = {math.NA}
+          }
+          </pre>
         </li>
         <li class="has-anim">
           <video class="paper-anim" src="assets/anims/Friendship.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: random graphs where nodes whose friends have more friends on average turn red"></video>
           <strong> Generalized Friendship Paradoxes in Network Science </strong><br>
           <em> Desmond J. Higham, Francesco Hrobat, Francesco Tudisco </em><br>
-          2026, <a href="https://arxiv.org/abs/2511.11742">ArXiv</a>, to appear in SIMAX
+          2026, to appear in SIMAX<br>
+          <span class="paper-links"><a class="badge" href="https://arxiv.org/abs/2511.11742" target="_blank" rel="noopener">arXiv</a> <a class="badge" href="https://arxiv.org/pdf/2511.11742" target="_blank" rel="noopener">PDF</a> <button type="button" class="badge bib-copy" title="Copy BibTeX">BibTeX</button></span>
+          <pre class="bib-src" hidden>
+          @misc{higham2025friendship,
+            title         = {Generalized Friendship Paradoxes in Network Science},
+            author        = {Higham, Desmond J. and Hrobat, Francesco and Tudisco, Francesco},
+            year          = {2025},
+            eprint        = {2511.11742},
+            archivePrefix = {arXiv},
+            primaryClass  = {physics.soc-ph}
+          }
+          </pre>
         </li>
         <li class="has-anim">
           <video class="paper-anim" src="assets/anims/LanczosComp.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: the basis Q_M is compressed by U_{M_k} and then extended again"></video>
           <strong> Lanczos with compression for symmetric matrix Lyapunov equations </strong><br>
           <em> Angelo A. Casulli, Francesco Hrobat, Daniel Kressner </em><br>
-          2025, <a href="https://arxiv.org/abs/2505.22498">ArXiv</a>
+          2025<br>
+          <span class="paper-links"><a class="badge" href="https://arxiv.org/abs/2505.22498" target="_blank" rel="noopener">arXiv</a> <a class="badge" href="https://arxiv.org/pdf/2505.22498" target="_blank" rel="noopener">PDF</a> <a class="badge" href="https://github.com/fhrobat/lyap-compress" target="_blank" rel="noopener">Code</a> <button type="button" class="badge bib-copy" title="Copy BibTeX">BibTeX</button></span>
+          <pre class="bib-src" hidden>
+          @misc{casulli2025lanczos,
+            title         = {Lanczos with compression for symmetric matrix Lyapunov equations},
+            author        = {Casulli, Angelo A. and Hrobat, Francesco and Kressner, Daniel},
+            year          = {2025},
+            eprint        = {2505.22498},
+            archivePrefix = {arXiv},
+            primaryClass  = {math.NA}
+          }
+          </pre>
         </li>
       </ol>
 
@@ -37,7 +81,7 @@ entries:
         <li>
           <strong>Solving a sequence of eigenvalue problems using snapshot and row subsampling</strong><br>
           <em>20/10/2026 &emsp; Junior Applied Mathematics Seminar (JAMS), Oxford SIAM Student Chapter, Oxford, United Kingdom</em><br>
-          <a href="https://fhrobat.github.io/jams_talk/">Slides</a>
+          <span class="paper-links"><a class="badge" href="https://fhrobat.github.io/jams_talk/" target="_blank" rel="noopener">Slides</a></span>
         </li>
         <li>
           <strong>Solving sequences of eigenvalue problems using snapshot and row subsampling</strong><br>
@@ -46,6 +90,7 @@ entries:
         <li>
           <strong>Are your friends more important than you?</strong><br>
           <em>08/05/2026 &emsp; Italian Linacre Society Annual Meeting, Oxford, United Kingdom</em><br>
+          <span class="paper-links"><a class="badge" href="https://fhrobat.github.io/LinItaSocSlides/" target="_blank" rel="noopener">Slides</a></span>
         </li>
         <li>
           <strong>Lanczos with compression for symmetric Lyapunov equations</strong><br>

@@ -1,0 +1,8 @@
+<section class="news reveal" aria-label="News">
+  <h2 class="news-title">News</h2>
+  <ul class="news-list">
+    {%- for item in site.data.news limit: 4 -%}
+    <li><span class="news-date">{{ item.date }}</span> {{ item.text }}</li>
+    {%- endfor -%}
+  </ul>
+</section>

@@ -411,3 +411,64 @@ li.has-anim::after {
     margin: 0.5rem auto;
   }
 }
+
+// -------- link badges (arXiv, PDF, Code, Slides, BibTeX) -------- //
+.paper-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.badge {
+  font: inherit;
+  font-size: 0.78em;
+  line-height: 1;
+  padding: 0.3em 0.6em;
+  border: 1px solid #c7d1de;
+  border-radius: 999px;
+  background: white;
+  color: #012a4a;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+
+  &:hover, &:focus-visible {
+    background: #e6edf6;
+    border-color: #012a4a;
+    transform: translateY(-1px);
+  }
+
+  &.copied {
+    background: #d9f2e6;
+    border-color: #009E73;
+  }
+}
+
+// -------- news box on the home page -------- //
+.news {
+  max-width: 800px;
+  margin: 1.5rem auto 1rem;
+  padding: 0.6rem 1rem 0.4rem;
+  text-align: left;
+  border-left: 3px solid #012a4a;
+}
+
+.news-title {
+  font-size: 1rem;
+  margin: 0 0 0.4rem;
+}
+
+.news .news-list {
+  list-style: none;
+  margin: 0;
+  max-width: none;
+
+  li { margin: 0.25rem 0; }
+}
+
+.news-date {
+  display: inline-block;
+  min-width: 5.5em;
+  font-weight: bold;
+}

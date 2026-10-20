@@ -4,3 +4,4 @@ import './name_matrix.js';
 import './theme.js';
 import './cascade.js';
 import './loader.js';
+import './bibtex.js';
