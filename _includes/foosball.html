@@ -122,9 +122,9 @@
   #foos-options button:focus-visible { outline: 2px solid #0b47d1; }
   /* Il sito inverte tutto in dark mode: come per i video, ruoto la tinta
      così il blu resta blu e si inverte solo la luminosità. */
-  body[a="dark"] #foos-canvas { filter: hue-rotate(180deg); }
+  body[a="dark"] #foos { filter: hue-rotate(180deg); }
   @media (prefers-color-scheme: dark) {
-    body[a="auto"] #foos-canvas { filter: hue-rotate(180deg); }
+    body[a="auto"] #foos { filter: hue-rotate(180deg); }
   }
 </style>
 
