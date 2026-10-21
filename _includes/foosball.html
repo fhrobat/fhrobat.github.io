@@ -375,8 +375,14 @@ function foosStart() {
   // ---------- classifica online (facoltativa) ----------
   // GitHub Pages non ha un server: le ultime partite e "chi sta giocando" passano da un
   // Realtime Database di Firebase. Per attivarle incolla qui la configurazione del progetto
-  // (Impostazioni progetto → Le tue app → Config). Finché resta null, la sezione non compare.
-  const FIREBASE_CONFIG = null;
+  // (Impostazioni progetto → Le tue app → Config). Se è null, la sezione non compare.
+  const FIREBASE_CONFIG = {
+    apiKey: 'AIzaSyDfAOK9xxtThckSAwAGCRTDvuYtPF84sWM',
+    authDomain: 'online-foosball.firebaseapp.com',
+    databaseURL: 'https://online-foosball-default-rtdb.europe-west1.firebasedatabase.app',
+    projectId: 'online-foosball',
+    appId: '1:549951750830:web:0b587fb34345340bfe633f',
+  };
   /* esempio:
   const FIREBASE_CONFIG = {
     apiKey: '...',
@@ -422,7 +428,7 @@ function foosStart() {
     const rest = list.length - shown.length;
     let text = shown.join(rest ? ', ' : ' and ');
     if (rest) text += ` and ${rest} other${rest > 1 ? 's' : ''}`;
-    elLive.textContent = `● ${text} ${list.length > 1 ? 'are' : 'is'} playing now.`;
+    elLive.textContent = `\u25CF ${text} ${list.length > 1 ? 'are' : 'is'} playing now.`;
   }
 
   let recentCache = [];
