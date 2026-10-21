@@ -101,7 +101,7 @@
   #foos-recent { margin: 0; padding-left: 1.6em; }
   #foos-recent li { margin: 0.15rem 0; }
   #foos-recent li.won { font-weight: bold; }
-  #foos-options {
+  .foos-row {
     display: flex;
     justify-content: center;
     flex-wrap: wrap;
@@ -109,7 +109,7 @@
     font-size: 0.85rem;
     margin-top: 0.5rem;
   }
-  #foos-options button {
+  .foos-row button {
     font: inherit;
     background: none;
     border: none;
@@ -118,8 +118,34 @@
     padding: 0.2em 0.4em;
     opacity: 0.6;
   }
-  #foos-options button[aria-pressed="true"] { opacity: 1; font-weight: bold; text-decoration: underline; }
-  #foos-options button:focus-visible { outline: 2px solid #0b47d1; }
+  .foos-row button[aria-pressed="true"] { opacity: 1; font-weight: bold; text-decoration: underline; }
+  .foos-row button:focus-visible { outline: 2px solid #0b47d1; }
+  .foos-row + .foos-row { margin-top: 0.15rem; }
+  .foos-row button:disabled { cursor: default; opacity: 0.3; }
+  .foos-row button[aria-pressed="true"]:disabled { opacity: 0.7; }
+  /* schermo intero: il blocco del gioco riempie lo schermo, il tavolo si adatta al lato più corto.
+     Nel top layer il filtro del sito non arriva, quindi niente inversione né rotazione della tinta. */
+  #foos:fullscreen, #foos.foos-full {
+    max-width: none;
+    margin: 0;
+    padding: 0.6rem 1rem;
+    box-sizing: border-box;
+    background: #fff;
+    color: #000;
+    display: flex;
+    flex-direction: column;
+    justify-content: safe center;
+    align-items: center;
+    overflow: auto;
+    filter: none !important;
+  }
+  #foos.foos-full { position: fixed; inset: 0; z-index: 2147483000; }
+  #foos:fullscreen #foos-canvas, #foos.foos-full #foos-canvas,
+  #foos:fullscreen #foos-intro, #foos.foos-full #foos-intro {
+    width: min(100%, calc((100vh - 7.5rem) * 1320 / 840));
+    flex: none;
+  }
+  #foos:fullscreen #foos-board, #foos.foos-full #foos-board { display: none; }
   /* Il sito inverte tutto in dark mode: come per i video, ruoto la tinta
      così il blu resta blu e si inverte solo la luminosità. */
   body[a="dark"] #foos { filter: hue-rotate(180deg); }
@@ -142,7 +168,7 @@
     aria-label="Table football against Francesco. Left hand: W and S move, D shoots or stops when held, A passes sideways. Right hand: arrow up and down move, arrow right shoots or stops when held, arrow left passes sideways. Press Enter to start."></canvas>
   <div id="foos-intro" hidden role="dialog" aria-labelledby="foos-intro-title">
     <p id="foos-intro-title" class="foos-board-title">How to play</p>
-    <p>You (black) against Francesco (blue). First to 3 goals wins.</p>
+    <p>You (black) against Francesco (blue). First to <span id="foos-to-text">3</span> goals wins<span id="foos-deuce-text"></span>; you can change this below the table.</p>
     <p>Two hands, two rods, like at a real table. You play defense (goalie and defenders) or attack (midfield and forwards), and switch between the two.</p>
     <table id="foos-keys">
       <tr><th>Left hand</th><td><kbd>W</kbd> <kbd>S</kbd> move</td><td><kbd>D</kbd> shoot, hold to stop</td><td><kbd>A</kbd> pass sideways</td></tr>
@@ -161,14 +187,23 @@
     <p class="foos-note">It appears in the list of matches below. Leave it empty to stay anonymous.</p>
     <button id="foos-go" type="button">Play</button>
   </div>
-  <div id="foos-options">
+  <div id="foos-options" class="foos-row">
     <span id="foos-diff" role="group" aria-label="Difficulty">
       <button type="button" data-level="easy">Easy</button>
       <button type="button" data-level="medium">Medium</button>
       <button type="button" data-level="hard">Hard</button>
     </span>
+    <span id="foos-to" role="group" aria-label="Goals to win">First to
+      <button type="button" data-to="3">3</button>
+      <button type="button" data-to="5">5</button>
+      <button type="button" data-to="8">8</button>
+    </span>
+    <button id="foos-deuce" type="button" aria-pressed="false" title="At a tie one goal from the end, you must win by two">Deuce off</button>
+  </div>
+  <div class="foos-row">
     <button id="foos-switch" type="button">Switch to defense</button>
     <button id="foos-sound" type="button" aria-pressed="false">Sound off</button>
+    <button id="foos-full" type="button" aria-pressed="false">Full screen</button>
     <button id="foos-help" type="button">How to play</button>
   </div>
   <div id="foos-board" hidden>
@@ -210,7 +245,21 @@ function foosStart() {
   // spondine triangolari negli angoli: sul lato lungo arrivano all'asta dei difensori, sul corto al palo
   const CORNER_X = W * 1.5 / 8, CORNER_Y = H / 2 - GOAL;
   const INK = '#000', BLUE = '#0b47d1', ROD = '#9a9a9a', PAPER = '#fff';
-  const WIN = 3;
+  // a quanti gol si arriva (3, 5 o 8) e, se attivi, i vantaggi:
+  // sul pari a un gol dalla fine si va avanti finché qualcuno non ha due gol di scarto
+  let winTo = 3, deuce = false;
+  try {
+    const t = +localStorage.getItem('foos-to');
+    if (t === 3 || t === 5 || t === 8) winTo = t;
+    deuce = localStorage.getItem('foos-deuce') === '1';
+  } catch (e) {}
+  function matchOver() {
+    return Math.max(score[0], score[1]) >= winTo && (!deuce || Math.abs(score[0] - score[1]) >= 2);
+  }
+  function deuceState() {
+    if (!deuce || matchOver() || Math.min(score[0], score[1]) < winTo - 1) return '';
+    return score[0] === score[1] ? 'Deuce' : score[0] > score[1] ? 'Advantage you' : 'Advantage Francesco';
+  }
   const HOLD_ANG = 0.45;            // omino inclinato in avanti: blocca la palla sotto il piede
   const STOP_SPEED = 380;           // sopra questa velocità la palla non si stoppa, rimbalza
   const PIN_X = 26;                 // distanza della palla bloccata dall'asta
@@ -338,7 +387,7 @@ function foosStart() {
   };
   */
 
-  const net = { start() {}, score() {}, finish() {}, diff() {} };
+  const net = { start() {}, score() {}, finish() {}, settings() {} };
   const elBoard = document.getElementById('foos-board');
   const elLive = document.getElementById('foos-live');
   const elRecent = document.getElementById('foos-recent');
@@ -362,12 +411,13 @@ function foosStart() {
     return d === 1 ? 'yesterday' : `${d} days ago`;
   }
   const validLevel = l => l === 'easy' || l === 'medium' || l === 'hard';
+  const validTo = t => (t === 5 || t === 8 ? t : 3);
   const cleanName = n => (typeof n === 'string' && n.trim() ? n.trim().slice(0, 16) : 'Anonymous');
 
   function renderLive(list) {
     if (!elLive) return;
     if (!list.length) { elLive.textContent = 'Nobody else is playing right now.'; return; }
-    const desc = p => `${p.name} (${p.diff}, ${p.you} : ${p.cpu})`;
+    const desc = p => `${p.name} (${p.diff}, ${p.you} : ${p.cpu}, first to ${p.to})`;
     const shown = list.slice(0, 2).map(desc);
     const rest = list.length - shown.length;
     let text = shown.join(rest ? ', ' : ' and ');
@@ -388,9 +438,10 @@ function foosStart() {
     for (const m of recentCache) {
       const li = document.createElement('li');
       const won = m.you > m.cpu;
+      const how = `${m.diff}, first to ${m.to}${m.deuce ? ', deuce' : ''}`;
       li.textContent = won
-        ? `${m.name} beat Francesco ${m.you} : ${m.cpu} (${m.diff}), ${ago(m.at)}`
-        : `Francesco beat ${m.name} ${m.cpu} : ${m.you} (${m.diff}), ${ago(m.at)}`;
+        ? `${m.name} beat Francesco ${m.you} : ${m.cpu} (${how}), ${ago(m.at)}`
+        : `Francesco beat ${m.name} ${m.cpu} : ${m.you} (${how}), ${ago(m.at)}`;
       if (won) li.className = 'won';
       elRecent.appendChild(li);
     }
@@ -411,15 +462,15 @@ function foosStart() {
       net.start = () => {
         inMatch = true;
         fdb.onDisconnect(presRef).remove();
-        fdb.set(presRef, { name: playerName(), diff: diffName, you: 0, cpu: 0, since: fdb.serverTimestamp() }).catch(() => {});
+        fdb.set(presRef, { name: playerName(), diff: diffName, to: winTo, deuce, you: 0, cpu: 0, since: fdb.serverTimestamp() }).catch(() => {});
       };
       net.score = (you, cpu) => { if (inMatch) fdb.update(presRef, { you, cpu }).catch(() => {}); };
-      net.diff = d => { if (inMatch) fdb.update(presRef, { diff: d }).catch(() => {}); };
+      net.settings = () => { if (inMatch) fdb.update(presRef, { diff: diffName, to: winTo, deuce }).catch(() => {}); };
       net.finish = (you, cpu) => {
         if (!inMatch) return;
         inMatch = false;
         fdb.remove(presRef).catch(() => {});
-        fdb.push(fdb.ref(db, 'matches'), { name: playerName(), you, cpu, diff: diffName, at: fdb.serverTimestamp() }).catch(() => {});
+        fdb.push(fdb.ref(db, 'matches'), { name: playerName(), you, cpu, diff: diffName, to: winTo, deuce, at: fdb.serverTimestamp() }).catch(() => {});
       };
 
       fdb.onValue(fdb.ref(db, 'presence'), snap => {
@@ -428,7 +479,7 @@ function foosStart() {
           const v = c.val();
           if (c.key === myId || !v || !validLevel(v.diff)) return;
           if (typeof v.since === 'number' && Date.now() - v.since > 30 * 60 * 1000) return;   // sessioni rimaste appese
-          list.push({ name: cleanName(v.name), diff: v.diff, you: v.you | 0, cpu: v.cpu | 0 });
+          list.push({ name: cleanName(v.name), diff: v.diff, you: v.you | 0, cpu: v.cpu | 0, to: validTo(v.to) });
         });
         renderLive(list);
       });
@@ -438,7 +489,7 @@ function foosStart() {
         snap.forEach(c => {
           const v = c.val();
           if (!v || !validLevel(v.diff) || typeof v.at !== 'number') return;
-          list.push({ name: cleanName(v.name), you: v.you | 0, cpu: v.cpu | 0, diff: v.diff, at: v.at });
+          list.push({ name: cleanName(v.name), you: v.you | 0, cpu: v.cpu | 0, diff: v.diff, to: validTo(v.to), deuce: v.deuce === true, at: v.at });
         });
         recentCache = list.reverse();
         renderRecent();
@@ -985,7 +1036,7 @@ function foosStart() {
       score[team]++;
       elYou.textContent = score[0];
       elMe.textContent = score[1];
-      if (score[0] >= WIN || score[1] >= WIN) net.finish(score[0], score[1]);
+      if (matchOver()) net.finish(score[0], score[1]);
       else net.score(score[0], score[1]);
     }
     blip('net');
@@ -1022,8 +1073,9 @@ function foosStart() {
   function afterReplay() {
     for (const r of rods) { r.kt = -1; r.ang = 0; r.hold = false; r.plan = null; }
     hands.forEach(hd => { hd.shoot = false; if (hd.drag) hd.drag.hold = false; });
-    if (human && (score[0] >= WIN || score[1] >= WIN)) { setMode('fine'); return; }
+    if (human && matchOver()) { setMode('fine'); lockRules(false); return; }
     serve(lastScorer === 0 ? 1 : 0);
+    if (human && deuceState()) flash = { text: deuceState(), t: 0 };
     setMode(human ? 'play' : 'demo');
   }
 
@@ -1035,6 +1087,7 @@ function foosStart() {
     canvas.classList.add('playing');
     blip('clack');
     setMode('clap');
+    lockRules(true);
     net.start();
   }
 
@@ -1177,11 +1230,82 @@ function foosStart() {
   }
   diffButtons.forEach(b => b.addEventListener('click', () => {
     diffName = b.dataset.level;
-    net.diff(diffName);
+    net.settings();
     try { localStorage.setItem('foos-difficulty', diffName); } catch (e) {}
     showDiff();
   }));
   showDiff();
+
+  // a quanto si arriva e vantaggi
+  const toButtons = document.querySelectorAll('#foos-to button');
+  const btnDeuce = document.getElementById('foos-deuce');
+  function showRules() {
+    toButtons.forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.to === winTo)));
+    btnDeuce.textContent = deuce ? 'Deuce on' : 'Deuce off';
+    btnDeuce.setAttribute('aria-pressed', String(deuce));
+    document.getElementById('foos-to-text').textContent = winTo;
+    document.getElementById('foos-deuce-text').textContent = deuce ? ' (with deuce: by two clear goals)' : '';
+  }
+  function saveRules() {
+    try { localStorage.setItem('foos-to', String(winTo)); localStorage.setItem('foos-deuce', deuce ? '1' : '0'); } catch (e) {}
+    net.settings();
+    showRules();
+  }
+  // durante una partita le regole restano quelle con cui è iniziata
+  function lockRules(on) {
+    for (const b of [...toButtons, btnDeuce]) {
+      b.disabled = on;
+      b.title = on ? 'You can change this when the match is over' : b === btnDeuce ? 'At a tie one goal from the end, you must win by two' : '';
+    }
+  }
+  toButtons.forEach(b => b.addEventListener('click', () => { winTo = +b.dataset.to; saveRules(); }));
+  btnDeuce.addEventListener('click', () => { deuce = !deuce; saveRules(); });
+  showRules();
+
+  // schermo intero: quello vero dove c'è, altrimenti (iPhone) il blocco copre la pagina
+  const box = document.getElementById('foos');
+  const btnFull = document.getElementById('foos-full');
+  const realFull = !!(box.requestFullscreen || box.webkitRequestFullscreen);
+  let fakeFull = null;                       // segnaposto per rimettere il blocco al suo posto
+  const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+  function showFull() {
+    const on = fsElement() === box || !!fakeFull;
+    btnFull.textContent = on ? 'Exit full screen' : 'Full screen';
+    btnFull.setAttribute('aria-pressed', String(on));
+  }
+  function fakeEnter() {
+    // fuori dal contenitore del sito: il suo filtro (dark mode) romperebbe position: fixed
+    fakeFull = document.createComment('foos');
+    box.before(fakeFull);
+    document.body.appendChild(box);
+    box.classList.add('foos-full');
+    document.documentElement.style.overflow = 'hidden';
+    showFull();
+  }
+  function enterFull() {
+    if (!realFull) { fakeEnter(); return; }
+    const req = box.requestFullscreen || box.webkitRequestFullscreen;
+    Promise.resolve(req.call(box)).then(() => {
+      // sul telefono, se si può, gira in orizzontale
+      if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
+    }).catch(fakeEnter);                      // il browser rifiuta: uso il ripiego
+  }
+  function exitFull() {
+    if (fakeFull) {
+      box.classList.remove('foos-full');
+      fakeFull.replaceWith(box);
+      fakeFull = null;
+      document.documentElement.style.overflow = '';
+      showFull();
+    } else if (fsElement()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  }
+  btnFull.addEventListener('click', () => {
+    if (fsElement() === box || fakeFull) exitFull(); else enterFull();
+    if (lastInput === 'key') canvas.focus({ preventScroll: true });
+  });
+  document.addEventListener('fullscreenchange', showFull);
+  document.addEventListener('webkitfullscreenchange', showFull);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && fakeFull) exitFull(); });
 
   // ---------- disegno ----------
   const cam = { x: W / 2, y: H / 2, z: 1 };
@@ -1450,7 +1574,7 @@ function foosStart() {
     font(22); ctx.fillText('scene', x + 22 * s, y + 124 * s); ctx.fillText('take', x + w / 2 + 22 * s, y + 124 * s);
     font(46, 'bold'); ctx.fillText('1', x + 22 * s, y + 168 * s); ctx.fillText(String(take), x + w / 2 + 22 * s, y + 168 * s);
     font(22); ctx.fillText(`You vs Francesco, ${diffName}`, x + 22 * s, y + 230 * s);
-    font(22); ctx.fillText(human ? 'Action!' : 'Click to play', x + 22 * s, y + 266 * s);
+    font(22); ctx.fillText(`First to ${winTo}${deuce ? ' with deuce' : ''}. ${human ? 'Action!' : 'Click to play'}`, x + 22 * s, y + 266 * s);
   }
 
   function drawLeader(t) {
@@ -1524,7 +1648,7 @@ function foosStart() {
       font(22); ctx.fillText(`replay  ${REPLAY_SPEED}x`, px(24), bar / 2);
       ctx.textAlign = 'right'; ctx.fillText('click to skip', cw - px(24), bar / 2);
       const who = (goalLabel ? `${goalLabel[0].toUpperCase()}${goalLabel.slice(1)} goal! ` : 'Goal! ') + (lastScorer === 0 ? 'You scored.' : 'Francesco scores.');
-      drawCaption(who, human ? scoreLine() : '', bar);
+      drawCaption(who, human ? scoreLine() + (deuceState() ? ` - ${deuceState()}` : '') : '', bar);
       return;
     }
 
