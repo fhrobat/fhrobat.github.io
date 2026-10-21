@@ -184,7 +184,7 @@
     <label id="foos-name-row">Your name
       <input id="foos-name" type="text" maxlength="16" autocomplete="nickname" placeholder="Anonymous">
     </label>
-    <p class="foos-note">It appears in the list of matches below. Leave it empty to stay anonymous.</p>
+    <p class="foos-note">It appears in the list of matches below: letters, numbers and spaces, up to 16 characters. Leave it empty to stay anonymous.</p>
     <button id="foos-go" type="button">Play</button>
   </div>
   <div id="foos-options" class="foos-row">
@@ -399,12 +399,27 @@ function foosStart() {
   const elRecent = document.getElementById('foos-recent');
   const elName = document.getElementById('foos-name');
 
+  // nomi: solo lettere (anche accentate), cifre, spazi e . ' _ -, al massimo 16 caratteri, niente parolacce.
+  // Le stesse regole le applica il database (firebase-rules.json), quindi aggirare il gioco non serve.
+  const NAME_CHARS = /[^A-Za-z0-9\u00E0\u00E8\u00E9\u00EC\u00ED\u00F2\u00F3\u00F9\u00FA\u00C0\u00C8\u00C9\u00CC\u00D2\u00D9\u00DA\u00E4\u00F6\u00FC\u00C4\u00D6\u00DC\u00DF\u00F1\u00D1\u00E7\u00C7 .'_-]/g;
+  const BAD_WORDS = /(fuck|shit|cunt|nigg|bitch|porn|pussy|whore|slut|hitler|cazz|merd|stronz|troia|puttan|vaffanc|coglion|frocio|bastard|porcodio|diocan|madonnaputt|zoccol|mignott|pompin|sborr|ricchion)/;
+  const tidyName = v => v.replace(NAME_CHARS, '').replace(/\s+/g, ' ').replace(/^[ .'_-]+/, '').slice(0, 16);
+  function nameIsClean(n) {
+    const norm = n.toLowerCase().replace(/[ ._'-]/g, '')
+      .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't');
+    return !BAD_WORDS.test(norm);
+  }
   function playerName() {
-    const raw = (elName && elName.value || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 16);
-    return raw || 'Anonymous';
+    const n = tidyName(elName && elName.value || '').trim();
+    return n && nameIsClean(n) ? n : 'Anonymous';
   }
   if (elName) {
-    try { elName.value = localStorage.getItem('foos-name') || ''; } catch (e) {}
+    try { elName.value = tidyName(localStorage.getItem('foos-name') || ''); } catch (e) {}
+    elName.addEventListener('input', () => {
+      const t = tidyName(elName.value);
+      if (t !== elName.value) elName.value = t;
+      elName.setCustomValidity(nameIsClean(t) ? '' : 'Please pick another name');
+    });
     elName.addEventListener('change', () => { try { localStorage.setItem('foos-name', playerName()); } catch (e) {} });
   }
 
@@ -418,7 +433,7 @@ function foosStart() {
   }
   const validLevel = l => l === 'easy' || l === 'medium' || l === 'hard';
   const validTo = t => (t === 5 || t === 8 ? t : 3);
-  const cleanName = n => (typeof n === 'string' && n.trim() ? n.trim().slice(0, 16) : 'Anonymous');
+  const cleanName = n => { const t = typeof n === 'string' ? tidyName(n).trim() : ''; return t && nameIsClean(t) ? t : 'Anonymous'; };
 
   function renderLive(list) {
     if (!elLive) return;
