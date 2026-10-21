@@ -181,10 +181,11 @@
     </p>
     <p>With a mouse or a touch screen, drag near one of your two active rods (the darker ones) to move it, tap to shoot, press and hold to stop.</p>
     <p>Rules: only a slow ball in front of your players can be stopped; you can hold it for at most 4 seconds, then it is shot by itself. A ball that stops where nobody can reach it is served again. Each corner has a large triangular ramp, from the goal post to the defenders' rod, that rolls the ball back into play.</p>
-    <label id="foos-name-row">Your name
-      <input id="foos-name" type="text" maxlength="16" autocomplete="nickname" placeholder="Anonymous">
+    <label id="foos-name-row">Your first name
+      <input id="foos-name" type="text" maxlength="16" autocomplete="given-name" list="foos-names" placeholder="Anonymous">
+      <datalist id="foos-names"></datalist>
     </label>
-    <p class="foos-note">It appears in the list of matches below: letters, numbers and spaces, up to 16 characters. Leave it empty to stay anonymous.</p>
+    <p class="foos-note">The list of matches below shows only common English and Italian first names. <span id="foos-name-hint">Leave it empty to stay anonymous.</span></p>
     <button id="foos-go" type="button">Play</button>
   </div>
   <div id="foos-options" class="foos-row">
@@ -399,28 +400,76 @@ function foosStart() {
   const elRecent = document.getElementById('foos-recent');
   const elName = document.getElementById('foos-name');
 
-  // nomi: solo lettere (anche accentate), cifre, spazi e . ' _ -, al massimo 16 caratteri, niente parolacce.
-  // Le stesse regole le applica il database (firebase-rules.json), quindi aggirare il gioco non serve.
-  const NAME_CHARS = /[^A-Za-z0-9\u00E0\u00E8\u00E9\u00EC\u00ED\u00F2\u00F3\u00F9\u00FA\u00C0\u00C8\u00C9\u00CC\u00D2\u00D9\u00DA\u00E4\u00F6\u00FC\u00C4\u00D6\u00DC\u00DF\u00F1\u00D1\u00E7\u00C7 .'_-]/g;
-  const BAD_WORDS = /(fuck|shit|cunt|nigg|bitch|porn|pussy|whore|slut|hitler|cazz|merd|stronz|troia|puttan|vaffanc|coglion|frocio|bastard|porcodio|diocan|madonnaputt|zoccol|mignott|pompin|sborr|ricchion)/;
-  const tidyName = v => v.replace(NAME_CHARS, '').replace(/\s+/g, ' ').replace(/^[ .'_-]+/, '').slice(0, 16);
-  function nameIsClean(n) {
-    const norm = n.toLowerCase().replace(/[ ._'-]/g, '')
-      .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't');
-    return !BAD_WORDS.test(norm);
-  }
-  function playerName() {
-    const n = tidyName(elName && elName.value || '').trim();
-    return n && nameIsClean(n) ? n : 'Anonymous';
-  }
+  // nomi: in classifica compare solo un nome proprio dell'elenco (inglese o italiano), altrimenti "Anonymous".
+  // Lo stesso elenco sta nelle regole del database (firebase-rules.json), quindi aggirare il gioco non serve.
+  // @@NAMES-START (generato da build_names.py a partire da names.txt: non modificare a mano)
+  const NAMES = [
+    'Aaron', 'Abigail', 'Achille', 'Ada', 'Adam', 'Adele', 'Adrian', 'Adriano', 'Agnese', 'Agostino', 'Aidan', 'Alan',
+    'Alba', 'Albert', 'Alberto', 'Alessandra', 'Alessandro', 'Alessia', 'Alessio', 'Alex', 'Alexander', 'Alexandra',
+    'Alfie', 'Alfredo', 'Alice', 'Alison', 'Amanda', 'Amber', 'Amedeo', 'Amelia', 'Amy', 'Andrea', 'Andrew', 'Angela',
+    'Angelo', 'Anna', 'Annalisa', 'Anne', 'Annie', 'Anthony', 'Antonella', 'Antonio', 'Archie', 'Arianna', 'Arthur',
+    'Arturo', 'Augusto', 'Aurora', 'Austin', 'Ava', 'Barbara', 'Bartolomeo', 'Beatrice', 'Bella', 'Ben', 'Benedetta',
+    'Benedetto', 'Beniamino', 'Benjamin', 'Bernardo', 'Beth', 'Bethany', 'Bianca', 'Bill', 'Blake', 'Bob', 'Brandon',
+    'Brian', 'Bruno', 'Caitlin', 'Callum', 'Calvin', 'Cameron', 'Camilla', 'Carla', 'Carlo', 'Carlotta', 'Carol',
+    'Carolina', 'Caroline', 'Caterina', 'Catherine', 'Cecilia', 'Cesare', 'Charles', 'Charlie', 'Charlotte', 'Chiara',
+    'Chloe', 'Chris', 'Christian', 'Christopher', 'Claire', 'Clara', 'Claudia', 'Claudio', 'Colin', 'Connor',
+    'Corrado', 'Cosimo', 'Cristian', 'Cristiano', 'Cristina', 'Daisy', 'Damiano', 'Daniel', 'Daniela', 'Daniele',
+    'Dario', 'Darren', 'David', 'Davide', 'Dean', 'Debora', 'Denise', 'Dennis', 'Diana', 'Diego', 'Dino', 'Domenico',
+    'Dominic', 'Dylan', 'Edoardo', 'Edward', 'Eleanor', 'Elena', 'Eleonora', 'Elia', 'Elisa', 'Elisabetta',
+    'Elizabeth', 'Ella', 'Ellie', 'Elliot', 'Emanuele', 'Emilio', 'Emily', 'Emma', 'Enrico', 'Enzo', 'Eric', 'Erica',
+    'Erin', 'Ethan', 'Ettore', 'Eva', 'Evan', 'Evie', 'Fabio', 'Fabrizio', 'Faith', 'Federica', 'Federico', 'Felice',
+    'Felix', 'Ferdinando', 'Filippo', 'Finn', 'Flavio', 'Florence', 'Francesca', 'Francesco', 'Franco', 'Frank',
+    'Fred', 'Freddie', 'Freya', 'Gabriele', 'Gaetano', 'Gaia', 'Gary', 'George', 'Georgia', 'Giacomo', 'Giada',
+    'Gianluca', 'Gianluigi', 'Gianmarco', 'Gianni', 'Ginevra', 'Giorgia', 'Giorgio', 'Giovanna', 'Giovanni', 'Giulia',
+    'Giulio', 'Giuseppe', 'Gordon', 'Grace', 'Graham', 'Graziella', 'Gregorio', 'Guido', 'Hannah', 'Harriet', 'Harry',
+    'Harvey', 'Helen', 'Henry', 'Holly', 'Hugo', 'Ian', 'Ignazio', 'Ilaria', 'Imogen', 'Irene', 'Isaac', 'Isabel',
+    'Isabella', 'Isla', 'Ivy', 'Jack', 'Jacob', 'Jacopo', 'Jade', 'Jake', 'James', 'Jamie', 'Jane', 'Jasmine',
+    'Jason', 'Jennifer', 'Jeremy', 'Jessica', 'Joanna', 'Joe', 'John', 'Jonathan', 'Jordan', 'Joseph', 'Joshua',
+    'Julia', 'Kate', 'Katherine', 'Katie', 'Kevin', 'Kieran', 'Lara', 'Laura', 'Lauren', 'Leah', 'Leo', 'Leon',
+    'Leonardo', 'Letizia', 'Lewis', 'Liam', 'Licia', 'Lidia', 'Lily', 'Linda', 'Lisa', 'Logan', 'Lola', 'Lorena',
+    'Lorenzo', 'Louis', 'Luca', 'Lucas', 'Lucia', 'Luciano', 'Lucio', 'Lucy', 'Ludovica', 'Ludovico', 'Luigi',
+    'Luisa', 'Luke', 'Lydia', 'Maisie', 'Manuel', 'Manuela', 'Mara', 'Marcello', 'Marco', 'Margherita', 'Maria',
+    'Marina', 'Mario', 'Mark', 'Marta', 'Martin', 'Martina', 'Mason', 'Massimiliano', 'Massimo', 'Matilde', 'Matteo',
+    'Matthew', 'Mattia', 'Maurizio', 'Max', 'Megan', 'Melissa', 'Mia', 'Michael', 'Michela', 'Michele', 'Mike',
+    'Millie', 'Mirko', 'Molly', 'Monica', 'Nadia', 'Naomi', 'Natalie', 'Nathan', 'Neil', 'Niccolo', 'Nicholas',
+    'Nicola', 'Nicole', 'Nicolo', 'Noah', 'Noemi', 'Oliver', 'Olivia', 'Olivio', 'Oreste', 'Orlando', 'Oscar',
+    'Ottavia', 'Ottavio', 'Owen', 'Paola', 'Paolo', 'Pasquale', 'Patrick', 'Patrizia', 'Paul', 'Peter', 'Philip',
+    'Phoebe', 'Pierluigi', 'Piero', 'Pietro', 'Poppy', 'Rachel', 'Raffaele', 'Ray', 'Rebecca', 'Renato', 'Reuben',
+    'Riccardo', 'Richard', 'Robert', 'Roberta', 'Roberto', 'Rocco', 'Romeo', 'Rosa', 'Rosario', 'Rose', 'Rosie',
+    'Rossella', 'Ruby', 'Ruggero', 'Ruth', 'Ryan', 'Sabrina', 'Salvatore', 'Sam', 'Samuel', 'Samuele', 'Sandro',
+    'Sara', 'Sarah', 'Saverio', 'Scarlett', 'Scott', 'Sean', 'Sebastiano', 'Serena', 'Sergio', 'Silvia', 'Silvio',
+    'Simon', 'Simona', 'Simone', 'Sofia', 'Sophia', 'Sophie', 'Stefania', 'Stefano', 'Stephen', 'Steve', 'Steven',
+    'Stuart', 'Susan', 'Teresa', 'Theo', 'Theodore', 'Thomas', 'Tim', 'Timothy', 'Tiziana', 'Tiziano', 'Toby', 'Tom',
+    'Tommaso', 'Tony', 'Tyler', 'Ugo', 'Umberto', 'Valentina', 'Valentino', 'Valeria', 'Valerio', 'Vanessa',
+    'Veronica', 'Victor', 'Victoria', 'Vincenzo', 'Viola', 'Vittoria', 'Vittorio', 'Will', 'William', 'Zach', 'Zoe',
+  ];
+  // @@NAMES-END
+  const NAME_KEY = n => n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const NAME_OF = new Map(NAMES.map(n => [NAME_KEY(n), n]));
+  const knownName = n => (typeof n === 'string' && NAME_OF.get(NAME_KEY(n))) || '';
+  const elNameHint = document.getElementById('foos-name-hint');
+  function playerName() { return knownName(elName ? elName.value : '') || 'Anonymous'; }
   if (elName) {
-    try { elName.value = tidyName(localStorage.getItem('foos-name') || ''); } catch (e) {}
+    const dl = document.getElementById('foos-names');
+    for (const n of NAMES) { const o = document.createElement('option'); o.value = n; dl.appendChild(o); }
+    const hint = () => {
+      const v = elName.value.trim(), k = knownName(v);
+      elNameHint.textContent = !v ? 'Leave it empty to stay anonymous.'
+        : k ? `You will appear as ${k}.` : 'Not in the list of first names: you will appear as Anonymous.';
+    };
+    try { elName.value = knownName(localStorage.getItem('foos-name') || ''); } catch (e) {}
     elName.addEventListener('input', () => {
-      const t = tidyName(elName.value);
+      const t = elName.value.replace(/[^\p{L} ]/gu, '').slice(0, 16);
       if (t !== elName.value) elName.value = t;
-      elName.setCustomValidity(nameIsClean(t) ? '' : 'Please pick another name');
+      hint();
     });
-    elName.addEventListener('change', () => { try { localStorage.setItem('foos-name', playerName()); } catch (e) {} });
+    elName.addEventListener('change', () => {
+      const k = knownName(elName.value);
+      if (k) elName.value = k;
+      try { localStorage.setItem('foos-name', k); } catch (e) {}
+      hint();
+    });
+    hint();
   }
 
   function ago(ms) {
@@ -433,7 +482,7 @@ function foosStart() {
   }
   const validLevel = l => l === 'easy' || l === 'medium' || l === 'hard';
   const validTo = t => (t === 5 || t === 8 ? t : 3);
-  const cleanName = n => { const t = typeof n === 'string' ? tidyName(n).trim() : ''; return t && nameIsClean(t) ? t : 'Anonymous'; };
+  const cleanName = n => knownName(n) || 'Anonymous';
 
   function renderLive(list) {
     if (!elLive) return;
