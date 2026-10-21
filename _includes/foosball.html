@@ -179,7 +179,7 @@
       <label><input type="radio" name="foos-auto" value="auto"> automatic, following the ball</label>
       <label><input type="radio" name="foos-auto" value="manual"> manual, with <kbd>Space</kbd> or the switch button</label>
     </p>
-    <p>On a touch screen, each half of the table is one hand: drag to move, tap to shoot, press and hold to stop.</p>
+    <p>With a mouse or a touch screen, drag near one of your two active rods (the darker ones) to move it, tap to shoot, press and hold to stop.</p>
     <p>Rules: only a slow ball in front of your players can be stopped; you can hold it for at most 4 seconds, then it is shot by itself. A ball that stops where nobody can reach it is served again. Each corner has a large triangular ramp, from the goal post to the defenders' rod, that rolls the ball back into play.</p>
     <label id="foos-name-row">Your name
       <input id="foos-name" type="text" maxlength="16" autocomplete="nickname" placeholder="Anonymous">
@@ -1194,7 +1194,7 @@ function foosStart() {
     if (act === 'shoot') handShootUp(h);
   });
 
-  // touch e mouse: ogni metà del tavolo è una mano. Trascina per muovere, tocca per tirare,
+  // touch e mouse: ogni asta attiva è una mano, si prende quella più vicina. Trascina per muovere, tocca per tirare,
   // tieni premuto per stoppare; con un altro dito, mentre tieni la palla, la passi all'omino accanto.
   const drags = new Map();
   canvas.addEventListener('pointerdown', e => {
@@ -1210,7 +1210,9 @@ function foosStart() {
         return;
       }
     }
-    const h = e.clientX - r.left < r.width / 2 ? 0 : 1;
+    // la mano è quella dell'asta attiva più vicina al punto toccato (in difesa le due aste sono entrambe a sinistra)
+    const wx = (e.clientX - r.left) / r.width * VW - MX;
+    const h = wx < (handRod(0).x + handRod(1).x) / 2 ? 0 : 1;
     if (hands[h].drag) return;
     const d = { id: e.pointerId, h, lastY: e.clientY, t0: performance.now(), moved: 0, hold: false, target: handRod(h).off };
     drags.set(e.pointerId, d);
