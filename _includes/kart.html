@@ -1696,7 +1696,8 @@ function kartStart() {
       const u = {}, a = {};
       for (let i = 0, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); i < n; i++) {
         const info = gl.getActiveUniform(p, i);
-        u[info.name.replace(/\[0\]$/, '')] = gl.getUniformLocation(p, info.name);
+        // niente barra rovescia e parentesi quadre qui: il sito passa la pagina a KaTeX, che le prenderebbe per una formula
+        u[info.name.endsWith('[0]') ? info.name.slice(0, -3) : info.name] = gl.getUniformLocation(p, info.name);
       }
       for (let i = 0, n = gl.getProgramParameter(p, gl.ACTIVE_ATTRIBUTES); i < n; i++) {
         const info = gl.getActiveAttrib(p, i);
