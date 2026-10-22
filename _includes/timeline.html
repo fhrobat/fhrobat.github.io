@@ -1,0 +1,758 @@
+<!--
+  Timeline della home, tra le news e le sezioni: tutto quello che c'è nelle sezioni del sito, su una linea.
+  Senza JavaScript resta l'elenco qui sotto. Con JavaScript diventa una linea che si disegna quando entra nello
+  schermo; dove le tappe sono troppo fitte diventano un pallino col numero, e passandoci sopra col mouse
+  (o col dito) la linea si ingrandisce come sotto una lente e i pallini si aprono nelle singole tappe.
+  La tappa scelta si scrive a macchina sotto, con l'animazione se è un articolo; se ha una durata, la barra
+  compare sopra la linea. Il clic apre la sezione corrispondente della home; "play" fa scorrere tutto.
+  Forme: cerchio = studi, rombo = articoli, triangolo = talk, anello = didattica, stella = premi e borse,
+  quadrato pieno = ruoli, quadrato vuoto = scuole e programmi. Le tappe che sono anche tra le news diventano blu.
+  Niente dollari né barre rovesciate con parentesi: sul sito KaTeX passa su tutto l'HTML.
+-->
+<style>
+  .tl {
+    max-width: 800px;
+    margin: 0 auto 2.75rem;
+    padding: 0.6rem 1rem 0.4rem;
+    text-align: left;
+  }
+  /* sui telefoni la colonna del sito è stretta: la timeline esce dai margini e usa tutta la larghezza */
+  @media (max-width: 600px) {
+    .tl { width: calc(100vw - 24px); max-width: none; margin-left: calc(50% - 50vw + 12px); padding: 0.6rem 0.4rem 0.4rem; }
+  }
+  .tl-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 0 0.3rem; }
+  .tl-title { font-size: 1rem; margin: 0; }
+  .tl-play { display: none; }
+  .tl-js .tl-play { display: inline-block; }
+  .tl .tl-data { list-style: none; margin: 0; max-width: none; }
+  .tl .tl-data li { margin: 0.3rem 0; }
+  .tl-data .tl-when { font-weight: bold; margin-right: 0.5em; }
+  .tl-js .tl-data { display: none; }
+  .tl-track, .tl-detail, .tl-legend { display: none; }
+
+  /* linea a 44px dall'alto: sopra c'è la barra della durata, sotto gli anni.
+     12px di margine a sinistra, 34px a destra per il tratteggio del futuro; le posizioni le mette il JavaScript */
+  .tl-js .tl-track {
+    display: block;
+    position: relative;
+    height: 72px;
+    touch-action: pan-y;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tl-line, .tl-fill { position: absolute; top: 44px; height: 2px; }
+  .tl-line { left: 12px; right: 34px; background: #c7d1de; }
+  .tl-fill { left: 12px; width: 0; background: #012a4a; }
+  .tl-future { position: absolute; top: 44px; left: calc(100% - 34px); width: 26px; border-top: 2px dashed #c7d1de; }
+  .tl-now {
+    position: absolute; top: 0; left: calc(100% - 34px); transform: translateX(calc(-100% + 8px));
+    font-size: 11px; font-weight: bold; letter-spacing: 0.06em; color: #012a4a; white-space: nowrap;
+    opacity: 0; transition: opacity 0.5s;
+  }
+  .tl-done .tl-now { opacity: 1; }
+  .tl-pulse {
+    position: absolute; top: 45px; left: calc(100% - 34px);
+    width: 12px; height: 12px; margin: -6px 0 0 -6px;
+    border: 1.5px solid #012a4a; border-radius: 50%; box-sizing: border-box; opacity: 0;
+  }
+  .tl-done .tl-pulse { animation: tl-pulse 2.4s ease-out infinite; }
+  @keyframes tl-pulse { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(2.8); opacity: 0; } }
+
+  /* segnaposto: il bottone si sposta in orizzontale, la forma dentro si ingrandisce o sparisce */
+  .tl-pin {
+    position: absolute; left: 0; top: 45px; z-index: 1;
+    width: 22px; height: 30px; margin: -15px 0 0 -11px; padding: 0;
+    border: 0; background: none; color: inherit; font: inherit; cursor: pointer;
+  }
+  .tl-pin.sel { z-index: 3; }
+  .tl-pin:focus-visible { outline: 2px solid #0b47d1; outline-offset: 1px; border-radius: 4px; }
+  .tl-pin i {
+    position: absolute; left: 50%; top: 50%;
+    transform: scale(0); opacity: 0.45;
+    transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1), opacity 0.25s;
+  }
+  .tl-pin.in i { transform: scale(1); }
+  .tl-pin.past i { opacity: 0.85; }
+  .tl-pin.in.sel i { transform: scale(1.55); opacity: 1; }
+  .tl-pin.hid { pointer-events: none; }
+  .tl-pin.in.hid i { transform: scale(0); }
+
+  /* pallino che raccoglie più tappe vicine, col loro numero */
+  .tl-bub { position: absolute; left: 0; top: 45px; z-index: 2; pointer-events: none; }
+  .tl-bub b {
+    display: block; width: 17px; height: 17px; margin: -8.5px 0 0 -8.5px; border-radius: 50%;
+    background: #012a4a; color: #fff; box-shadow: 0 0 0 2px #fff;
+    font-size: 9.5px; line-height: 17px; text-align: center; font-weight: bold;
+    transform: scale(0); opacity: 0.55; transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1), opacity 0.25s;
+  }
+  .tl-bub.on.in b { transform: scale(1); }
+  .tl-bub.past b { opacity: 0.9; }
+  .tl-bub.tl-bnews b { background: #0b47d1; }
+
+  /* gli anni sono fasce alterne, che si allargano anche loro sotto la lente */
+  .tl-band { position: absolute; left: 0; top: 36px; bottom: 0; pointer-events: none; opacity: 0; transition: opacity 0.6s; }
+  .tl-band.odd { background: rgba(1, 42, 74, 0.045); border-radius: 3px; }
+  .tl-on .tl-band { opacity: 1; }
+  .tl-year {
+    position: absolute; left: 0; top: 57px;
+    font-size: 12px; color: #6b7785; white-space: nowrap; pointer-events: none;
+    opacity: 0; transition: opacity 0.5s;
+  }
+  .tl-on .tl-year { opacity: 1; }
+
+  /* durata della tappa scelta: la barra cresce da sinistra, il tratteggio è la parte ancora da venire */
+  .tl-bar {
+    position: absolute; left: 0; top: 30px; height: 4px; margin-top: -2px; border-radius: 2px;
+    background: #012a4a; opacity: 0;
+    transform: scaleX(0); transform-origin: left center;
+    transition: transform 0.4s cubic-bezier(0.22, 0.9, 0.35, 1), opacity 0.2s;
+  }
+  .tl-bar.dash { background: repeating-linear-gradient(90deg, #012a4a 0 4px, transparent 4px 8px); border-radius: 0; }
+  .tl-bar.on { opacity: 0.85; transform: scaleX(1); }
+  .tl-blabel {
+    position: absolute; left: 0; top: 14px;
+    font-size: 10.5px; line-height: 1; color: #012a4a; white-space: nowrap; pointer-events: none;
+    opacity: 0; transition: opacity 0.25s;
+  }
+  .tl-blabel.on { opacity: 1; transition-delay: 0.12s; }
+
+  /* le sette forme, usate dai segnaposto e dalla legenda */
+  .tl-s { display: block; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; background: #012a4a; box-sizing: border-box; }
+  .tl-s[data-k="edu"] { border-radius: 50%; }
+  .tl-s[data-k="paper"] { width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+  .tl-s[data-k="talk"] { width: 13px; height: 12px; margin: -7px 0 0 -6.5px; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+  .tl-s[data-k="teach"] { background: transparent; border: 2.5px solid #012a4a; border-radius: 50%; }
+  .tl-s[data-k="prize"] {
+    width: 15px; height: 15px; margin: -7.5px 0 0 -7.5px;
+    clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  }
+  .tl-s[data-k="role"] { width: 10px; height: 10px; margin: -5px 0 0 -5px; }
+  .tl-s[data-k="event"] { width: 10px; height: 10px; margin: -5px 0 0 -5px; background: transparent; border: 2.5px solid #012a4a; }
+  /* le tappe che sono anche tra le news prendono il blu dei link del sito */
+  .tl-news .tl-s, .tl-s.tl-news { background: #0b47d1; border-color: #0b47d1; }
+  .tl-news .tl-s[data-k="teach"], .tl-news .tl-s[data-k="event"] { background: transparent; }
+  .tl-now-news .tl-pulse { border-color: #0b47d1; }
+  .tl-now-news .tl-now, .tl-detail.tl-news .tl-when { color: #0b47d1; }
+
+  /* riquadro sotto la linea: alto abbastanza per l'animazione, così la pagina non salta */
+  .tl-js .tl-detail {
+    display: block; position: relative;
+    min-height: calc(84px + 1.1rem); margin: 0.3rem 0 0; padding: 0.55rem 0.8rem;
+    border: 1px solid #c7d1de; border-radius: 10px; background: #f2f5f9;
+    font-size: 0.95em; line-height: 1.45;
+  }
+  /* la punta del riquadro segue la tappa scelta */
+  .tl-detail::before {
+    content: ""; position: absolute; top: -6px; left: var(--tl-x, 12px);
+    width: 10px; height: 10px; margin-left: -6px;
+    background: #f2f5f9; border-left: 1px solid #c7d1de; border-top: 1px solid #c7d1de;
+    transform: rotate(45deg);
+  }
+  .tl-detail .tl-when { font-weight: bold; margin-right: 0.6em; }
+  .tl-detail .tl-links { margin-left: 0.4em; }
+  .tl-detail .tl-links .badge { margin-left: 0.25em; }
+  .tl-detail video.tl-anim {
+    float: right; display: block; width: 150px; max-width: none; aspect-ratio: 16 / 9;
+    margin: 0 0 0.2rem 0.8rem; border-radius: 6px; border: 1px solid #e3e3e3; background: white;
+  }
+  @media (max-width: 600px) {
+    .tl-js .tl-detail { min-height: calc(63px + 1.1rem); }
+    .tl-detail video.tl-anim { width: 112px; margin: 0 0 0.2rem 0.6rem; }
+  }
+  .tl-caret {
+    display: inline-block; width: 0.55em; height: 1em; margin-left: 2px; vertical-align: -0.12em;
+    background: currentColor; animation: tl-blink 1.05s steps(1) infinite;
+  }
+  @keyframes tl-blink { 50% { opacity: 0; } }
+  .tl-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  .tl-js .tl-legend {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 1rem;
+    margin: 0.55rem 0 0; font-size: 12px; color: #6b7785;
+  }
+  .tl-legend .tl-s { display: inline-block; margin: 0 0.45em 0 0; vertical-align: -1px; opacity: 0.85; }
+  .tl-legend .tl-s[data-k="talk"] { vertical-align: 0; }
+  .tl-hint { margin-left: auto; }
+  .tl-hint .touch { display: none; }
+  @media (hover: none) { .tl-hint .mouse { display: none; } .tl-hint .touch { display: inline; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tl-pin i, .tl-bub b, .tl-now, .tl-year, .tl-band, .tl-bar, .tl-blabel { transition: none; }
+    .tl-done .tl-pulse, .tl-caret { animation: none; }
+  }
+</style>
+
+<section class="tl reveal" id="timeline" aria-label="Timeline">
+  <div class="tl-head">
+    <h2 class="tl-title">Timeline</h2>
+    <button type="button" class="badge tl-play" aria-pressed="false">▶ play</button>
+  </div>
+  <!-- in ordine di data; data-to rende la tappa una durata, data-dur ne cambia la descrizione -->
+  <ol class="tl-data">
+    <li data-d="2017" data-k="prize"><span class="tl-when">2017</span><span class="tl-what">1st place at the International Championships of Mathematical Games (teams), Bocconi University</span></li>
+    <li data-d="2017-05" data-k="prize"><span class="tl-when">May 2017</span><span class="tl-what">1st place at the Italian Team Mathematical Olympiads, awarded by UMI</span></li>
+    <li data-d="2018-05" data-k="prize"><span class="tl-when">May 2018</span><span class="tl-what">Bronze medal at the Italian Mathematical Olympiads, awarded by UMI</span></li>
+    <li data-d="2018-05" data-k="prize"><span class="tl-when">May 2018</span><span class="tl-what">Silver medal at the European Union Science Olympiad (EUSO), Ljubljana, Slovenia</span></li>
+    <li data-d="2019-03" data-k="prize"><span class="tl-when">Mar 2019</span><span class="tl-what">4th place at the Applied Mathematics Grand Prix, awarded by Università Cattolica del Sacro Cuore</span></li>
+    <li data-d="2019-05" data-k="prize"><span class="tl-when">May 2019</span><span class="tl-what">Silver medal at the Italian Mathematical Olympiads, awarded by UMI</span></li>
+    <li data-d="2020-05" data-k="prize"><span class="tl-when">May 2020</span><span class="tl-what">Silver medal at the Italian Mathematical Olympiads, awarded by UMI</span></li>
+    <li data-d="2020-09" data-to="2023-07" data-k="edu"><span class="tl-when">Sep 2020 – Jul 2023</span><span class="tl-what">Bachelor’s degree, University of Pisa: 110/110 cum laude</span></li>
+    <li data-d="2020-09" data-to="2025-07" data-k="edu"><span class="tl-when">Sep 2020 – Jul 2025</span><span class="tl-what">Diploma, Scuola Normale Superiore of Pisa: 100/100 cum laude</span></li>
+    <li data-d="2020-09" data-to="2025-07" data-dur="5 years" data-k="prize"><span class="tl-when">2020 – 2025</span><span class="tl-what">Scuola Normale Superiore merit-based full scholarship</span></li>
+    <li data-d="2020-10" data-k="prize"><span class="tl-when">Oct 2020</span><span class="tl-what">7th place at the Italian Mathematical Kangourou, student category</span></li>
+    <li data-d="2023-03" data-to="2023-06" data-k="event"><span class="tl-when">Mar – Jun 2023</span><span class="tl-what">Parallel Computing course (Calcolo Parallelo dall’Infrastruttura alla Matematica), University of Pisa: theory and practice of parallel computing</span></li>
+    <li data-d="2023-07" data-to="2025-07" data-k="edu"><span class="tl-when">Jul 2023 – Jul 2025</span><span class="tl-what">Master’s degree, University of Pisa: 110/110 cum laude</span></li>
+    <li data-d="2024-03" data-k="event"><span class="tl-when">Mar 2024</span><span class="tl-what">Spring into Quant Finance, organized by G-Research for selected international students</span></li>
+    <li data-d="2024-03-21" data-k="talk"><span class="tl-when">21 Mar 2024</span><span class="tl-what">Talk “Calcolo della SVD tramite funzioni di Zolotarev”, SIAM Student Chapter UniPi-SNS, Pisa</span></li>
+    <li data-d="2024-09" data-k="event"><span class="tl-when">Sep 2024</span><span class="tl-what">CIME School on High-Dimensional Approximation, from Theoretical Foundations to Machine Learning and PDEs, Cetraro</span></li>
+    <li data-d="2024-11" data-to="2025-07" data-k="role"><span class="tl-when">Nov 2024 – Jul 2025</span><span class="tl-what">SIAM Student Chapter officer, UniPi-SNS Student Chapter</span><span class="tl-links"><a class="badge" href="https://pysanum.dm.unipi.it" target="_blank" rel="noopener">Chapter</a></span></li>
+    <li data-d="2025-01" data-to="2025-02-28" data-dur="2 months" data-k="edu"><span class="tl-when">Jan – Feb 2025</span><span class="tl-what">Visiting student, EPFL, Lausanne</span></li>
+    <li data-d="2025-01-20" data-k="talk"><span class="tl-when">20 Jan 2025</span><span class="tl-what">Poster “Lanczos with compression for symmetric Lyapunov equations”, Due giorni di Algebra Lineare Numerica, Pisa</span></li>
+    <li data-d="2025-02" data-k="role"><span class="tl-when">Feb 2025</span><span class="tl-what">Co-organizer of the GNCS-SIAM Chapters Meeting 2025, Pavia</span><span class="tl-links"><a class="badge" href="https://sites.google.com/view/gncs-siam-chapters" target="_blank" rel="noopener">Meeting</a></span></li>
+    <li data-d="2025-03" data-k="event"><span class="tl-when">Mar 2025</span><span class="tl-what">Generali Spring Camp, organized by Assicurazioni Generali for selected Italian students</span></li>
+    <li data-d="2025-05" data-k="paper" data-anim="assets/anims/LanczosComp.mp4"><span class="tl-when">May 2025</span><span class="tl-what">Lanczos with compression for symmetric matrix Lyapunov equations, with A. A. Casulli and D. Kressner (preprint)</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2505.22498" target="_blank" rel="noopener">arXiv</a><a class="badge" href="https://github.com/fhrobat/lyap-compress" target="_blank" rel="noopener">Code</a></span></li>
+    <li data-d="2025-05" data-k="event"><span class="tl-when">May 2025</span><span class="tl-what">Prima Math Fest, organized by Prima Assicurazioni for selected Italian students</span></li>
+    <li data-d="2025-06-24" data-k="talk"><span class="tl-when">24 Jun 2025</span><span class="tl-what">Invited talk “Lanczos with compression for symmetric Lyapunov equations”, ILAS 2025, Kaohsiung, Taiwan, in the minisymposium “Advances in Krylov Subspace Methods and their Applications”</span></li>
+    <li data-d="2025-10" data-to="now" data-k="edu"><span class="tl-when">Oct 2025 – now</span><span class="tl-what">PhD, University of Oxford, Linacre College and St Catherine’s College</span></li>
+    <li data-d="2025-10" data-to="2029" data-dur="4 years" data-k="prize"><span class="tl-when">2025 – 2029</span><span class="tl-what">Mathematical Institute Scholarship, University of Oxford</span></li>
+    <li data-d="2025-10" data-to="2025-12" data-dur="Michaelmas term" data-k="teach"><span class="tl-when">MT25</span><span class="tl-what">TA for Practical Numerical Analysis, Oxford</span></li>
+    <li data-d="2025-11" data-k="paper" data-anim="assets/anims/Friendship.mp4"><span class="tl-when">Nov 2025</span><span class="tl-what">Generalized Friendship Paradoxes in Network Science, with D. J. Higham and F. Tudisco, to appear in SIMAX</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2511.11742" target="_blank" rel="noopener">arXiv</a></span></li>
+    <li data-d="2026" data-to="2028" data-dur="2 years" data-k="prize"><span class="tl-when">2026 – 2028</span><span class="tl-what">College Scholarship in Sciences, St Catherine’s College</span></li>
+    <li data-d="2026-02" data-k="paper" data-anim="assets/anims/Perturbation.mp4"><span class="tl-when">Feb 2026</span><span class="tl-what">Matrix Perturbation Theory in the Tangent Space of Isospectral Matrices, with Y. Nakatsukasa (preprint)</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2602.22084" target="_blank" rel="noopener">arXiv</a></span></li>
+    <li data-d="2026-03-12" data-k="talk"><span class="tl-when">12 Mar 2026</span><span class="tl-what">Talk “Lanczos with compression for symmetric Lyapunov equations”, Internal Seminar, Oxford</span></li>
+    <li data-d="2026-04" data-to="2026-06" data-dur="Trinity term" data-k="teach"><span class="tl-when">TT26</span><span class="tl-what">Tutor for Numerical Linear Algebra (revision class), Oxford</span></li>
+    <li data-d="2026-05" data-k="prize"><span class="tl-when">May 2026</span><span class="tl-what">Audience Favourite Prize at the Oxford Mathematical Institute Three Minute Thesis Competition</span></li>
+    <li data-d="2026-05-08" data-k="talk"><span class="tl-when">8 May 2026</span><span class="tl-what">Talk “Are your friends more important than you?”, Italian Linacre Society Annual Meeting, Oxford</span><span class="tl-links"><a class="badge" href="https://fhrobat.github.io/LinItaSocSlides/" target="_blank" rel="noopener">Slides</a></span></li>
+    <li data-d="2026-06" data-k="event"><span class="tl-when">Jun 2026</span><span class="tl-what">Randomized Numerical Linear Algebra Workshop, EPFL, participant</span></li>
+    <li data-d="2026-07" data-to="2026-09" data-dur="3 months" data-k="role"><span class="tl-when">Jul – Sep 2026</span><span class="tl-what">MIORPA 2026 tutor, for pre-PhD students based in sub-Saharan Africa</span><span class="tl-links"><a class="badge" href="https://www.maths.ox.ac.uk/outreach/miorpa" target="_blank" rel="noopener">MIORPA</a></span></li>
+    <li data-d="2026-09-14" data-k="talk"><span class="tl-when">14 Sep 2026</span><span class="tl-what">Talk “Solving sequences of eigenvalue problems using snapshot and row subsampling”, ENLARGED, Rutherford Appleton Laboratory, Didcot</span><span class="tl-links"><a class="badge" href="assets/slides/HROBAT_slides_enlarged.pdf" target="_blank" rel="noopener">Slides</a></span></li>
+    <li data-d="2026-10" data-to="now" data-k="role"><span class="tl-when">Oct 2026 – now</span><span class="tl-what">IT and Social Media Officer, Oxford SIAM Student Chapter</span><span class="tl-links"><a class="badge" href="https://people.maths.ox.ac.uk/siamsc/" target="_blank" rel="noopener">Chapter</a></span></li>
+    <li data-d="2026-10" data-k="paper" data-anim="assets/anims/EigSeq.mp4"><span class="tl-when">Oct 2026</span><span class="tl-what">Solving a sequence of eigenvalue problems using snapshot and row subsampling, with Y. Nakatsukasa (preprint)</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2610.19326" target="_blank" rel="noopener">arXiv</a><a class="badge" href="https://github.com/fhrobat/SubApSnapEig" target="_blank" rel="noopener">Code</a></span></li>
+    <li data-d="2026-10" data-to="2026-12" data-dur="Michaelmas term" data-k="teach"><span class="tl-when">MT26</span><span class="tl-what">Tutor for Numerical Linear Algebra, Oxford</span></li>
+    <li data-d="2026-10-20" data-k="talk"><span class="tl-when">20 Oct 2026</span><span class="tl-what">Talk “Solving a sequence of eigenvalue problems using snapshot and row subsampling”, Junior Applied Mathematics Seminar (JAMS), Oxford SIAM Student Chapter</span><span class="tl-links"><a class="badge" href="https://fhrobat.github.io/jams_talk/" target="_blank" rel="noopener">Slides</a></span></li>
+  </ol>
+  <div class="tl-track" role="group" aria-label="Milestones, use the arrow keys to move along the line">
+    <span class="tl-line"></span><span class="tl-fill"></span><span class="tl-future"></span>
+    <span class="tl-pulse"></span><span class="tl-now">now</span>
+    <span class="tl-bar"></span><span class="tl-bar dash"></span><span class="tl-blabel"></span>
+  </div>
+  <div class="tl-detail"><span class="tl-caret"></span></div>
+  <span class="tl-sr" aria-live="polite"></span>
+  <p class="tl-legend" aria-hidden="true">
+    <span><i class="tl-s" data-k="edu"></i>studies</span>
+    <span><i class="tl-s" data-k="paper"></i>papers</span>
+    <span><i class="tl-s" data-k="talk"></i>talks</span>
+    <span><i class="tl-s" data-k="teach"></i>teaching</span>
+    <span><i class="tl-s" data-k="prize"></i>prizes</span>
+    <span><i class="tl-s" data-k="role"></i>roles</span>
+    <span><i class="tl-s" data-k="event"></i>schools</span>
+    <span class="tl-legend-news" hidden><i class="tl-s tl-news" data-k="edu"></i>in the news</span>
+    <span class="tl-hint"><span class="mouse">hover to zoom, click to open</span><span class="touch">slide to zoom</span></span>
+  </p>
+</section>
+
+<script>
+(function () {
+  var root = document.getElementById('timeline');
+  if (!root) return;
+  var items = [].slice.call(root.querySelectorAll('.tl-data li'));
+  var n = items.length;
+  if (n < 2) return;
+  var REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var track = root.querySelector('.tl-track');
+  var fill = root.querySelector('.tl-fill');
+  var detail = root.querySelector('.tl-detail');
+  var live = root.querySelector('.tl-sr');
+  var playBtn = root.querySelector('.tl-play');
+  var nowTag = root.querySelector('.tl-now');
+  var bar = root.querySelector('.tl-bar:not(.dash)');
+  var dash = root.querySelector('.tl-bar.dash');
+  var blabel = root.querySelector('.tl-blabel');
+
+  function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+  function el(cls, parent, before) {
+    var e = document.createElement('span');
+    e.className = cls;
+    parent.insertBefore(e, before || null);
+    return e;
+  }
+
+  // ---------------------------------------------------------------- tempo e posizioni
+  // date "AAAA", "AAAA-MM", "AAAA-MM-GG" o "now" in anni con la virgola; tappe con la stessa data
+  // vengono scostate di un soffio, così la scala resta strettamente crescente
+  var NOW = 0;
+  function tOf(s) {
+    if (s === 'now') return NOW;
+    var p = s.split('-').map(Number);
+    return p[0] + ((p[1] || 1) - 1) / 12 + ((p[2] || 1) - 1) / 365;
+  }
+  var T = [];
+  items.forEach(function (li, i) {
+    var t = tOf(li.getAttribute('data-d'));
+    T.push(i && t <= T[i - 1] ? T[i - 1] + 0.002 : t);
+  });
+  var today = new Date();
+  NOW = Math.max(T[n - 1], today.getFullYear() + today.getMonth() / 12 + (today.getDate() - 1) / 365);
+
+  // tempo -> posizione u in [0, 1] (0 = prima tappa, 1 = ultima): metà tappe equidistanti, metà tempo vero
+  function ord(t) {
+    if (t <= T[0]) return (t - T[0]) / (T[1] - T[0]);
+    for (var i = 1; i < n; i++) if (t <= T[i]) return i - 1 + (t - T[i - 1]) / (T[i] - T[i - 1]);
+    return n - 1 + (t - T[n - 1]) / (T[n - 1] - T[n - 2]);
+  }
+  function uOf(t) { return 0.5 * ord(t) / (n - 1) + 0.5 * (t - T[0]) / (T[n - 1] - T[0]); }
+  var U = T.map(uOf);
+
+  // lente "fisheye": attorno al fuoco f la linea si ingrandisce di k+1 volte, ai lati si comprime;
+  // gli estremi restano fermi. f e k inseguono il loro bersaglio a ogni fotogramma.
+  var lens = { f: 1, k: 0, fT: 1, kT: 0 };
+  function D(u) {
+    var k = lens.k, f = lens.f, d;
+    if (k < 1e-3) return u;
+    if (u >= f) {
+      if (f >= 1) return u;
+      d = (u - f) / (1 - f);
+      return f + (1 - f) * (k + 1) * d / (k * d + 1);
+    }
+    if (f <= 0) return u;
+    d = (f - u) / f;
+    return f - f * (k + 1) * d / (k * d + 1);
+  }
+  var W = 0;
+  function px(u) { return 12 + (W - 46) * D(u); }
+  function lensK() { return W < 560 ? 6 : 5; }
+
+  // ---------------------------------------------------------------- sezioni e news della home
+  var SECTIONS = {
+    edu: ['Education', 'Education'],
+    paper: ['Publications and Preprints', 'Publications'],
+    talk: ['Talks and visits', 'Talks'],
+    teach: ['Teaching', 'Teaching'],
+    prize: ['Extra activities and awards', 'Activities'],
+    role: ['Extra activities and awards', 'Activities'],
+    event: ['Extra activities and awards', 'Activities']
+  };
+  function summaryOf(title) {
+    var all = document.querySelectorAll('summary');
+    for (var i = 0; i < all.length; i++) if (all[i].textContent.trim() === title) return all[i];
+    return null;
+  }
+  function openSection(sec) {
+    var s = summaryOf(sec[0]);
+    if (!s) return;
+    var box = s.parentNode;
+    if (box.tagName === 'DETAILS') box.open = true;
+    setTimeout(function () { box.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }); }, 60);
+  }
+
+  // una tappa è "nelle news" se una news della home ha lo stesso mese e almeno due parole lunghe in comune
+  function words(s) {
+    var o = {};
+    s.toLowerCase().split(/[^a-z0-9]+/).forEach(function (w) { if (w.length >= 5) o[w] = 1; });
+    return o;
+  }
+  var NEWS = [];
+  [].forEach.call(document.querySelectorAll('.news .news-list li'), function (li) {
+    var dEl = li.querySelector('.news-date');
+    if (!dEl) return;
+    var p = dEl.textContent.trim().split(' '), m = MONTHS.indexOf(p[0]);
+    if (m >= 0 && p[1]) NEWS.push({ month: p[1] + '-' + (m < 9 ? '0' : '') + (m + 1), words: words(li.textContent) });
+  });
+  function inNews(month, text) {
+    var w = words(text);
+    return NEWS.some(function (nw) {
+      if (nw.month !== month) return false;
+      var c = 0;
+      for (var k in w) if (nw.words[k]) c++;
+      return c >= 2;
+    });
+  }
+
+  // ---------------------------------------------------------------- costruzione
+  var lastPointer = 'mouse';
+  var data = items.map(function (li, i) {
+    var kind = li.getAttribute('data-k'), from = li.getAttribute('data-d'), to = li.getAttribute('data-to');
+    var when = li.querySelector('.tl-when').textContent, text = li.querySelector('.tl-what').textContent;
+    var links = li.querySelector('.tl-links');
+    var news = inNews(from.slice(0, 7), text);
+    var pin = document.createElement('button');
+    pin.type = 'button';
+    pin.className = 'tl-pin' + (news ? ' tl-news' : '');
+    pin.tabIndex = -1;
+    pin.setAttribute('aria-label', when + ': ' + text);
+    pin.innerHTML = '<i class="tl-s" data-k="' + kind + '"></i>';
+    // col mouse o la tastiera il clic apre la sezione; col dito il tocco sceglie soltanto la tappa
+    pin.addEventListener('click', function () {
+      stopAll();
+      select(i);
+      if (SECTIONS[kind] && lastPointer !== 'touch') openSection(SECTIONS[kind]);
+    });
+    track.appendChild(pin);
+    var t2 = to ? tOf(to) : null;
+    return {
+      kind: kind, from: from, when: when, text: text, links: links ? links.innerHTML : '', news: news,
+      sec: SECTIONS[kind] || null, anim: li.getAttribute('data-anim'), video: null, pin: pin,
+      t0: tOf(from), t2: t2, u2: t2 === null ? null : uOf(t2), open: to === 'now', dur: li.getAttribute('data-dur'),
+      hid: false, past: false, inn: false
+    };
+  });
+
+  // una fascia per anno, dietro a tutto, con l'anno scritto sotto la linea se ci sta
+  var bands = [];
+  for (var y = Math.floor(T[0]); y <= Math.floor(NOW); y++) {
+    bands.push({ y: y, u0: uOf(y), u1: uOf(y + 1), el: el('tl-band' + (y % 2 ? ' odd' : ''), track, track.firstChild), lab: el('tl-year', track), lw: 0, shown: true });
+  }
+  // pallini dei gruppi: uno per gruppo possibile, riusati a ogni fotogramma
+  var bubs = [];
+  for (var b = 0; b < Math.ceil(n / 2); b++) {
+    var be = el('tl-bub', track);
+    bubs.push({ el: be, inner: document.createElement('b'), txt: '', on: false });
+    be.appendChild(bubs[b].inner);
+  }
+
+  // accanto a "now": da quanti giorni dura il PhD (la durata di studio ancora aperta)
+  var running = data.filter(function (d) { return d.open && d.kind === 'edu'; })[0];
+  if (running) {
+    var p = running.from.split('-').map(Number);
+    var days = Math.floor((today - new Date(p[0], (p[1] || 1) - 1, p[2] || 1)) / 864e5) + 1;
+    nowTag.textContent = 'now · ' + running.text.split(',')[0] + ' day ' + days;
+  }
+
+  function durText(d) {
+    if (d.dur) return d.dur;
+    var m = Math.max(1, Math.round((d.t2 - d.t0) * 12)), yy = Math.floor(m / 12), mm = m % 12, s = [];
+    if (yy) s.push(yy + (yy > 1 ? ' years' : ' year'));
+    if (mm) s.push(mm + (mm > 1 ? ' months' : ' month'));
+    return s.join(' ') + (d.open ? ' so far' : '');
+  }
+
+  // ---------------------------------------------------------------- disegno
+  var sel = -1, XS = U.map(function () { return 0; }), fx = 12, reveal = Infinity, sizes = false, blabelW = 0;
+  function layout() {
+    W = track.clientWidth;
+    var short = W < 560;
+    bands.forEach(function (bd) {
+      bd.lab.textContent = short ? '’' + String(bd.y).slice(2) : String(bd.y);
+      bd.lw = bd.lab.offsetWidth;
+    });
+    sizes = true;
+    render(1);
+  }
+  function setCls(o, key, cls, on, elx) {
+    if (o[key] === on) return;
+    o[key] = on;
+    (elx || o.pin).classList.toggle(cls, on);
+  }
+  // a = quanto la fine della linea piena insegue la tappa scelta (1 = subito); restituisce true se è ferma
+  function render(a) {
+    if (!sizes) return true;
+    var i, xs = XS;
+    for (i = 0; i < n; i++) xs[i] = px(U[i]);
+
+    // anni
+    var lastEnd = -1e9;
+    bands.forEach(function (bd) {
+      var s = Math.max(0, px(bd.u0)), e = Math.min(W, px(bd.u1)), c = (s + e) / 2;
+      bd.el.style.transform = 'translateX(' + s.toFixed(1) + 'px)';
+      bd.el.style.width = Math.max(0, e - s).toFixed(1) + 'px';
+      var show = c - bd.lw / 2 >= lastEnd + 4 && c + bd.lw / 2 <= W;
+      bd.lab.style.transform = 'translateX(' + (c - bd.lw / 2).toFixed(1) + 'px)';
+      if (show !== bd.shown) { bd.lab.style.visibility = show ? '' : 'hidden'; bd.shown = show; }
+      if (show) lastEnd = c + bd.lw / 2;
+    });
+
+    // gruppi: si uniscono via via le due tappe (o gruppi) più vicine finché tutte distano almeno M pixel;
+    // la tappa scelta resta sempre da sola
+    var M = W < 560 ? 19 : 22, groups = [];
+    for (i = 0; i < n; i++) groups.push({ m: [i], x: xs[i], fixed: i === sel });
+    for (;;) {
+      var best = -1, gap = M;
+      for (var g = 1; g < groups.length; g++) {
+        if (groups[g - 1].fixed || groups[g].fixed) continue;
+        var dd = groups[g].x - groups[g - 1].x;
+        if (dd < gap) { gap = dd; best = g; }
+      }
+      if (best < 0) break;
+      var A = groups[best - 1];
+      A.m = A.m.concat(groups[best].m);
+      A.x = A.m.reduce(function (s, k) { return s + xs[k]; }, 0) / A.m.length;
+      groups.splice(best, 1);
+    }
+    var bi = 0;
+    groups.forEach(function (gr) {
+      var single = gr.m.length === 1;
+      gr.m.forEach(function (k) { setCls(data[k], 'hid', 'hid', !single); });
+      if (single) return;
+      var bb = bubs[bi++];
+      if (!bb) return;
+      bb.el.style.transform = 'translateX(' + gr.x.toFixed(1) + 'px)';
+      var txt = String(gr.m.length);
+      if (txt !== bb.txt) { bb.inner.textContent = txt; bb.txt = txt; }
+      setCls(bb, 'on', 'on', true, bb.el);
+      setCls(bb, 'news', 'tl-bnews', gr.m.some(function (k) { return data[k].news; }), bb.el);
+      setCls(bb, 'past', 'past', gr.m[0] <= sel, bb.el);
+      setCls(bb, 'inn', 'in', gr.x <= reveal, bb.el);
+    });
+    for (; bi < bubs.length; bi++) setCls(bubs[bi], 'on', 'on', false, bubs[bi].el);
+    for (i = 0; i < n; i++) {
+      data[i].pin.style.transform = 'translateX(' + xs[i].toFixed(1) + 'px)';
+      setCls(data[i], 'inn', 'in', xs[i] <= reveal);
+    }
+
+    // linea piena fino alla tappa scelta e punta del riquadro
+    var tx = sel >= 0 ? xs[sel] : 12;
+    fx += (tx - fx) * a;
+    if (Math.abs(tx - fx) < 0.3) fx = tx;
+    if (reveal !== Infinity) fx = Math.min(fx, reveal);
+    fill.style.width = Math.max(0, fx - 12).toFixed(1) + 'px';
+    root.style.setProperty('--tl-x', (sel >= 0 ? xs[sel] : 12).toFixed(1) + 'px');
+
+    // durata della tappa scelta
+    var d = sel >= 0 ? data[sel] : null;
+    if (d && d.t2 !== null) {
+      var s0 = xs[sel], eNow = px(uOf(NOW)), e1 = d.open ? W - 6 : Math.min(px(d.u2), W - 6), solid = Math.min(e1, eNow);
+      bar.style.left = s0.toFixed(1) + 'px';
+      bar.style.width = Math.max(3, solid - s0).toFixed(1) + 'px';
+      dash.style.left = solid.toFixed(1) + 'px';
+      dash.style.width = Math.max(0, e1 - solid).toFixed(1) + 'px';
+      blabel.style.left = Math.max(0, Math.min(s0, W - blabelW)).toFixed(1) + 'px';
+    }
+    return fx === tx;
+  }
+
+  // ciclo di animazione: gira solo finché lente o linea piena si stanno muovendo
+  var raf = null, lastTs = 0, introStart = null, INTRO = 1.6;
+  function kick() { if (!raf) { lastTs = performance.now(); raf = requestAnimationFrame(loop); } }
+  function loop(ts) {
+    var dt = Math.min(0.05, (ts - lastTs) / 1000);
+    lastTs = ts;
+    var a = REDUCED ? 1 : 1 - Math.exp(-dt * 12), b2 = REDUCED ? 1 : 1 - Math.exp(-dt * 8);
+    lens.f += (lens.fT - lens.f) * a;
+    lens.k += (lens.kT - lens.k) * b2;
+    var lensDone = Math.abs(lens.f - lens.fT) < 1e-4 && Math.abs(lens.k - lens.kT) < 2e-3;
+    if (lensDone) { lens.f = lens.fT; lens.k = lens.kT; }
+    var introDone = true;
+    if (introStart !== null) {
+      var q = (ts - introStart) / 1000 / INTRO;
+      reveal = q >= 1 ? Infinity : 12 + (W - 46) * q;
+      if (q >= 1) { introStart = null; introEnd(); } else introDone = false;
+    }
+    var still = render(a);
+    raf = lensDone && still && introDone ? null : requestAnimationFrame(loop);
+  }
+
+  // ---------------------------------------------------------------- tappa scelta
+  function videoFor(d) {
+    if (!d.anim) return null;
+    if (!d.video) {
+      var v = document.createElement('video');
+      v.className = 'paper-anim tl-anim';
+      v.src = d.anim;
+      v.muted = true; v.loop = true; v.playsInline = true;
+      v.preload = 'metadata';
+      v.setAttribute('aria-hidden', 'true');
+      d.video = v;
+    }
+    return d.video;
+  }
+  // il testo si scrive a macchina in circa mezzo secondo, poi compaiono i link
+  var typing = null;
+  function write(i) {
+    var d = data[i];
+    if (typing) cancelAnimationFrame(typing);
+    detail.innerHTML = '';
+    detail.classList.toggle('tl-news', d.news);
+    var v = videoFor(d);
+    if (v) {
+      detail.appendChild(v);
+      if (!REDUCED) { var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); }
+    }
+    el('tl-when', detail).textContent = d.when;
+    var t = el('', detail), caret = el('tl-caret', detail);
+    var k = 0, step = Math.max(1, Math.ceil(d.text.length / 26));
+    function tick() {
+      k = REDUCED ? d.text.length : Math.min(d.text.length, k + step);
+      t.textContent = d.text.slice(0, k);
+      if (k < d.text.length) { typing = requestAnimationFrame(tick); return; }
+      typing = null;
+      var hasSec = d.sec && summaryOf(d.sec[0]);
+      if (!d.links && !hasSec) return;
+      var l = el('tl-links', detail, caret);
+      l.innerHTML = d.links;
+      if (hasSec) {
+        var go = document.createElement('button');
+        go.type = 'button';
+        go.className = 'badge';
+        go.textContent = '↓ ' + d.sec[1];
+        go.addEventListener('click', function () { stopAll(); openSection(d.sec); });
+        l.appendChild(go);
+      }
+    }
+    tick();
+    live.textContent = d.when + ': ' + d.text;
+  }
+  function select(i, quiet) {
+    i = Math.max(0, Math.min(n - 1, i));
+    if (i === sel) return;
+    sel = i;
+    data.forEach(function (d, k) {
+      d.pin.classList.toggle('sel', k === i);
+      setCls(d, 'past', 'past', k <= i);
+      d.pin.tabIndex = k === i ? 0 : -1;
+    });
+    // la barra della durata riparte da zero a ogni nuova tappa
+    var d = data[i], has = d.t2 !== null;
+    [bar, dash, blabel].forEach(function (e) { e.classList.remove('on'); });
+    if (has) {
+      blabel.textContent = d.when + ' · ' + durText(d);
+      blabelW = blabel.offsetWidth;
+      bar.classList.add('on');
+      blabel.classList.add('on');
+      if (d.open || d.u2 > uOf(NOW)) dash.classList.add('on');
+    }
+    kick();
+    if (!quiet) write(i);
+  }
+  // lente sul punto indicato, oppure (a riposo) leggera sulla tappa scelta
+  function focusAt(clientX) {
+    var r = track.getBoundingClientRect();
+    lens.fT = clamp01((clientX - r.left - 12) / (r.width - 46));
+    lens.kT = lensK();
+    kick();
+  }
+  function focusOn(i, k) {
+    lens.fT = clamp01(U[i]);
+    lens.kT = k;
+    kick();
+  }
+  function rest() { if (sel >= 0) focusOn(sel, 3); else { lens.kT = 0; kick(); } }
+  // la lente si centra sul cursore, e al centro della lente c'è il punto u = posizione del cursore:
+  // la tappa giusta è quindi la più vicina a quel u, anche mentre la lente si sta ancora spostando
+  function nearest(clientX) {
+    var r = track.getBoundingClientRect(), s = clamp01((clientX - r.left - 12) / (r.width - 46)), best = 0;
+    for (var i = 1; i < n; i++) if (Math.abs(U[i] - s) < Math.abs(U[best] - s)) best = i;
+    return best;
+  }
+
+  // ---------------------------------------------------------------- comandi
+  var down = false, restTimer = null;
+  track.addEventListener('pointerdown', function (e) {
+    lastPointer = e.pointerType;
+    down = true;
+    clearTimeout(restTimer);
+    stopAll();
+    focusAt(e.clientX);
+    select(nearest(e.clientX));
+  });
+  track.addEventListener('pointermove', function (e) {
+    if (e.pointerType !== 'mouse' && !down) return;
+    stopAll();
+    focusAt(e.clientX);
+    select(nearest(e.clientX));
+  });
+  track.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse' && !playTimer) rest(); });
+  function release() {
+    if (!down) return;
+    down = false;
+    if (lastPointer !== 'mouse') { clearTimeout(restTimer); restTimer = setTimeout(rest, 900); }
+  }
+  window.addEventListener('pointerup', release);
+  window.addEventListener('pointercancel', release);
+  track.addEventListener('keydown', function (e) {
+    lastPointer = 'keyboard';
+    var to = { ArrowLeft: sel - 1, ArrowRight: sel + 1, Home: 0, End: n - 1 }[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    stopAll();
+    select(to);
+    focusOn(sel, 4);
+    data[sel].pin.focus();
+  });
+
+  // play: tutte le tappe dalla prima a oggi con la lente che le segue; si ferma toccando la linea
+  var playTimer = null;
+  function stopPlay() {
+    if (!playTimer) return;
+    clearTimeout(playTimer);
+    playTimer = null;
+    playBtn.textContent = '▶ play';
+    playBtn.setAttribute('aria-pressed', 'false');
+    rest();
+  }
+  function play() {
+    if (playTimer) { stopPlay(); return; }
+    stopIntro();
+    playBtn.textContent = '■ stop';
+    playBtn.setAttribute('aria-pressed', 'true');
+    var k = 0;
+    (function step() {
+      sel = -1;
+      select(k);
+      focusOn(k, 4);
+      var d = data[k];
+      var wait = d.anim ? 3000 : Math.min(1700, 800 + d.text.length * 8);
+      k++;
+      playTimer = setTimeout(k < n ? step : stopPlay, wait);
+    })();
+  }
+  playBtn.addEventListener('click', play);
+
+  // ingresso: la linea si disegna fino a oggi a velocità costante, tappe e pallini spuntano al suo passaggio,
+  // poi la lente si posa sull'ultima tappa e la si scrive
+  var started = false;
+  function introEnd() {
+    root.classList.add('tl-done');
+    sel = -1;
+    select(n - 1);
+    focusOn(n - 1, 3);
+  }
+  function stopIntro() {
+    if (!started) { started = true; reveal = Infinity; root.classList.add('tl-on', 'tl-done'); kick(); return; }
+    if (introStart === null) return;
+    introStart = null;
+    reveal = Infinity;
+    root.classList.add('tl-done');
+    if (sel >= 0) write(sel);
+    kick();
+  }
+  function stopAll() { stopIntro(); stopPlay(); }
+  function intro() {
+    if (started) return;
+    started = true;
+    root.classList.add('tl-on');
+    if (REDUCED) { reveal = Infinity; introEnd(); return; }
+    reveal = 0;
+    select(n - 1, true);
+    introStart = performance.now();
+    kick();
+  }
+  // si parte quando la sezione è ben visibile e, sul sito, dopo la sua comparsa (classe "active" di cascade.js)
+  function ready() { return !root.classList.contains('reveal') || root.classList.contains('active'); }
+  function whenReady(tries) {
+    if (ready() || tries > 25) intro();
+    else setTimeout(function () { whenReady(tries + 1); }, 120);
+  }
+
+  root.classList.add('tl-js');
+  root.classList.toggle('tl-now-news', data[n - 1].news);
+  root.querySelector('.tl-legend-news').hidden = !data.some(function (d) { return d.news; });
+  reveal = 0;
+  layout();
+  window.addEventListener('resize', layout);
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      if (entries.some(function (en) { return en.isIntersecting; })) { io.disconnect(); setTimeout(function () { whenReady(0); }, 200); }
+    }, { threshold: 0.6 });
+    io.observe(track);
+    // il play si ferma se la timeline esce dallo schermo
+    new IntersectionObserver(function (entries) {
+      if (!entries[0].isIntersecting) stopPlay();
+    }).observe(root);
+  } else {
+    intro();
+  }
+})();
+</script>
