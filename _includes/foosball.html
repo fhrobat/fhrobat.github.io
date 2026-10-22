@@ -5,24 +5,11 @@
   Nessuna dipendenza esterna.
 -->
 <style>
-  #foos-launch { text-align: center; margin: 40px auto 60px; }
-  #foos-launch[hidden], #foos[hidden] { display: none; }
-  #foos-open {
-    font-family: 'Courier New', monospace;
-    font-size: 0.95rem;
-    color: inherit;
-    background: none;
-    border: 1px solid currentColor;
-    padding: 0.5em 1.4em;
-    cursor: pointer;
-    letter-spacing: 0.03em;
-  }
-  #foos-open:hover { text-decoration: underline; }
-  #foos-open:focus-visible { outline: 2px solid #0b47d1; outline-offset: 2px; }
+  #foos[hidden] { display: none; }
   #foos {
     width: 100%;
     max-width: 720px;
-    margin: 80px auto 60px;
+    margin: 28px auto 60px;
     font-family: 'Courier New', monospace;
   }
   #foos-score {
@@ -154,11 +141,9 @@
   }
 </style>
 
-<div id="foos-launch">
-  <button id="foos-open" type="button">Challenge me at foosball</button>
-</div>
-
+<!-- si apre dalla sua scheda in minigames.html -->
 <div id="foos" hidden>
+  <div class="mg-bar"><span class="mg-bar-title">Foosball</span><button type="button" class="mg-close" aria-label="Close the foosball game">Close &#x2715;</button></div>
   <div id="foos-score" aria-live="polite">
     <span>You <b id="foos-you">0</b></span>
     <span>:</span>
@@ -215,15 +200,8 @@
 </div>
 
 <script>
-// il gioco parte solo quando qualcuno apre il pulsante: la home resta leggera
-document.getElementById('foos-open').addEventListener('click', () => {
-  const box = document.getElementById('foos');
-  document.getElementById('foos-launch').hidden = true;
-  box.hidden = false;
-  foosStart();
-  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  document.getElementById('foos-canvas').focus({ preventScroll: true });
-}, { once: true });
+// il gioco parte solo quando qualcuno apre la sua scheda: la home resta leggera
+minigame('foos', foosStart);
 
 function foosStart() {
   const canvas = document.getElementById('foos-canvas');
@@ -394,7 +372,7 @@ function foosStart() {
   };
   */
 
-  const net = { start() {}, score() {}, finish() {}, settings() {} };
+  const net = { start() {}, score() {}, finish() {}, settings() {}, leave() {} };
   const elBoard = document.getElementById('foos-board');
   const elLive = document.getElementById('foos-live');
   const elRecent = document.getElementById('foos-recent');
@@ -567,6 +545,8 @@ function foosStart() {
       };
       net.score = (you, cpu) => { if (inMatch) fdb.update(presRef, { you, cpu }).catch(() => {}); };
       net.settings = () => { if (inMatch) fdb.update(presRef, { diff: diffName, to: winTo, deuce }).catch(() => {}); };
+      // partita lasciata a metà (gioco chiuso): via da "is playing now", senza registrare la partita
+      net.leave = () => { if (inMatch) { inMatch = false; fdb.remove(presRef).catch(() => {}); } };
       net.finish = (you, cpu) => {
         if (!inMatch) return;
         inMatch = false;
@@ -1869,5 +1849,23 @@ function foosStart() {
 
   serve(0);
   start();
+
+  // chiusura (pulsante Close o di nuovo la scheda): fuori dallo schermo intero, partita lasciata, si torna alla scena iniziale
+  function closeGame() {
+    exitFull();
+    net.leave();
+    hands.forEach((hd, h) => { hd.up = hd.down = false; handShootUp(h, true); });
+    for (const r of rods) { r.kt = -1; r.ang = 0; r.hold = false; r.plan = null; }
+    human = false;
+    score[0] = score[1] = 0;
+    elYou.textContent = '0'; elMe.textContent = '0';
+    canvas.classList.remove('playing');
+    lockRules(false);
+    elIntro.hidden = true; canvas.hidden = false;
+    flash = null; trick = null; trail.length = 0;
+    serve(0);
+    setMode('demo');
+  }
+  return { close: closeGame };
 }
 </script>
