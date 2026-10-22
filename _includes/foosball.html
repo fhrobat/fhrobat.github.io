@@ -85,9 +85,11 @@
     width: 16ch;
   }
   .foos-board-title { font-weight: bold; margin: 0 0 0.3rem; }
-  #foos-recent { margin: 0; padding-left: 1.6em; }
-  #foos-recent li { margin: 0.15rem 0; }
+  #foos-recent, #foos-best { margin: 0; padding-left: 1.6em; }
+  #foos-best { margin-bottom: 1rem; padding-left: 2.2em; }
+  #foos-recent li, #foos-best li { margin: 0.15rem 0; }
   #foos-recent li.won { font-weight: bold; }
+  .foos-board-note { margin: 0 0 0.3rem; opacity: 0.7; font-size: 0.78rem; }
   .foos-row {
     display: flex;
     justify-content: center;
@@ -194,6 +196,9 @@
   </div>
   <div id="foos-board" hidden>
     <p id="foos-live">Nobody else is playing right now.</p>
+    <p class="foos-board-title">Leaderboard</p>
+    <p class="foos-board-note">The best win of each player: the hardest level first, then the most goals, then the goal difference.</p>
+    <ol id="foos-best"></ol>
     <p class="foos-board-title">Last 5 matches</p>
     <ol id="foos-recent"></ol>
   </div>
@@ -525,7 +530,41 @@ function foosStart() {
       elRecent.appendChild(li);
     }
   }
-  setInterval(renderRecent, 60000);
+  // classifica: la miglior vittoria di ogni giocatore (gli anonimi contano uno per uno). Prima il livello più
+  // difficile, poi più gol segnati (cioè partite più lunghe), poi la differenza reti, poi chi c'è arrivato prima
+  const elBest = document.getElementById('foos-best');
+  const LEVEL = { easy: 0, medium: 1, hard: 2 };
+  let bestCache = [];
+  function leaderboard(list) {
+    const wins = list.filter(m => m.you > m.cpu)
+      .sort((a, b) => LEVEL[b.diff] - LEVEL[a.diff] || b.you - a.you || (b.you - b.cpu) - (a.you - a.cpu) || a.at - b.at);
+    const seen = new Set(), out = [];
+    for (const m of wins) {
+      if (m.name !== 'Anonymous') {
+        if (seen.has(m.name)) continue;
+        seen.add(m.name);
+      }
+      out.push(m);
+      if (out.length === 10) break;
+    }
+    return out;
+  }
+  function renderBest() {
+    if (!elBest) return;
+    elBest.textContent = '';
+    if (!bestCache.length) {
+      const li = document.createElement('li');
+      li.textContent = 'Nobody has beaten me yet.';
+      elBest.appendChild(li);
+      return;
+    }
+    for (const m of bestCache) {
+      const li = document.createElement('li');
+      li.textContent = `${m.name} ${m.you} : ${m.cpu} (${m.diff}, first to ${m.to}${m.deuce ? ', deuce' : ''}), ${ago(m.at)}`;
+      elBest.appendChild(li);
+    }
+  }
+  setInterval(() => { renderRecent(); renderBest(); }, 60000);
 
   (async () => {
     if (!FIREBASE_CONFIG || !elBoard) return;
@@ -564,16 +603,18 @@ function foosStart() {
         });
         renderLive(list);
       });
-      const recentQ = fdb.query(fdb.ref(db, 'matches'), fdb.orderByChild('at'), fdb.limitToLast(5));
-      fdb.onValue(recentQ, snap => {
+      // tutte le partite: le ultime cinque e la classifica si calcolano qui
+      fdb.onValue(fdb.ref(db, 'matches'), snap => {
         const list = [];
         snap.forEach(c => {
           const v = c.val();
           if (!v || !validLevel(v.diff) || typeof v.at !== 'number') return;
           list.push({ name: cleanName(v.name), you: v.you | 0, cpu: v.cpu | 0, diff: v.diff, to: validTo(v.to), deuce: v.deuce === true, at: v.at });
         });
-        recentCache = list.reverse();
+        recentCache = list.slice().sort((a, b) => b.at - a.at).slice(0, 5);
+        bestCache = leaderboard(list);
         renderRecent();
+        renderBest();
       });
       elBoard.hidden = false;
     } catch (e) {

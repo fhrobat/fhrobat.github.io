@@ -144,9 +144,12 @@
   #kart-board[hidden] { display: none; }
   #kart-live { margin: 0 0 0.8rem; }
   .kart-board-title { font-weight: bold; margin: 0 0 0.3rem; }
-  #kart-best { margin: 0; padding-left: 2.2em; }
-  #kart-best li { margin: 0.15rem 0; }
-  #kart-best li.won { font-weight: bold; }
+  #kart-best, #kart-recent { margin: 0; padding-left: 2.2em; }
+  #kart-best { margin-bottom: 1rem; }
+  #kart-recent { padding-left: 1.6em; }
+  #kart-best li, #kart-recent li { margin: 0.15rem 0; }
+  #kart-recent li.won { font-weight: bold; }
+  .kart-board-note { margin: 0 0 0.3rem; opacity: 0.7; font-size: 0.78rem; }
   /* schermo intero: la pista prende tutto lo spazio che resta sotto e sopra ci sono i comandi.
      Nel top layer il filtro del sito non arriva, quindi niente inversione né rotazione della tinta. */
   #kart:fullscreen, #kart.kart-full {
@@ -226,8 +229,11 @@
   </div>
   <div id="kart-board" hidden>
     <p id="kart-live">Nobody else is racing right now.</p>
-    <p class="kart-board-title">Best times</p>
+    <p class="kart-board-title">Leaderboard</p>
+    <p class="kart-board-note">The best time of each player over three laps, whichever ghost they raced.</p>
     <ol id="kart-best"></ol>
+    <p class="kart-board-title">Last 5 races</p>
+    <ol id="kart-recent"></ol>
   </div>
 </div>
 
@@ -890,22 +896,35 @@ function kartStart() {
     if (rest) text += ` and ${rest} other${rest > 1 ? 's' : ''}`;
     elLive.textContent = `● ${text} ${list.length > 1 ? 'are' : 'is'} racing now.`;
   }
-  let bestCache = [];
+  // classifica: il miglior tempo di ogni giocatore (gli anonimi contano uno per uno); sotto, le ultime gare
+  const elRecent = document.getElementById('kart-recent');
+  let bestCache = [], recentCache = [];
+  function leaderboard(list) {
+    const seen = new Set(), out = [];
+    for (const r of list.slice().sort((a, b) => a.time - b.time || a.at - b.at)) {
+      if (r.name !== 'Anonymous') {
+        if (seen.has(r.name)) continue;
+        seen.add(r.name);
+      }
+      out.push(r);
+      if (out.length === 10) break;
+    }
+    return out;
+  }
   function renderBest() {
-    elBest.textContent = '';
-    if (!bestCache.length) {
-      const li = document.createElement('li');
-      li.textContent = 'No times yet. Be the first.';
-      elBest.appendChild(li);
-      return;
-    }
-    for (const r of bestCache) {
-      const li = document.createElement('li');
+    const fill = (el, rows, empty, line) => {
+      el.textContent = '';
+      if (!rows.length) { const li = document.createElement('li'); li.textContent = empty; el.appendChild(li); return; }
+      for (const r of rows) { const li = document.createElement('li'); line(li, r); el.appendChild(li); }
+    };
+    fill(elBest, bestCache, 'No times yet. Be the first.', (li, r) => {
+      li.textContent = `${r.name} ${fmt(r.time)}, best lap ${fmt(r.lap)}, ${ago(r.at)}`;
+    });
+    fill(elRecent, recentCache, 'No races yet.', (li, r) => {
       const g = ghosts[r.ghost], won = g && r.time < g.time;
-      li.textContent = `${r.name} ${fmt(r.time)}, best lap ${fmt(r.lap)}, vs ${ghostWord(r.ghost)}${won ? ' (beat him)' : ''}, ${ago(r.at)}`;
+      li.textContent = `${r.name} ${fmt(r.time)} against ${ghostWord(r.ghost)}${g ? (won ? ': won' : ': lost') : ''}, ${ago(r.at)}`;
       if (won) li.className = 'won';
-      elBest.appendChild(li);
-    }
+    });
   }
   setInterval(renderBest, 60000);
 
@@ -944,15 +963,16 @@ function kartStart() {
         });
         renderLive(list);
       });
-      const bestQ = fdb.query(fdb.ref(db, 'kart/times'), fdb.orderByChild('time'), fdb.limitToFirst(10));
-      fdb.onValue(bestQ, snap => {
+      // tutti i tempi: la classifica e le ultime cinque gare si calcolano qui
+      fdb.onValue(fdb.ref(db, 'kart/times'), snap => {
         const list = [];
         snap.forEach(c => {
           const v = c.val();
           if (!v || !validGhost(v.ghost) || typeof v.time !== 'number' || typeof v.at !== 'number') return;
           list.push({ name: cleanName(v.name), ghost: v.ghost, time: v.time / 1000, lap: (+v.lap || 0) / 1000, at: v.at });
         });
-        bestCache = list;
+        bestCache = leaderboard(list);
+        recentCache = list.slice().sort((a, b) => b.at - a.at).slice(0, 5);
         renderBest();
       });
       elBoard.hidden = false;
