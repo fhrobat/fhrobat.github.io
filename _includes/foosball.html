@@ -74,6 +74,20 @@
   #foos-board[hidden] { display: none; }
   #foos-live { margin: 0 0 0.8rem; }
   #foos-name-row { display: block; margin-top: 0.9rem; }
+  .foos-you { align-items: baseline; }
+  .foos-you input {
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid currentColor;
+    padding: 0.1em 0.2em;
+    margin-left: 0.5em;
+    width: 14ch;
+  }
+  .foos-you input:focus-visible { outline: 2px solid #0b47d1; outline-offset: 2px; }
+  .foos-you span { opacity: 0.7; }
+
   #foos-name {
     font: inherit;
     color: inherit;
@@ -172,7 +186,7 @@
       <input id="foos-name" type="text" maxlength="16" autocomplete="given-name" list="foos-names" placeholder="Anonymous">
       <datalist id="foos-names"></datalist>
     </label>
-    <p class="foos-note">The list of matches below shows only first names from a fixed list: common English and Italian names, plus those of the people at the Oxford Mathematical Institute. <span id="foos-name-hint">Leave it empty to stay anonymous.</span></p>
+    <p class="foos-note">The list of matches below shows only first names from a fixed list: common English and Italian names, plus those of the people at the Oxford Mathematical Institute. <span id="foos-name-hint">Leave it empty to stay anonymous.</span> You can change it any time below the table.</p>
     <button id="foos-go" type="button">Play</button>
   </div>
   <div id="foos-options" class="foos-row">
@@ -193,6 +207,10 @@
     <button id="foos-sound" type="button" aria-pressed="false">Sound off</button>
     <button id="foos-full" type="button" aria-pressed="false">Full screen</button>
     <button id="foos-help" type="button">How to play</button>
+  </div>
+  <div class="foos-row foos-you">
+    <label>Your first name<input id="foos-name2" type="text" maxlength="16" autocomplete="given-name" list="foos-names" placeholder="Anonymous"></label>
+    <span id="foos-name-hint2"></span>
   </div>
   <div id="foos-board" hidden>
     <p id="foos-live">Nobody else is playing right now.</p>
@@ -466,21 +484,37 @@ function foosStart() {
   if (elName) {
     const dl = document.getElementById('foos-names');
     for (const n of NAMES) { const o = document.createElement('option'); o.value = n; dl.appendChild(o); }
+    // due campi per il nome, nelle regole e sotto il table: restano uguali, e il nome vale per tutti i minigiochi
+    const elName2 = document.getElementById('foos-name2'), elNameHint2 = document.getElementById('foos-name-hint2');
+    const nameInputs = [elName, elName2].filter(Boolean);
     const hint = () => {
       const v = elName.value.trim(), k = knownName(v);
       elNameHint.textContent = !v ? 'Leave it empty to stay anonymous.'
         : k ? `You will appear as ${k}.` : 'Not in the list of first names: you will appear as Anonymous.';
+      if (elNameHint2) elNameHint2.textContent = !v ? 'type it to appear on the leaderboard'
+        : k ? `on the leaderboard as ${k}` : 'not in the list of first names: Anonymous';
     };
     try { elName.value = knownName(localStorage.getItem('foos-name') || ''); } catch (e) {}
-    elName.addEventListener('input', () => {
-      const t = elName.value.replace(/[^\p{L} ]/gu, '').slice(0, 16);
-      if (t !== elName.value) elName.value = t;
-      hint();
-    });
-    elName.addEventListener('change', () => {
-      const k = knownName(elName.value);
-      if (k) elName.value = k;
-      try { localStorage.setItem('foos-name', k); } catch (e) {}
+    for (const el of nameInputs) el.value = elName.value;
+    for (const el of nameInputs) {
+      el.addEventListener('input', () => {
+        const t = el.value.replace(/[^\p{L} ]/gu, '').slice(0, 16);
+        if (t !== el.value) el.value = t;
+        for (const o of nameInputs) if (o !== el) o.value = t;
+        hint();
+      });
+      el.addEventListener('change', () => {
+        const k = knownName(el.value);
+        if (k) for (const o of nameInputs) o.value = k;
+        try { localStorage.setItem('foos-name', k); } catch (e) {}
+        hint();
+        window.dispatchEvent(new CustomEvent('minigame-name', { detail: k }));
+      });
+    }
+    // il nome cambiato nell'altro gioco
+    window.addEventListener('minigame-name', e => {
+      if (e.detail === knownName(elName.value)) return;
+      for (const o of nameInputs) o.value = e.detail;
       hint();
     });
     hint();
@@ -1835,6 +1869,7 @@ function foosStart() {
       const verdict = score[0] > score[1] ? 'You beat me. Respect.' : 'Francesco wins this one.';
       ctx.fillText(`${scoreLine()}. ${verdict}`, cw / 2, ch / 2 + px(70));
       font(22); ctx.fillText(`Click for take ${take + 1}`, cw / 2, ch / 2 + px(120));
+      if (playerName() === 'Anonymous') { font(18); ctx.fillText('Type your first name below the table to join the leaderboard', cw / 2, ch / 2 + px(160)); }
       ctx.globalAlpha = 1;
       drawGrain(0.08 * a);
     }

@@ -84,6 +84,20 @@
   @media (max-width: 600px) { #kart-keys { display: none; } }
   @media (min-width: 601px) { #kart-intro .kart-touch-only { display: none; } }
   #kart-name-row { display: block; margin-top: 0.9rem; }
+  .kart-you { align-items: baseline; }
+  .kart-you input {
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid currentColor;
+    padding: 0.1em 0.2em;
+    margin-left: 0.5em;
+    width: 14ch;
+  }
+  .kart-you input:focus-visible { outline: 2px solid #0b47d1; outline-offset: 2px; }
+  .kart-you span { opacity: 0.7; }
+
   #kart-name {
     font: inherit;
     color: inherit;
@@ -211,7 +225,7 @@
       <input id="kart-name" type="text" maxlength="16" autocomplete="given-name" list="kart-names" placeholder="Anonymous">
       <datalist id="kart-names"></datalist>
     </label>
-    <p class="kart-note">The best times below show only first names from a fixed list: common English and Italian names, plus those of the people at the Oxford Mathematical Institute. <span id="kart-name-hint">Leave it empty to stay anonymous.</span></p>
+    <p class="kart-note">The best times below show only first names from a fixed list: common English and Italian names, plus those of the people at the Oxford Mathematical Institute. <span id="kart-name-hint">Leave it empty to stay anonymous.</span> You can change it any time below the track.</p>
     <button id="kart-go" type="button">Race</button>
   </div>
   <div id="kart-ghosts" class="kart-row" role="group" aria-label="Ghost to race"></div>
@@ -221,6 +235,10 @@
     <button id="kart-sound" type="button" aria-pressed="false">Sound off</button>
     <button id="kart-full" type="button" aria-pressed="false">Full screen</button>
     <button id="kart-help" type="button">How to play</button>
+  </div>
+  <div class="kart-row kart-you">
+    <label>Your first name<input id="kart-name2" type="text" maxlength="16" autocomplete="given-name" list="kart-names" placeholder="Anonymous"></label>
+    <span id="kart-name-hint2"></span>
   </div>
   <div id="kart-rec" hidden>
     <p><b>Recording mode.</b> Drive a full race; once you cross the line for the third time, save it as a ghost
@@ -632,9 +650,12 @@ function kartStart() {
     { id: 'medium', label: 'Medium', file: 'ghost-medium.json' },
     { id: 'hard', label: 'Hard', file: 'ghost-hard.json' },
     { id: 'francesco', label: 'Francesco', file: 'ghost-francesco.json' },
+    { id: 'record', label: 'Record', file: null },     // la gara più veloce di tutte, dal database (kart/record)
   ];
+  let recordHolder = '', recordTime = null, pendingRecord = null;
   // come si chiama il fantasma nelle frasi e sopra il kart
-  const who = id => (id === 'francesco' ? 'Francesco' : `${(GHOSTS.find(g => g.id === id) || { label: '' }).label} ghost`);
+  const who = id => (id === 'francesco' ? 'Francesco' : id === 'record' ? `${recordHolder || 'Record'} (record)`
+    : `${(GHOSTS.find(g => g.id === id) || { label: '' }).label} ghost`);
   const GHOST_DIR = '/assets/kart/';
   const ghosts = {};                // id → gara decodificata
   let ghostId = 'medium';
@@ -842,22 +863,37 @@ function kartStart() {
   {
     const dl = document.getElementById('kart-names');
     for (const n of NAMES) { const o = document.createElement('option'); o.value = n; dl.appendChild(o); }
+    // due campi per il nome, nelle regole e sotto il track: restano uguali, e il nome vale per tutti i minigiochi
+    const elName2 = document.getElementById('kart-name2'), elNameHint2 = document.getElementById('kart-name-hint2');
+    const nameInputs = [elName, elName2].filter(Boolean);
     const hint = () => {
       const v = elName.value.trim(), k = knownName(v);
       elNameHint.textContent = !v ? 'Leave it empty to stay anonymous.'
         : k ? `You will appear as ${k}.` : 'Not in the list of first names: you will appear as Anonymous.';
+      if (elNameHint2) elNameHint2.textContent = !v ? 'type it to appear on the leaderboard'
+        : k ? `on the leaderboard as ${k}` : 'not in the list of first names: Anonymous';
     };
-    // il nome è lo stesso del subotto
     try { elName.value = knownName(localStorage.getItem('foos-name') || ''); } catch (e) {}
-    elName.addEventListener('input', () => {
-      const t = elName.value.replace(/[^\p{L} ]/gu, '').slice(0, 16);
-      if (t !== elName.value) elName.value = t;
-      hint();
-    });
-    elName.addEventListener('change', () => {
-      const k = knownName(elName.value);
-      if (k) elName.value = k;
-      try { localStorage.setItem('foos-name', k); } catch (e) {}
+    for (const el of nameInputs) el.value = elName.value;
+    for (const el of nameInputs) {
+      el.addEventListener('input', () => {
+        const t = el.value.replace(/[^\p{L} ]/gu, '').slice(0, 16);
+        if (t !== el.value) el.value = t;
+        for (const o of nameInputs) if (o !== el) o.value = t;
+        hint();
+      });
+      el.addEventListener('change', () => {
+        const k = knownName(el.value);
+        if (k) for (const o of nameInputs) o.value = k;
+        try { localStorage.setItem('foos-name', k); } catch (e) {}
+        hint();
+        window.dispatchEvent(new CustomEvent('minigame-name', { detail: k }));
+      });
+    }
+    // il nome cambiato nell'altro gioco
+    window.addEventListener('minigame-name', e => {
+      if (e.detail === knownName(elName.value)) return;
+      for (const o of nameInputs) o.value = e.detail;
       hint();
     });
     hint();
@@ -872,7 +908,7 @@ function kartStart() {
     projectId: 'online-foosball',
     appId: '1:549951750830:web:0b587fb34345340bfe633f',
   };
-  const net = { start() {}, lap() {}, finish() {}, stop() {} };
+  const net = { start() {}, lap() {}, finish() {}, stop() {}, record() {} };
   const elBoard = document.getElementById('kart-board');
   const elLive = document.getElementById('kart-live');
   const elBest = document.getElementById('kart-best');
@@ -953,6 +989,21 @@ function kartStart() {
           time: Math.round(time * 1000), lap: Math.round(lap * 1000), at: fdb.serverTimestamp(),
         }).catch(() => {});
       };
+      // la gara del nuovo primo in classifica diventa il fantasma del record (le regole accettano solo tempi migliori)
+      net.record = r => {
+        fdb.set(fdb.ref(db, 'kart/record'), {
+          name: playerName(), time: Math.round(r.time * 1000),
+          ghost: encodeTrace(r.trace, r.laps, playerName()), at: fdb.serverTimestamp(),
+        }).catch(() => {});
+      };
+      fdb.onValue(fdb.ref(db, 'kart/record'), snap => {
+        const v = snap.val();
+        recordTime = v && typeof v.time === 'number' ? v.time / 1000 : null;
+        let g = null;
+        try { if (v && typeof v.ghost === 'string') { g = decodeGhost(JSON.parse(v.ghost)); if (!plausible(g, recordTime)) g = null; } } catch (e) { g = null; }
+        pendingRecord = { g, name: v ? cleanName(v.name) : '' };
+        applyRecord();
+      });
       fdb.onValue(fdb.ref(db, 'kart/presence'), snap => {
         const list = [];
         snap.forEach(c => {
@@ -1039,6 +1090,8 @@ function kartStart() {
     lastRace = race;
     btnReplay.disabled = false;
     setMode('done');
+    // nuovo primo della classifica (e più veloce del fantasma del record): la sua gara diventa il fantasma del record
+    race.newRecord = !RECORD && !window.kartAutopilot && (recordTime == null || tf < recordTime) && (!bestCache.length || tf <= bestCache[0].time);
     if (!RECORD && !window.kartAutopilot) net.finish(tf, race.best);   // le prove col pilota automatico non vanno in classifica
     showScore();
     elYou.textContent = fmt(tf);
@@ -1052,7 +1105,11 @@ function kartStart() {
     stepKart(kart, inp, STEP);
     race.steps++;
     race.t = race.steps * STEP;
-    if (race.done) { race.after += STEP; return; }
+    if (race.done) {
+      race.after += STEP;
+      if (race.newRecord && race.after >= 2.1) { race.newRecord = false; race.uploaded = true; net.record(race); }
+      return;
+    }
     const prev = kart.prog, d = track(kart);
     // contromano?
     race.wrong = d < -0.1 && kart.v > 30 ? race.wrong + STEP : Math.max(0, race.wrong - STEP * 2);
@@ -1073,7 +1130,8 @@ function kartStart() {
   }
   const gapText = d => (Math.abs(d) < 0.005 ? `level with ${theGhost()}` : d > 0 ? `${fmtGap(d)} s behind ${theGhost()}` : `${fmtGap(d)} s ahead of ${theGhost()}`);
   // nelle frasi: "Francesco" oppure "the hard ghost"
-  const theGhost = (id = ghostId) => (id === 'francesco' ? 'Francesco' : `the ${who(id).toLowerCase()}`);
+  const theGhost = (id = ghostId) => (id === 'francesco' ? 'Francesco' : id === 'record' ? recordHolder || 'the record ghost'
+    : `the ${who(id).toLowerCase()}`);
   const up = t => t[0].toUpperCase() + t.slice(1);
 
   // ---------- comandi ----------
@@ -1238,11 +1296,38 @@ function kartStart() {
     GHOSTS.forEach((def, i) => {
       const g = ghosts[def.id], b = ghostButtons[i];
       b.setAttribute('aria-pressed', String(def.id === ghostId));
-      if (g) { b.disabled = false; b.title = ''; b.textContent = `${def.label} ${fmt(g.time)}`; }
+      if (def.id === 'record') {
+        b.disabled = !g;
+        b.title = g ? 'The fastest race on the leaderboard' : 'Set the best time on the leaderboard and your race becomes the record ghost';
+        b.textContent = g ? `Record: ${recordHolder} ${fmt(g.time)}` : 'Record (none yet)';
+      } else if (g) { b.disabled = false; b.title = ''; b.textContent = `${def.label} ${fmt(g.time)}`; }
     });
     showScore();
   }
-  Promise.allSettled(GHOSTS.map(def => fetch(GHOST_DIR + def.file, { cache: 'no-cache' })
+  // il fantasma del record cambia solo fuori dalla gara, mai mentre ci si sta correndo contro
+  function applyRecord() {
+    if (!pendingRecord || mode === 'count' || mode === 'race' || mode === 'replay') return;
+    const { g, name } = pendingRecord;
+    pendingRecord = null;
+    if (g) ghosts.record = g; else delete ghosts.record;
+    recordHolder = g ? name : '';
+    if (ghostId === 'record' && !g) { const d = GHOSTS.find(x => ghosts[x.id]); if (d) ghostId = d.id; }
+    showGhosts();
+  }
+  // viene dalla rete: prima di usarlo controllo che sia una corsa vera, dentro i muri, alla velocità del kart,
+  // con il traguardo del terzo giro tagliato proprio al tempo dichiarato
+  function plausible(g, time) {
+    if (Math.abs(g.time - time) > 0.02) return false;
+    const step = VMAX * 1.3 * 1.1 / HZ;
+    for (let i = 1; i < g.n; i++) if (Math.hypot(g.x[i] - g.x[i - 1], g.y[i] - g.y[i - 1]) > step) return false;
+    for (let i = 0; i < g.n; i++) {
+      project(g.x[i], g.y[i], P);
+      if (Math.abs(P.d) > P.hw + RUNOFF - KR + 3 && WALL[P.d > 0 ? 1 : 0][P.i]) return false;
+    }
+    const tf = ghostTimeAt(g, LAPS * T.L);
+    return tf != null && Math.abs(tf - time) < 0.15;
+  }
+  Promise.allSettled(GHOSTS.filter(def => def.file).map(def => fetch(GHOST_DIR + def.file, { cache: 'no-cache' })
     .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
     .then(j => { ghosts[def.id] = decodeGhost(j); showGhosts(); })
     .catch(() => { const b = ghostButtons[GHOSTS.indexOf(def)]; b.title = 'Not recorded yet'; b.textContent = `${def.label} (not recorded yet)`; })))
@@ -1259,7 +1344,7 @@ function kartStart() {
   if (RECORD) {
     elRec.hidden = false;
     const holder = document.getElementById('kart-rec-buttons');
-    for (const def of GHOSTS) {
+    for (const def of GHOSTS.filter(d => d.file)) {
       const b = document.createElement('button');
       b.type = 'button'; b.disabled = true; b.textContent = `Save as ${def.file}`;
       b.addEventListener('click', () => {
@@ -2451,7 +2536,9 @@ function kartStart() {
       const lines = [['Finish', 30, 'bold'], [`You ${fmt(r.time)}` + (gh ? `   ${who(r.ghost)} ${fmt(gh.time)}` : ''), 17, 'bold']];
       lines.push([r.verdict, 17, 'bold', gh && r.time > gh.time ? BLUE : INK]);
       lines.push([r.laps.map(l => `${fmt(l)}${l === best ? '*' : ''}`).join('  '), 14]);
+      if (r.newRecord || r.uploaded) lines.push(['New record! Your race is now the Record ghost', 15, 'bold', BLUE]);
       if (r.newPb) lines.push(['New personal best!', 15, 'bold']);
+      if (!RECORD && playerName() === 'Anonymous') lines.push(['Type your first name below the track to join the leaderboard', 13, '', BLUE]);
       else if (pb && !RECORD) lines.push([`your best: ${fmt(pb.time)}`, 14]);
       if (RECORD) lines.push(['Save it below as a ghost file', 14, 'bold', BLUE]);
       lines.push([touchUI ? 'Tap to race again' : 'Click or press Enter to race again', 14]);
@@ -2473,6 +2560,7 @@ function kartStart() {
     modeT += dt;
     if (flash) { flash.t += dt; if (flash.t > 2.4) flash = null; }
     if (banner) { banner.t += dt; if (banner.t > 1.6) banner = null; }
+    if (pendingRecord) applyRecord();
     paused = (mode === 'race' || mode === 'count') && lastInput === 'key' && !hasFocus;
     if (paused) return;
     if (mode === 'count' && modeT >= 3) {
