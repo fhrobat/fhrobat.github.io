@@ -1,23 +1,25 @@
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0f1113" media="(prefers-color-scheme: dark)" />
 
   <title>
     {%- if page.title -%}
-      {{ page.title }}
+      {{ page.title | escape }} · {{ site.title | escape }}
     {%- else -%}
-      {{ site.title }}
+      {{ site.title | escape }}
     {%- endif -%}
   </title>
 
   {%-seo title=false-%}
-  {%-feed_meta-%}
 
   <link rel="icon" type="image/svg+xml" href="{{ site.favicon | relative_url }}" />
   <link rel="icon" type="image/png" sizes="32x32" href="{{ '/favicon-32.png' | relative_url }}" />
   <link rel="apple-touch-icon" href="{{ '/apple-touch-icon.png' | relative_url }}" />
-  <link rel="stylesheet"  href = "{{site.baseurl}}/assets/css/main.css">
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.css" integrity="sha384-OH8qNTHoMMVNVcKdKewlipV4SErXqccxxlg6HC9Cwjr5oZu2AdBej1TndeCirael" crossorigin="anonymous">
-
+  <link rel="stylesheet" href="{{ '/assets/css/main.css' | relative_url }}">
+  {%- if page.math %}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.css" integrity="sha384-OH8qNTHoMMVNVcKdKewlipV4SErXqccxxlg6HC9Cwjr5oZu2AdBej1TndeCirael" crossorigin="anonymous">
+  {%- endif %}
+  <noscript><style>#page-loader{display:none!important}.reveal,.reveal.cascade>*{opacity:1!important;transform:none!important}.boxed-toggle>.smooth-content{height:auto!important;opacity:1!important}</style></noscript>
 </head>

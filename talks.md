@@ -1,6 +1,7 @@
 ---
 layout: page
 title: Talks and visits
+description: Talks and posters by Francesco Hrobat, with slides.
 custom_js:
   - theme
   - bibtex

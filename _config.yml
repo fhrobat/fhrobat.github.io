@@ -2,32 +2,56 @@ title: Francesco Hrobat # name of the site
 author: Francesco Hrobat # name of site's author
 email: francesco.hrobat@maths.ox.ac.uk # email of site's author
 url:  "https://fhrobat.github.io" # root address of the site
-scholar: "https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ"
-baseurl: "" # subpath of the site, e.g. "/blog" (leave it blank "" if you're site shouldn't use a subpath)
-description: >
+scholar: "https://scholar.google.com/citations?hl=en&user=sB-MFsYAAAAJ"
+baseurl: "" # subpath of the site, e.g. "/blog" (leave it blank "" if your site shouldn't use a subpath)
+locale: en_GB
+# plain text, used by search engines and link previews
+description: >-
+  Francesco Hrobat, Mathematics PhD student at the University of Oxford
+  working on numerical linear algebra: perturbation theory, randomized
+  linear algebra and Krylov methods.
+# contacts and short bio shown at the top of the home page
+bio: >
   <p class="contacts">
    <a href="mailto:francesco.hrobat@maths.ox.ac.uk">Email</a>
    <a href="https://github.com/fhrobat/" target="_blank" rel="noopener">GitHub</a>
-   <a href="https://scholar.google.com/citations?hl=it&user=sB-MFsYAAAAJ" target="_blank" rel="noopener">Google Scholar</a>
+   <a href="https://scholar.google.com/citations?hl=en&user=sB-MFsYAAAAJ" target="_blank" rel="noopener">Google Scholar</a>
    <a href="https://arxiv.org/search/?searchtype=author&query=Hrobat%2C+F" target="_blank" rel="noopener">arXiv</a>
    <a href="https://www.linkedin.com/in/francesco-hrobat" target="_blank" rel="noopener">LinkedIn</a>
    <a href="https://orcid.org/0009-0002-5304-8107" target="_blank" rel="noopener">ORCID</a>
   </p>
   <div class="row">
     <div class="column column--photo reveal">
-      <img src="hrobat.jpg" class="img-portrait" alt="Francesco Hrobat, portrait">
+      <img src="hrobat.jpg" class="img-portrait" alt="Francesco Hrobat, portrait" width="600" height="600">
     </div>
 
     <div class="column">
       <div class="column-inner reveal cascade">
         <p>
-        I am a Mathematics PhD student at the <strong>University of Oxford</strong>, St Catherine's College (prev. Linacre College). I am supported by the Mathematical Institute Scholarship by Oxford Mathematical Institute and College Scholarship in Sciences by St Catherine's college.
-        <br> <br>
+        I am a Mathematics PhD student at the <strong>University of Oxford</strong>, St Catherine's College (previously Linacre College), supported by the Mathematical Institute Scholarship and by the College Scholarship in Sciences of St Catherine's College.
+        </p>
+        <p>
         My research focuses on <strong>numerical linear algebra</strong>, including perturbation theory, randomized linear algebra and Krylov methods.
         </p>
       </div>
     </div>
   </div>
+
+# profiles listed in the structured data for search engines
+social:
+  name: Francesco Hrobat
+  links:
+    - https://github.com/fhrobat
+    - https://scholar.google.com/citations?user=sB-MFsYAAAAJ
+    - https://orcid.org/0009-0002-5304-8107
+    - https://www.linkedin.com/in/francesco-hrobat
+
+# portrait used as the preview image when the site is shared
+defaults:
+  - scope:
+      path: ""
+    values:
+      image: /hrobat.jpg
 
 permalink: /:slug.html
 
@@ -46,9 +70,23 @@ sass:
   sass_dir: _sass
 
 plugins:
-  - jekyll-feed
+  - jekyll-sitemap
   - jekyll-seo-tag
   - jektex
+
+# repository files that are not part of the site (Jekyll's own defaults included,
+# as setting this list replaces them)
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+  - no-style-please.gemspec
+  - LICENSE.txt
+  - README.md
 
 jektex:
   cache_dir: ".jektex-cache"

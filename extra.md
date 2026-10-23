@@ -1,6 +1,7 @@
 ---
 layout: page
 title: Extra activities and awards
+description: Scholarships, prizes, schools and roles of Francesco Hrobat.
 custom_js: theme
 ---
 
