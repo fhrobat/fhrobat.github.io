@@ -466,10 +466,13 @@
 
     let open = null;
     function show(name) {
+      const other = open !== name;
       open = name;
       panel.textContent = '';
       panel.classList.toggle('tall', name === 'events');
       panel.append(...PANELS[name]());
+      // a new section starts from its top (the panel is the same box and would keep the old scroll)
+      if (other) panel.scrollTop = 0;
       panel.hidden = false;
       panel.setAttribute('aria-labelledby', 'rd-tab-' + name);
       for (const b of tabs.querySelectorAll('[role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
