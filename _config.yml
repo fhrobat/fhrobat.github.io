@@ -89,6 +89,7 @@ exclude:
   - vendor/gems/
   - vendor/ruby/
   - no-style-please.gemspec
+  - radar/
   - LICENSE.txt
   - README.md
 

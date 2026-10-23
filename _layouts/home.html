@@ -17,11 +17,18 @@ layout: default
   {%-endif-%}
 </header>
 
+{%-include radar-jump.html-%}
+
+<div class="news-row">
 {%-include news.html-%}
+{%-include radar-next.html-%}
+</div>
 
 {%-include timeline.html-%}
 
 {%-include menu_item.html collection=site.data.menu.entries-%}
+
+{%-include radar.html-%}
 
 {{ content }}
 

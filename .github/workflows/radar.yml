@@ -1,0 +1,39 @@
+# NLA radar: every morning collects arXiv, blogs, NA Digest, ILAS-NET, conferences and positions into radar.json
+# and publishes it on the "radar-data" branch, which the home page reads from raw.githubusercontent.com.
+# The site itself is not rebuilt, so nobody playing the minigames is interrupted.
+name: NLA radar
+
+on:
+  schedule:
+    - cron: "17 5 * * *"   # 05:17 UTC, after arXiv's daily announcement
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: radar
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Yesterday's data (kept for the sources that do not answer today)
+        run: |
+          git fetch --depth=1 origin radar-data && git show origin/radar-data:radar.json > "$RUNNER_TEMP/old.json" || echo '{}' > "$RUNNER_TEMP/old.json"
+      - name: Fetch
+        run: python -I radar/fetch_radar.py "$RUNNER_TEMP/out/radar.json" "$RUNNER_TEMP/old.json"
+      - name: Publish on the radar-data branch (one commit, replaced every day)
+        run: |
+          cd "$RUNNER_TEMP/out"
+          git init -q -b radar-data
+          git add radar.json
+          git -c user.name="NLA radar" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "NLA radar $(date -u +%F)"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" radar-data

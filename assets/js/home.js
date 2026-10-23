@@ -7,3 +7,4 @@ import './cascade.js';
 import './bibtex.js';
 import './anims.js';
 import './more.js';
+import './radar.js';

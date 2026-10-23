@@ -1,0 +1,353 @@
+// -------- NLA radar on the home page (radar.js) -------- //
+.radar {
+  max-width: 800px;
+  margin: 0 auto 2.75rem;
+  padding: 0.6rem 1rem 0.4rem;
+  text-align: left;
+  border-left: 3px solid #012a4a;
+}
+
+.rd-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.rd-title {
+  font-size: 1rem;
+  margin: 0 0 0.4rem;
+}
+
+.rd-updated,
+.rd-meta,
+.rd-note {
+  color: #595959;
+  font-size: 0.85em;
+}
+
+// the scrolling line
+.rd-ticker {
+  overflow: hidden;
+  white-space: nowrap;
+  margin: 0.2rem 0 0.5rem;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+
+  &.static {
+    overflow-x: auto;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+.rd-track {
+  display: inline-flex;
+  width: max-content;
+
+  &.run { animation: rd-scroll 60s linear infinite; }
+}
+
+.rd-ticker:hover .rd-track,
+.rd-ticker:focus-within .rd-track { animation-play-state: paused; }
+
+@keyframes rd-scroll {
+  to { transform: translateX(-50%); }
+}
+
+.rd-run { display: inline-flex; }
+
+.rd-chip {
+  padding-right: 2.5rem;
+
+  a { color: #0b47d1; text-decoration: none; }
+  a:hover, a:focus-visible { text-decoration: underline; }
+}
+
+.rd-tag {
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #012a4a;
+  border: 1px solid #c7d1de;
+  border-radius: 999px;
+  padding: 0.05em 0.5em;
+}
+
+// tabs and panels
+.rd-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.3rem 0;
+
+  button {
+    font: inherit;
+    font-size: 0.85em;
+    padding: 0.25em 0.7em;
+    border: 1px solid #c7d1de;
+    border-radius: 999px;
+    background: white;
+    color: #012a4a;
+    cursor: pointer;
+
+    &[data-count]::after { content: " " attr(data-count); color: #595959; }
+    &:hover, &:focus-visible { background: #e6edf6; border-color: #012a4a; }
+    &[aria-selected="true"] { background: #012a4a; color: white; border-color: #012a4a; }
+    &[aria-selected="true"]::after { color: #c7d1de; }
+  }
+}
+
+.rd-panel {
+  margin: 0.5rem 0 0.3rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  .rd-list {
+    list-style: none;
+    margin: 0.3rem 0;
+    max-width: none;
+
+    li {
+      display: grid;
+      grid-template-columns: 7.5em 1fr;
+      gap: 0.5em;
+      margin: 0.35rem 0;
+    }
+  }
+
+  ol.rd-list li { display: block; }
+
+  a { color: #0b47d1; }
+}
+
+.rd-date { font-weight: bold; font-size: 0.9em; }
+
+.rd-filter {
+  font: inherit;
+  font-size: 0.9em;
+  padding: 0.1em 0.6em;
+  border: 1px solid #c7d1de;
+  border-radius: 999px;
+  background: white;
+  color: #012a4a;
+  cursor: pointer;
+
+  &[aria-pressed="true"] { background: #e6edf6; border-color: #012a4a; }
+}
+
+.rd-classic { font-size: 1.05em; margin: 0.6rem 0 0.2rem; }
+
+@media (max-width: 600px) {
+  .rd-panel .rd-list li { grid-template-columns: 1fr; gap: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rd-track.run { animation: none; }
+}
+
+.rd-sub { font-weight: bold; margin: 0.6rem 0 0; }
+
+// conferences: deadlines, calendar and map
+.rd-panel.tall { max-height: none; overflow: visible; }
+
+.rd-dl {
+  display: inline-block;
+  width: 0.6em;
+  height: 0.6em;
+  margin-right: 0.35em;
+  border-radius: 50%;
+  background: #595959;
+
+  &[data-type="minisymposium"] { background: #0b47d1; border-radius: 0; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+  &[data-type="contributed"] { background: #009e73; }
+  &[data-type="grants"] { background: #d55e00; border-radius: 0; transform: rotate(45deg) scale(0.85); }
+  &[data-type="registration"] { background: #cc79a7; border-radius: 0; }
+}
+
+.rd-calwrap {
+  overflow-x: auto;
+  margin: 0.3rem 0;
+}
+
+.rd-cal {
+  display: block;
+  width: 100%;
+  min-width: 620px;   // on phones the calendar scrolls sideways instead of shrinking the text
+  height: auto;
+  font: inherit;
+  font-size: 11px;
+
+  .rd-month { stroke: #e3e3e3; }
+  .rd-year { stroke: #9aa7b6; }
+  .rd-mlabel { fill: #595959; }
+  .rd-stripe { fill: #f4f6f9; }
+  .rd-clabel { fill: #012a4a; }
+  a .rd-clabel { fill: #0b47d1; text-decoration: underline; }
+  .rd-cbar { fill: #012a4a; opacity: 0.8; }
+  .rd-today { stroke: #d55e00; stroke-width: 1.5; stroke-dasharray: 3 2; }
+}
+
+.rd-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.9rem;
+
+  svg { vertical-align: -1px; }
+}
+
+.rd-bar {
+  display: inline-block;
+  width: 1.4em;
+  height: 0.6em;
+  border-radius: 2px;
+  background: #012a4a;
+  opacity: 0.8;
+}
+
+.rd-map {
+  position: relative;
+  margin: 0.4rem 0 0.2rem;
+  border: 1px solid #e3e3e3;
+  border-radius: 8px;
+  overflow: hidden;
+
+  canvas { display: block; width: 100%; }
+}
+
+.rd-pin {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: #d55e00;
+  box-shadow: 0 0 0 3px rgba(213, 94, 0, 0.25);
+  text-decoration: none;
+
+  &:hover, &:focus-visible { box-shadow: 0 0 0 5px rgba(213, 94, 0, 0.35); outline: none; z-index: 2; }
+}
+
+// the labels would overlap in Europe: each one shows up on hover or focus (the caption below says it too)
+.rd-pinlabel {
+  display: none;
+  z-index: 3;
+  position: absolute;
+  left: 12px;
+  top: -5px;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #012a4a;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0 3px;
+  border-radius: 3px;
+}
+
+.rd-pin:hover .rd-pinlabel,
+.rd-pin:focus-visible .rd-pinlabel { display: block; }
+
+.rd-mapcap { min-height: 1.4em; }
+
+// NA Digest topics: a plain bulleted list per group (no date column)
+.rd-topics {
+  ul {
+    list-style: disc;
+    list-style-position: outside;
+    margin: 0.2rem 0 0.4rem;
+    padding-left: 1.3em;
+    max-width: none;
+    box-sizing: border-box;   // the site gives lists width: 100%
+  }
+
+  li { margin: 0.15rem 0; }
+  li + li { margin-top: 0.15rem; }
+  .rd-sub { font-weight: normal; font-style: italic; margin-top: 0.5rem; }
+}
+
+// the button above the news that leads down to the radar
+.rd-jumpwrap {
+  max-width: 800px;
+  margin: 0 auto 0.6rem;
+  text-align: left;
+}
+
+.rd-jump {
+  display: inline-block;
+  font-size: 0.85em;
+  padding: 0.3em 0.9em;
+  border: 1px solid #012a4a;
+  border-radius: 999px;
+  color: #012a4a;
+  text-decoration: none;
+  transition: background 150ms ease;
+
+  &:hover, &:focus-visible { background: #e6edf6; }
+}
+
+.rd-jump-next { color: #595959; }
+
+// the radar is reached through #radar: leave room above it
+.radar { scroll-margin-top: 1rem; }
+
+// news and upcoming deadlines side by side (stacked on phones)
+.news-row {
+  display: flex;
+  gap: 1.5rem;
+  max-width: 1000px;
+  margin: 1.5rem auto 2.75rem;
+
+  > .news { flex: 3 1 0; margin: 0; min-width: 0; }
+  > .rd-next { flex: 2 1 0; min-width: 0; }
+}
+
+.rd-next {
+  padding: 0.6rem 1rem 0.4rem;
+  text-align: left;
+  border-left: 3px solid #012a4a;
+
+  .news-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-width: none;
+
+    li {
+      display: grid;
+      grid-template-columns: 6.5em 1fr;
+      gap: 0.5em;
+      margin: 0.3rem 0;
+    }
+  }
+  .news-date { font-weight: bold; white-space: nowrap; }
+  a { color: #0b47d1; }
+}
+
+.rd-next-more {
+  margin: 0.3rem 0 0;
+  font-size: 0.85em;
+}
+
+@media (max-width: 720px) {
+  .news-row { flex-direction: column; gap: 0; }
+  .news-row > .news { margin-bottom: 1.5rem; }
+}
+
+// calendar controls: arrows, period, length
+.rd-calbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.3rem 0;
+}
+
+.rd-calperiod {
+  font-weight: bold;
+  font-size: 0.9em;
+  margin: 0 0.4rem;
+  min-width: 11em;
+}
+
+.rd-ranges { margin-left: auto; }
