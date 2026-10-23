@@ -7,6 +7,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!el) return;
 
   const originalText = el.textContent;
+  // i lettori di schermo leggono sempre il nome, non le matrici
+  el.setAttribute('aria-label', originalText.trim());
+  // niente animazione per chi preferisce meno movimento
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
   // --- le due matrici, entrata per entrata ---
   const F = [['F', 'r', 'a'], ['n', 'c', 'e'], ['s', 'c', 'o']]; // 3x3
@@ -199,6 +203,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // ripristina testo originale e rendi visibile
     el.textContent = originalText;
     el.style.visibility = 'visible';
+
+    // la dimensione del font segue la larghezza della finestra: rimisura quando cambia
+    let lastWidth = window.innerWidth;
+    window.addEventListener('resize', () => {
+      if (window.innerWidth === lastWidth || mode !== 'name') return;
+      lastWidth = window.innerWidth;
+      el.style.height = '';
+      el.textContent = matrixText;
+      const h = el.offsetHeight;
+      el.textContent = originalText;
+      el.style.height = h + 'px';
+    });
 
     /* -------- LOOP robusto con timer references -------- */
     let timerA = null;

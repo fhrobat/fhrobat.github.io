@@ -2,6 +2,16 @@
 <html lang="{{ page.lang | default: "en" }}">
   {%- include head.html -%}
   <body a="{{ site.theme_config.appearance | default: "auto" }}">
+    <script>
+      // saved theme before the first paint; "framed" = a section page shown inside the home dialog
+      (function () {
+        try {
+          var a = localStorage.getItem('appearance');
+          if (a === 'dark' || a === 'light') document.body.setAttribute('a', a);
+        } catch (e) {}
+        if (window.self !== window.top) document.documentElement.classList.add('framed');
+      })();
+    </script>
     <main class="page-content" aria-label="Content">
       <div class="w">
         {{ content }}

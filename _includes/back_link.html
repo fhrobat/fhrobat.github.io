@@ -1,6 +1,4 @@
-<a 
+<a class="back-home"
   href="{{ "/" | relative_url }}"
-  onclick="sessionStorage.setItem('skip-home-loader','true')"
->
-  {{ site.theme_config.back_home_text }}
-</a>
+  onclick="try { sessionStorage.setItem('skip-home-loader', 'true'); } catch (e) {}"
+>← {{ site.theme_config.back_home_text }}</a>

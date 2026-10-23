@@ -5,11 +5,8 @@
   img {
     filter: invert(1);
 
-    &.ioda { filter: invert(0); }
     &.no-reinvert { filter: invert(0); }
   }
-
-  .emoji { filter: invert(1); }
 
   iframe { filter: invert(1); }
 
@@ -38,22 +35,22 @@ body[a="dark"] #page-loader {
   }
 }
 
-body[a="dark"],
-body[data-appearance="dark"] {
-  background-color: #0f1113 !important; /* scuro, cambia se preferisci */
+// the page background (also on html, so overscroll on phones is dark too)
+// and the controls that live outside the inverted wrapper
+@mixin dark-chrome {
+  background-color: #0f1113 !important;
+
+  #theme-toggle { color: #d6d6d6; }
+  .minimal-footer { color: #9a9a9a; }
 }
+
+body[a="dark"] { @include dark-chrome; }
+html:has(body[a="dark"]) { background-color: #0f1113; }
 
 /* supporto per auto (prefers-color-scheme) */
 @media (prefers-color-scheme: dark) {
-  body[a="auto"],
-  body[data-appearance="auto"] {
-    background-color: #0f1113 !important;
-  }
-}
-
-html.dark,
-html[data-appearance="dark"] {
-  background-color: #0f1113 !important;
+  body[a="auto"] { @include dark-chrome; }
+  html:has(body[a="auto"]) { background-color: #0f1113; }
 }
 
 // -------------------------------------------- //
@@ -67,7 +64,11 @@ html, body {
   text-align: center;
 }
 
-html { height: 100%; scroll-behavior: smooth;}
+html { height: 100%; }
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
 
 body {
   color: black;
@@ -89,12 +90,18 @@ p { margin: 1rem 0; }
 
 li { margin: 0.4rem 0; }
 
-*:target { background: yellow; }
-
 .w {
   max-width: 80%;
   margin: 0 auto;
   padding: 4rem 2rem;
+}
+
+// on phones the 80% column left too little room for the text
+@media (max-width: 600px) {
+  .w {
+    max-width: none;
+    padding: 3.5rem 1rem 2rem;
+  }
 }
 
 /* layout row/columns */
@@ -108,13 +115,11 @@ li { margin: 0.4rem 0; }
 
 /* ogni column occupa metà (due colonne) */
 .column{
-  flex: 1 1 50%;
-  min-width: 260px;     /* evita collassi su schermi piccoli */
+  flex: 0 0 calc(50% - 16px);
+  min-width: 0;
   box-sizing: border-box;
   text-align: justify;
   hyphens: auto;
-  flex: 0 0 calc(50% - 16px);
-  min-width: 0;
 }
 
 /* colonna immagine: centra immagine */
@@ -159,7 +164,7 @@ li { margin: 0.4rem 0; }
 /* accessibility: smal tweaks for small screens */
 @media (max-width: 720px){
   .row{ gap: 18px; }
-  .column{ flex-basis: 100%; }
+  .column{ flex-basis: 100%; text-align: left; }
   .img-portrait{ width: 180px; }
   .column-inner{ padding: 6px 0; }
 }
@@ -205,16 +210,9 @@ li + li {
   margin-top: 15px;
 }
 
-ul{
-  list-style-position: inside;
-}
-
-ol{
-  list-style-position: inside;
-}
-
 img {
   max-width: 100%;
+  height: auto;
   display: block;
   margin: 0 auto;
 }
@@ -240,66 +238,23 @@ img {
   display: block;
 }
 
+#theme-toggle:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 #name_title {
   white-space: pre;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: opacity 300ms ease;
+  // the two matrices are 23 characters wide: shrink the font so they fit the column
+  font-size: unquote("min(2em, 4.6vw)");
 }
 
-.pow{
-  align-items: center;
-  justify-content: center;
-
-  padding: 20px 44px;
-  font-family: 'Arial Black', Impact, sans-serif;
-  font-size: 48px;
-  line-height: 1;
-  letter-spacing: 4px;
-  text-transform: uppercase;
-
-  color: #ffffff;
-  background-color: #1e3aff;   /* blu pieno */
-  border: 6px solid #000000;
-  border-radius: 14px;
-
-  /* outline testo stile fumetto */
-  text-shadow:
-    -2px -2px 0 #000,
-     2px -2px 0 #000,
-    -2px  2px 0 #000,
-     2px  2px 0 #000;
-
-  cursor: pointer;
-  user-select: none;
-
-  font-size: 3.5px;
-  padding: 1.5px 2.5px;
-  border-width: 0.75px;
-  letter-spacing: 0.25px;
-
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 9999;
-  display: block;
-}
-
-/* hover semplice */
-.pow:hover{
-  background-color: #2a4cff;
-}
-
-/* press */
-.pow:active{
-  transform: translateY(4px);
-}
-
-/* focus accessibile */
-.pow:focus-visible{
-  outline: 3px solid #000;
-  outline-offset: 4px;
+@media (max-width: 600px) {
+  #name_title { font-size: unquote("min(2em, calc((100vw - 2rem) / 14.5))"); }
 }
 
 /* Reveal base */
@@ -331,11 +286,6 @@ img {
   transform: translateY(0);
 }
 
-/* Pulizia per elementi inline (link semplici ecc.) */
-.reveal.inline {
-  display: inline-block;
-}
-
 /* Se l'utente preferisce ridurre le animazioni */
 @media (prefers-reduced-motion: reduce) {
   .reveal,
@@ -359,19 +309,13 @@ img {
   padding-bottom: 20px;
   text-align: right;
   font-size: 12px;
-  color: #888;
+  color: #595959;
   font-family: inherit;
 }
 
 .minimal-footer a {
-  color: #888; /* Colore del link nel footer */
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-
-.minimal-footer a {
   color: inherit;
-  text-decoration: underline; 
+  text-decoration: underline;
 }
 
 ul, ol {
@@ -476,3 +420,67 @@ li.has-anim::after {
 .news-date {
   font-weight: bold;
 }
+
+// -------- "More": the full section in a dialog over the page -------- //
+.more-link {
+  color: #0b47d1;
+  text-decoration: underline;
+}
+
+.more-dialog {
+  width: 80%;
+  max-width: 900px;
+  height: 80vh;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+
+  &::backdrop { background: rgba(0, 0, 0, 0.7); }
+
+  iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+}
+
+.more-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  padding: 8px 16px;
+  font: inherit;
+  font-weight: bold;
+  background: white;
+  color: black;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+
+  &:focus-visible { outline: 2px solid #012a4a; outline-offset: 2px; }
+}
+
+body.more-open { overflow: hidden; }
+
+@media (max-width: 600px) {
+  .more-dialog { width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; }
+}
+
+// a section page opened inside the dialog: the dialog has its own close button and theme
+.framed #theme-toggle,
+.framed .back-home { display: none; }
+
+.back-home {
+  display: block;
+  text-align: left;
+  color: inherit;
+}
+
+// paper animations: click to pause, as they loop forever
+li.has-anim > video.paper-anim { cursor: pointer; }

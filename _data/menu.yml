@@ -5,7 +5,7 @@ entries:
     content: |
       <ol>
         <li class="has-anim">
-          <video class="paper-anim" src="assets/anims/EigSeq.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: a point p moves in a domain Omega and the matrix A(p) changes"></video>
+          <video class="paper-anim" src="assets/anims/EigSeq.mp4" muted loop playsinline preload="none" aria-label="Animation: a point p moves in a domain Omega and the matrix A(p) changes"></video>
           <strong>Solving a sequence of eigenvalue problems using snapshot and row subsampling</strong><br>
           <em>Francesco Hrobat, Yuji Nakatsukasa</em><br>
           2026<br>
@@ -22,7 +22,7 @@ entries:
           </pre>
         </li>
         <li class="has-anim">
-          <video class="paper-anim" src="assets/anims/Perturbation.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: a generic perturbation moves the eigenvalue a lot, a commutator perturbation barely moves it"></video>
+          <video class="paper-anim" src="assets/anims/Perturbation.mp4" muted loop playsinline preload="none" aria-label="Animation: a generic perturbation moves the eigenvalue a lot, a commutator perturbation barely moves it"></video>
           <strong>Matrix Perturbation Theory in the Tangent Space of Isospectral Matrices</strong><br>
           <em>Francesco Hrobat, Yuji Nakatsukasa</em><br>
           2026<br>
@@ -39,7 +39,7 @@ entries:
           </pre>
         </li>
         <li class="has-anim">
-          <video class="paper-anim" src="assets/anims/Friendship.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: random graphs where nodes whose friends have more friends on average turn red"></video>
+          <video class="paper-anim" src="assets/anims/Friendship.mp4" muted loop playsinline preload="none" aria-label="Animation: random graphs where nodes whose friends have more friends on average turn red"></video>
           <strong>Generalized Friendship Paradoxes in Network Science</strong><br>
           <em>Desmond J. Higham, Francesco Hrobat, Francesco Tudisco</em><br>
           2026, to appear in SIMAX<br>
@@ -56,7 +56,7 @@ entries:
           </pre>
         </li>
         <li class="has-anim">
-          <video class="paper-anim" src="assets/anims/LanczosComp.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: the basis Q_M is compressed by U_{M,k} and then extended again"></video>
+          <video class="paper-anim" src="assets/anims/LanczosComp.mp4" muted loop playsinline preload="none" aria-label="Animation: the basis Q_M is compressed by U_{M,k} and then extended again"></video>
           <strong>Lanczos with compression for symmetric matrix Lyapunov equations</strong><br>
           <em>Angelo A. Casulli, Francesco Hrobat, Daniel Kressner</em><br>
           2025<br>

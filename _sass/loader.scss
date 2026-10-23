@@ -12,6 +12,12 @@
   overflow: hidden;
   transition: opacity 360ms ease, visibility 360ms ease;
   will-change: opacity;
+  /* paracadute: se il JavaScript non parte, il loader sparisce comunque */
+  animation: loader-failsafe 0s linear 5s forwards;
+}
+
+@keyframes loader-failsafe {
+  to { opacity: 0; visibility: hidden; }
 }
 
 /* se vuoi che il background del loader segua il tema scuro, scrivi le regole separatamente */

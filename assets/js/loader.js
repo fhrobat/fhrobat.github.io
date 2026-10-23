@@ -1,8 +1,16 @@
 (function () {
 
-  // SKIP LOADER SE ARRIVO DAL BACK-LINK
-  if (sessionStorage.getItem('skip-home-loader') === 'true') {
-    sessionStorage.removeItem('skip-home-loader');
+  // sessionStorage lancia un errore se il browser blocca i dati del sito
+  let skip = false;
+  try {
+    skip = sessionStorage.getItem('skip-home-loader') === 'true';
+    if (skip) sessionStorage.removeItem('skip-home-loader');
+  } catch (e) {}
+
+  // SKIP LOADER SE ARRIVO DAL BACK-LINK (o se l'utente preferisce meno animazioni)
+  const reducedMotion = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (skip || reducedMotion) {
 
     const loaderEl = document.getElementById('page-loader');
     if (loaderEl) {
@@ -53,6 +61,7 @@
 
   const pulseDuration = 700; // ms
   const pulseCount = 1;     // pulsazioni
+  const maxWait = 1500;     // ms: non aspettare oltre immagini lente o script di terze parti
 
   // ===============================
   // LOCK / UNLOCK SCROLL
@@ -98,8 +107,14 @@
   // LOAD COMPLETE → WAIT PULSE
   // ===============================
 
+  // il loader resta almeno una pulsazione, e chiude al load della pagina o dopo maxWait
+  const started = performance.now();
+  let finished = false;
+
   function onLoadFinish() {
-    const delay = pulseDuration * pulseCount;
+    if (finished) return;
+    finished = true;
+    const delay = Math.max(0, pulseDuration * pulseCount - (performance.now() - started));
     setTimeout(() => {
       if (typeof window.finishPageLoader === 'function') {
         window.finishPageLoader();
@@ -111,26 +126,7 @@
     onLoadFinish();
   } else {
     window.addEventListener('load', onLoadFinish, { once: true });
-  }
-
-  // ===============================
-  // REDUCED MOTION FALLBACK
-  // ===============================
-
-  if (
-    window.matchMedia &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  ) {
-    const loaderEl = document.getElementById('page-loader');
-    if (loaderEl) {
-      loaderEl.classList.add('hidden');
-      loaderEl.setAttribute('aria-hidden', 'true');
-    }
-
-    unlockPageScroll();
-    document.body.classList.remove('loading');
-
-    window.dispatchEvent(new CustomEvent('page-loader-finished'));
+    setTimeout(onLoadFinish, maxWait);
   }
 
 })();

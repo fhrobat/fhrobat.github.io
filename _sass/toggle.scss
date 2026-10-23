@@ -57,6 +57,7 @@ $transition-slow: 300ms ease;
     text-align: center;
     gap: .5rem;
     width: 100%;
+    box-sizing: border-box;   /* il padding sta dentro il box: niente testo tagliato su mobile */
 
     /* sembra un bottone ma senza duplicare il bordo: padding esterno */
     padding: $padding-summary;
@@ -91,10 +92,18 @@ $transition-slow: 300ms ease;
 
     /* focus per tastiera (non rimuovere completamente l'indicatore accessibile) */
     &:focus-visible {
-      outline: none;
-      box-shadow: 0 0 0 4px rgba(1,42,74,0.06);
+      outline: 2px solid $btn-accent;
+      outline-offset: -3px;
       background: $btn-hover;
     }
+  }
+
+  /* il titolo è un h2 (per lo schema dei titoli) ma ha l'aspetto del summary */
+  .boxed-title {
+    display: inline;
+    margin: 0;
+    font-size: inherit;
+    font-weight: inherit;
   }
 
   /* caret ruota quando open */
@@ -128,4 +137,10 @@ $transition-slow: 300ms ease;
     padding-top: $padding-content;
     padding-bottom: $padding-content;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boxed-toggle,
+  .boxed-toggle > .smooth-content,
+  .boxed-toggle > .boxed-summary::before { transition: none; }
 }

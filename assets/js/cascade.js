@@ -67,16 +67,19 @@
           // non attivare se il loader è visibile
           if (!loaderFinished()) return;
 
+          // visibile per il 15% della sua altezza, o per il 15% della finestra
+          // (un blocco più alto di ~6 finestre non arriverebbe mai al 15% di sé)
           if (
             entry.isIntersecting &&
-            entry.intersectionRatio >= IO_THRESHOLD
+            (entry.intersectionRatio >= IO_THRESHOLD ||
+              entry.intersectionRect.height >= IO_THRESHOLD * window.innerHeight)
           ) {
             activateReveal(el);
             observer.unobserve(el);
           }
         });
       },
-      { threshold: IO_THRESHOLD }
+      { threshold: [0, 0.02, 0.05, 0.1, IO_THRESHOLD] }
     );
 
     return observer;

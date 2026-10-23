@@ -1,6 +1,13 @@
 // theme-toggle.js (o dentro home.js)
 
 const STORAGE_KEY = 'appearance';
+
+// localStorage throws when the browser blocks site data
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  remove(k) { try { localStorage.removeItem(k); } catch (e) {} }
+};
 const body = document.body;
 const toggle = document.getElementById('theme-toggle');
 const icon = document.getElementById('theme-icon');
@@ -19,8 +26,10 @@ if (toggle) {
   };
 
   const updateIcon = (value) => {
-    if (!icon) return;
-    icon.textContent = isEffectiveDark(value) ? '☀️' : '🌙';
+    const dark = isEffectiveDark(value);
+    toggle.setAttribute('aria-pressed', String(dark));
+    toggle.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+    if (icon) icon.textContent = dark ? '☀️' : '🌙';
   };
 
   const apply = (value) => {
@@ -29,7 +38,7 @@ if (toggle) {
   };
 
   // inizializzazione
-  const saved = localStorage.getItem(STORAGE_KEY);
+  const saved = store.get(STORAGE_KEY);
   apply(saved === 'dark' || saved === 'light' ? saved : 'auto');
 
   // click = inverti
@@ -38,13 +47,13 @@ if (toggle) {
     const darkNow = isEffectiveDark(current);
     const next = darkNow ? 'light' : 'dark';
 
-    localStorage.setItem(STORAGE_KEY, next);
+    store.set(STORAGE_KEY, next);
     apply(next);
   });
 
   // doppio click = torna ad auto
   toggle.addEventListener('dblclick', () => {
-    localStorage.removeItem(STORAGE_KEY);
+    store.remove(STORAGE_KEY);
     apply('auto');
   });
 

@@ -18,9 +18,13 @@ document.addEventListener('click', (ev) => {
   } else {
     const ta = document.createElement('textarea');
     ta.value = text;
+    ta.readOnly = true;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;'; // no scroll jump on iOS
     document.body.appendChild(ta);
     ta.select();
-    try { document.execCommand('copy'); done('Copied ✓'); } catch (e) { done('Copy failed'); }
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    done(ok ? 'Copied ✓' : 'Copy failed');
     ta.remove();
   }
 });
