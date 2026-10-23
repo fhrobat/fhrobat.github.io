@@ -4,7 +4,8 @@
   schermo; dove le tappe sono troppo fitte diventano un pallino col numero, e passandoci sopra col mouse
   (o col dito) la linea si ingrandisce come sotto una lente e i pallini si aprono nelle singole tappe.
   La tappa scelta si scrive a macchina sotto, con l'animazione se è un articolo; se ha una durata, la barra
-  compare sopra la linea. Il clic apre la sezione corrispondente della home; "play" fa scorrere tutto.
+  compare sopra la linea. Il clic apre la sezione corrispondente della home; "play" apre il cartone animato a
+  schermo intero (assets/timeline/toon.js, caricato solo allora).
   Forme: cerchio = studi, rombo = articoli, triangolo = talk, anello = didattica, stella = premi e borse,
   quadrato pieno = ruoli, quadrato vuoto = scuole e programmi. Le tappe che sono anche tra le news diventano blu.
   Niente dollari né barre rovesciate con parentesi: sul sito KaTeX passa su tutto l'HTML.
@@ -331,47 +332,51 @@
   </div>
   <!-- in ordine di data; data-to rende la tappa una durata, data-dur ne cambia la descrizione.
        Per la scheda: data-anim (video), data-map ("da>a", luoghi in PLACES), data-deck (slide), data-grade/of/honours
-       (voto di laurea), data-medal (gold, silver, bronze, plain) con data-rank -->
+       (voto di laurea), data-medal (gold, silver, bronze, plain) con data-rank.
+       Per il cartone del play (assets/timeline/toon.js): data-toon sceglie la scena quando il tipo non basta
+       (team, lab, kangaroo, parallel, quant, visit, organize, camp, phd, 3mt, online, social, school:net, school:dice);
+       data-hl mette la tappa nella versione breve ("highlights", circa un minuto) -->
+
   <ol class="tl-data">
-    <li data-d="2017" data-k="prize" data-medal="gold" data-rank="1st"><span class="tl-when">2017</span><span class="tl-what">1st place at the International Championships of Mathematical Games (teams), Bocconi University</span></li>
-    <li data-d="2017-05" data-k="prize" data-medal="gold" data-rank="1st"><span class="tl-when">May 2017</span><span class="tl-what">1st place at the Italian Team Mathematical Olympiads, awarded by UMI</span></li>
+    <li data-hl data-toon="team" data-d="2017" data-k="prize" data-medal="gold" data-rank="1st"><span class="tl-when">2017</span><span class="tl-what">1st place at the International Championships of Mathematical Games (teams), Bocconi University</span></li>
+    <li data-toon="team" data-d="2017-05" data-k="prize" data-medal="gold" data-rank="1st"><span class="tl-when">May 2017</span><span class="tl-what">1st place at the Italian Team Mathematical Olympiads, awarded by UMI</span></li>
     <li data-d="2018-05" data-k="prize" data-medal="bronze"><span class="tl-when">May 2018</span><span class="tl-what">Bronze medal at the Italian Mathematical Olympiads, awarded by UMI</span></li>
-    <li data-d="2018-05" data-k="prize" data-medal="silver"><span class="tl-when">May 2018</span><span class="tl-what">Silver medal at the European Union Science Olympiad (EUSO), Ljubljana, Slovenia</span></li>
+    <li data-hl data-toon="lab" data-d="2018-05" data-k="prize" data-medal="silver"><span class="tl-when">May 2018</span><span class="tl-what">Silver medal at the European Union Science Olympiad (EUSO), Ljubljana, Slovenia</span></li>
     <li data-d="2019-03" data-k="prize" data-medal="plain" data-rank="4th"><span class="tl-when">Mar 2019</span><span class="tl-what">4th place at the Applied Mathematics Grand Prix, awarded by Università Cattolica del Sacro Cuore</span></li>
     <li data-d="2019-05" data-k="prize" data-medal="silver"><span class="tl-when">May 2019</span><span class="tl-what">Silver medal at the Italian Mathematical Olympiads, awarded by UMI</span></li>
     <li data-d="2020-05" data-k="prize" data-medal="silver"><span class="tl-when">May 2020</span><span class="tl-what">Silver medal at the Italian Mathematical Olympiads, awarded by UMI</span></li>
-    <li data-d="2020-09" data-to="2023-07" data-k="edu" data-grade="110" data-of="110" data-honours="cum laude"><span class="tl-when">Sep 2020 – Jul 2023</span><span class="tl-what">Bachelor’s degree, University of Pisa: 110/110 cum laude</span></li>
-    <li data-d="2020-09" data-to="2025-07" data-k="edu" data-grade="100" data-of="100" data-honours="cum laude"><span class="tl-when">Sep 2020 – Jul 2025</span><span class="tl-what">Diploma, Scuola Normale Superiore of Pisa: 100/100 cum laude</span></li>
+    <li data-hl data-d="2020-09" data-to="2023-07" data-k="edu" data-grade="110" data-of="110" data-honours="cum laude"><span class="tl-when">Sep 2020 – Jul 2023</span><span class="tl-what">Bachelor’s degree, University of Pisa: 110/110 cum laude</span></li>
+    <li data-hl data-d="2020-09" data-to="2025-07" data-k="edu" data-grade="100" data-of="100" data-honours="cum laude"><span class="tl-when">Sep 2020 – Jul 2025</span><span class="tl-what">Diploma, Scuola Normale Superiore of Pisa: 100/100 cum laude</span></li>
     <li data-d="2020-09" data-to="2025-07" data-dur="5 years" data-k="prize"><span class="tl-when">2020 – 2025</span><span class="tl-what">Scuola Normale Superiore merit-based full scholarship</span></li>
-    <li data-d="2020-10" data-k="prize" data-medal="plain" data-rank="7th"><span class="tl-when">Oct 2020</span><span class="tl-what">7th place at the Italian Mathematical Kangourou, student category</span></li>
-    <li data-d="2023-03" data-to="2023-06" data-k="event"><span class="tl-when">Mar – Jun 2023</span><span class="tl-what">Parallel Computing course (Calcolo Parallelo dall’Infrastruttura alla Matematica), University of Pisa: theory and practice of parallel computing</span></li>
+    <li data-toon="kangaroo" data-d="2020-10" data-k="prize" data-medal="plain" data-rank="7th"><span class="tl-when">Oct 2020</span><span class="tl-what">7th place at the Italian Mathematical Kangourou, student category</span></li>
+    <li data-toon="parallel" data-d="2023-03" data-to="2023-06" data-k="event"><span class="tl-when">Mar – Jun 2023</span><span class="tl-what">Parallel Computing course (Calcolo Parallelo dall’Infrastruttura alla Matematica), University of Pisa: theory and practice of parallel computing</span></li>
     <li data-d="2023-07" data-to="2025-07" data-k="edu" data-grade="110" data-of="110" data-honours="cum laude"><span class="tl-when">Jul 2023 – Jul 2025</span><span class="tl-what">Master’s degree, University of Pisa: 110/110 cum laude</span></li>
-    <li data-d="2024-03" data-k="event" data-map="pisa>capferrat"><span class="tl-when">Mar 2024</span><span class="tl-what">Spring into Quant Finance, organized by G-Research for selected international students, Saint-Jean-Cap-Ferrat, France</span></li>
+    <li data-toon="quant" data-d="2024-03" data-k="event" data-map="pisa>capferrat"><span class="tl-when">Mar 2024</span><span class="tl-what">Spring into Quant Finance, organized by G-Research for selected international students, Saint-Jean-Cap-Ferrat, France</span></li>
     <li data-d="2024-03-21" data-k="talk"><span class="tl-when">21 Mar 2024</span><span class="tl-what">Talk “Calcolo della SVD tramite funzioni di Zolotarev”, SIAM Student Chapter UniPi-SNS, Pisa</span></li>
-    <li data-d="2024-09" data-k="event" data-map="pisa>cetraro"><span class="tl-when">Sep 2024</span><span class="tl-what">CIME School on High-Dimensional Approximation, from Theoretical Foundations to Machine Learning and PDEs, Cetraro</span></li>
+    <li data-toon="school:net" data-d="2024-09" data-k="event" data-map="pisa>cetraro"><span class="tl-when">Sep 2024</span><span class="tl-what">CIME School on High-Dimensional Approximation, from Theoretical Foundations to Machine Learning and PDEs, Cetraro</span></li>
     <li data-d="2024-11" data-to="2025-07" data-k="role"><span class="tl-when">Nov 2024 – Jul 2025</span><span class="tl-what">SIAM Student Chapter officer, UniPi-SNS Student Chapter</span><span class="tl-links"><a class="badge" href="https://pysanum.dm.unipi.it" target="_blank" rel="noopener">Chapter</a></span></li>
-    <li data-d="2025-01" data-to="2025-02-28" data-dur="2 months" data-k="edu" data-map="pisa>lausanne"><span class="tl-when">Jan – Feb 2025</span><span class="tl-what">Visiting student, EPFL, Lausanne</span></li>
+    <li data-toon="visit" data-d="2025-01" data-to="2025-02-28" data-dur="2 months" data-k="edu" data-map="pisa>lausanne"><span class="tl-when">Jan – Feb 2025</span><span class="tl-what">Visiting student, EPFL, Lausanne</span></li>
     <li data-d="2025-01-20" data-k="talk"><span class="tl-when">20 Jan 2025</span><span class="tl-what">Poster “Lanczos with compression for symmetric Lyapunov equations”, Due giorni di Algebra Lineare Numerica, Pisa</span></li>
-    <li data-d="2025-02" data-k="role" data-map="pisa>pavia"><span class="tl-when">Feb 2025</span><span class="tl-what">Co-organizer of the GNCS-SIAM Chapters Meeting 2025, Pavia</span><span class="tl-links"><a class="badge" href="https://sites.google.com/view/gncs-siam-chapters" target="_blank" rel="noopener">Meeting</a></span></li>
-    <li data-d="2025-03" data-k="event"><span class="tl-when">Mar 2025</span><span class="tl-what">Generali Spring Camp, organized by Assicurazioni Generali for selected Italian students</span></li>
+    <li data-toon="organize" data-d="2025-02" data-k="role" data-map="pisa>pavia"><span class="tl-when">Feb 2025</span><span class="tl-what">Co-organizer of the GNCS-SIAM Chapters Meeting 2025, Pavia</span><span class="tl-links"><a class="badge" href="https://sites.google.com/view/gncs-siam-chapters" target="_blank" rel="noopener">Meeting</a></span></li>
+    <li data-toon="camp" data-d="2025-03" data-k="event"><span class="tl-when">Mar 2025</span><span class="tl-what">Generali Spring Camp, organized by Assicurazioni Generali for selected Italian students</span></li>
     <li data-d="2025-05" data-k="paper" data-anim="assets/anims/LanczosComp.mp4"><span class="tl-when">May 2025</span><span class="tl-what">Lanczos with compression for symmetric matrix Lyapunov equations, with A. A. Casulli and D. Kressner (preprint)</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2505.22498" target="_blank" rel="noopener">arXiv</a><a class="badge" href="https://github.com/fhrobat/lyap-compress" target="_blank" rel="noopener">Code</a></span></li>
-    <li data-d="2025-05" data-k="event"><span class="tl-when">May 2025</span><span class="tl-what">Prima Math Fest, organized by Prima Assicurazioni for selected Italian students</span></li>
-    <li data-d="2025-06-24" data-k="talk" data-map="pisa>kaohsiung"><span class="tl-when">24 Jun 2025</span><span class="tl-what">Invited talk “Lanczos with compression for symmetric Lyapunov equations”, ILAS 2025, Kaohsiung, Taiwan, in the minisymposium “Advances in Krylov Subspace Methods and their Applications”</span></li>
-    <li data-d="2025-10" data-to="now" data-k="edu" data-map="pisa>oxford"><span class="tl-when">Oct 2025 – now</span><span class="tl-what">PhD, University of Oxford, Linacre College and St Catherine’s College</span></li>
+    <li data-toon="camp" data-d="2025-05" data-k="event"><span class="tl-when">May 2025</span><span class="tl-what">Prima Math Fest, organized by Prima Assicurazioni for selected Italian students</span></li>
+    <li data-hl data-d="2025-06-24" data-k="talk" data-map="pisa>kaohsiung"><span class="tl-when">24 Jun 2025</span><span class="tl-what">Invited talk “Lanczos with compression for symmetric Lyapunov equations”, ILAS 2025, Kaohsiung, Taiwan, in the minisymposium “Advances in Krylov Subspace Methods and their Applications”</span></li>
+    <li data-hl data-toon="phd" data-d="2025-10" data-to="now" data-k="edu" data-map="pisa>oxford"><span class="tl-when">Oct 2025 – now</span><span class="tl-what">PhD, University of Oxford, Linacre College and St Catherine’s College</span></li>
     <li data-d="2025-10" data-to="2029" data-dur="4 years" data-k="prize"><span class="tl-when">2025 – 2029</span><span class="tl-what">Mathematical Institute Scholarship, University of Oxford</span></li>
     <li data-d="2025-10" data-to="2025-12" data-dur="Michaelmas term" data-k="teach"><span class="tl-when">MT25</span><span class="tl-what">TA for Practical Numerical Analysis, Oxford</span></li>
-    <li data-d="2025-11" data-k="paper" data-anim="assets/anims/Friendship.mp4"><span class="tl-when">Nov 2025</span><span class="tl-what">Generalized Friendship Paradoxes in Network Science, with D. J. Higham and F. Tudisco, to appear in SIMAX</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2511.11742" target="_blank" rel="noopener">arXiv</a></span></li>
+    <li data-hl data-d="2025-11" data-k="paper" data-anim="assets/anims/Friendship.mp4"><span class="tl-when">Nov 2025</span><span class="tl-what">Generalized Friendship Paradoxes in Network Science, with D. J. Higham and F. Tudisco, to appear in SIMAX</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2511.11742" target="_blank" rel="noopener">arXiv</a></span></li>
     <li data-d="2026" data-to="2028" data-dur="2 years" data-k="prize"><span class="tl-when">2026 – 2028</span><span class="tl-what">College Scholarship in Sciences, St Catherine’s College</span></li>
     <li data-d="2026-02" data-k="paper" data-anim="assets/anims/Perturbation.mp4"><span class="tl-when">Feb 2026</span><span class="tl-what">Matrix Perturbation Theory in the Tangent Space of Isospectral Matrices, with Y. Nakatsukasa (preprint)</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2602.22084" target="_blank" rel="noopener">arXiv</a></span></li>
     <li data-d="2026-03-12" data-k="talk"><span class="tl-when">12 Mar 2026</span><span class="tl-what">Talk “Lanczos with compression for symmetric Lyapunov equations”, Internal Seminar, Oxford</span></li>
     <li data-d="2026-04" data-to="2026-06" data-dur="Trinity term" data-k="teach"><span class="tl-when">TT26</span><span class="tl-what">Tutor for Numerical Linear Algebra (revision class), Oxford</span></li>
-    <li data-d="2026-05" data-k="prize" data-medal="gold" data-rank="★"><span class="tl-when">May 2026</span><span class="tl-what">Audience Favourite Prize at the Oxford Mathematical Institute Three Minute Thesis Competition</span></li>
+    <li data-hl data-toon="3mt" data-d="2026-05" data-k="prize" data-medal="gold" data-rank="★"><span class="tl-when">May 2026</span><span class="tl-what">Audience Favourite Prize at the Oxford Mathematical Institute Three Minute Thesis Competition</span></li>
     <li data-d="2026-05-08" data-k="talk" data-deck="https://fhrobat.github.io/LinItaSocSlides/"><span class="tl-when">8 May 2026</span><span class="tl-what">Talk “Are your friends more important than you?”, Italian Linacre Society Annual Meeting, Oxford</span><span class="tl-links"><a class="badge" href="https://fhrobat.github.io/LinItaSocSlides/" target="_blank" rel="noopener">Slides</a></span></li>
-    <li data-d="2026-06" data-k="event" data-map="oxford>lausanne"><span class="tl-when">Jun 2026</span><span class="tl-what">Randomized Numerical Linear Algebra Workshop, EPFL, participant</span></li>
-    <li data-d="2026-07" data-to="2026-09" data-dur="3 months" data-k="role"><span class="tl-when">Jul – Sep 2026</span><span class="tl-what">MIORPA 2026 tutor, for pre-PhD students based in sub-Saharan Africa</span><span class="tl-links"><a class="badge" href="https://www.maths.ox.ac.uk/outreach/miorpa" target="_blank" rel="noopener">MIORPA</a></span></li>
+    <li data-toon="school:dice" data-d="2026-06" data-k="event" data-map="oxford>lausanne"><span class="tl-when">Jun 2026</span><span class="tl-what">Randomized Numerical Linear Algebra Workshop, EPFL, participant</span></li>
+    <li data-toon="online" data-d="2026-07" data-to="2026-09" data-dur="3 months" data-k="role"><span class="tl-when">Jul – Sep 2026</span><span class="tl-what">MIORPA 2026 tutor, for pre-PhD students based in sub-Saharan Africa</span><span class="tl-links"><a class="badge" href="https://www.maths.ox.ac.uk/outreach/miorpa" target="_blank" rel="noopener">MIORPA</a></span></li>
     <li data-d="2026-09-14" data-k="talk" data-map="oxford>didcot"><span class="tl-when">14 Sep 2026</span><span class="tl-what">Talk “Solving sequences of eigenvalue problems using snapshot and row subsampling”, ENLARGED, Rutherford Appleton Laboratory, Didcot</span><span class="tl-links"><a class="badge" href="assets/slides/HROBAT_slides_enlarged.pdf" target="_blank" rel="noopener">Slides</a></span></li>
-    <li data-d="2026-10" data-to="now" data-k="role"><span class="tl-when">Oct 2026 – now</span><span class="tl-what">IT and Social Media Officer, Oxford SIAM Student Chapter</span><span class="tl-links"><a class="badge" href="https://people.maths.ox.ac.uk/siamsc/" target="_blank" rel="noopener">Chapter</a></span></li>
-    <li data-d="2026-10" data-k="paper" data-anim="assets/anims/EigSeq.mp4"><span class="tl-when">Oct 2026</span><span class="tl-what">Solving a sequence of eigenvalue problems using snapshot and row subsampling, with Y. Nakatsukasa (preprint)</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2610.19326" target="_blank" rel="noopener">arXiv</a><a class="badge" href="https://github.com/fhrobat/SubApSnapEig" target="_blank" rel="noopener">Code</a></span></li>
+    <li data-toon="social" data-d="2026-10" data-to="now" data-k="role"><span class="tl-when">Oct 2026 – now</span><span class="tl-what">IT and Social Media Officer, Oxford SIAM Student Chapter</span><span class="tl-links"><a class="badge" href="https://people.maths.ox.ac.uk/siamsc/" target="_blank" rel="noopener">Chapter</a></span></li>
+    <li data-hl data-d="2026-10" data-k="paper" data-anim="assets/anims/EigSeq.mp4"><span class="tl-when">Oct 2026</span><span class="tl-what">Solving a sequence of eigenvalue problems using snapshot and row subsampling, with Y. Nakatsukasa (preprint)</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2610.19326" target="_blank" rel="noopener">arXiv</a><a class="badge" href="https://github.com/fhrobat/SubApSnapEig" target="_blank" rel="noopener">Code</a></span></li>
     <li data-d="2026-10" data-to="2026-12" data-dur="Michaelmas term" data-k="teach"><span class="tl-when">MT26</span><span class="tl-what">Tutor for Numerical Linear Algebra, Oxford</span></li>
     <li data-d="2026-10-20" data-k="talk" data-deck="https://fhrobat.github.io/jams_talk/"><span class="tl-when">20 Oct 2026</span><span class="tl-what">Talk “Solving a sequence of eigenvalue problems using snapshot and row subsampling”, Junior Applied Mathematics Seminar (JAMS), Oxford SIAM Student Chapter</span><span class="tl-links"><a class="badge" href="https://fhrobat.github.io/jams_talk/" target="_blank" rel="noopener">Slides</a></span></li>
   </ol>
@@ -882,7 +887,7 @@
     cetraro: [39.5167, 15.9333, 'Cetraro'], pavia: [45.1847, 9.1582, 'Pavia'], kaohsiung: [22.6273, 120.3014, 'Kaohsiung'],
     didcot: [51.5745, -1.3126, 'Didcot'], capferrat: [43.6886, 7.3306, 'Saint-Jean-Cap-Ferrat']
   };
-  var MASK_URL = '/assets/timeline/land.png', mask = null, maskWait = [];
+  var MASK_URL = 'assets/timeline/land.png', mask = null, maskWait = [];
   function loadMask(cb) {
     if (mask) { cb(); return; }
     maskWait.push(cb);
@@ -1185,7 +1190,8 @@
     data[sel].pin.focus();
   });
 
-  // play: tutte le tappe dalla prima a oggi con la lente che le segue; si ferma toccando la linea
+  // giro di riserva, se il cartone non si carica: tutte le tappe dalla prima a oggi con la lente che le segue;
+  // si ferma toccando la linea
   var playTimer = null;
   function stopPlay() {
     if (!playTimer) return;
@@ -1195,7 +1201,7 @@
     playBtn.setAttribute('aria-pressed', 'false');
     rest();
   }
-  function play() {
+  function tour() {
     if (playTimer) { stopPlay(); return; }
     closeCard();
     stopIntro();
@@ -1212,7 +1218,65 @@
       playTimer = setTimeout(k < n ? step : stopPlay, wait);
     })();
   }
-  playBtn.addEventListener('click', play);
+  // play: il cartone animato a schermo intero. Il file si carica solo quando serve (o quando il mouse o il dito
+  // si avvicinano al bottone); lo schermo intero va chiesto subito, dentro il clic, quindi il riquadro nasce qui.
+  // Percorso relativo (la timeline sta solo nella home): così funziona anche aprendo la pagina in locale
+  var TOON_URL = 'assets/timeline/toon.js?v=1', toonState = 0, toonWait = [];
+  function loadToon(cb) {
+    if (cb) toonWait.push(cb);
+    if (toonState > 1) {
+      var w = toonWait;
+      toonWait = [];
+      w.forEach(function (f) { f(toonState === 2); });
+      return;
+    }
+    if (toonState === 1) return;
+    toonState = 1;
+    var sc = document.createElement('script');
+    sc.src = TOON_URL;
+    sc.async = true;
+    sc.onload = function () { toonState = window.TLToon ? 2 : 3; loadToon(); };
+    sc.onerror = function () { toonState = 3; loadToon(); };
+    document.head.appendChild(sc);
+  }
+  ['pointerenter', 'focus', 'touchstart'].forEach(function (ev) { playBtn.addEventListener(ev, function () { loadToon(); }, { passive: true }); });
+  // key: da un link diretto (#film=…), senza schermo intero perché il browser lo concede solo dopo un clic
+  function film(key) {
+    closeCard();
+    stopAll();
+    var a = document.body.getAttribute('a');
+    var dark = a === 'dark' || (a === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;z-index:2147483000;background:' + (dark ? '#12161b' : '#fdfbf6');
+    document.body.appendChild(ov);
+    var fs = ov.requestFullscreen || ov.webkitRequestFullscreen;
+    if (fs && key === undefined) { try { var pr = fs.call(ov); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {} }
+    loadToon(function (ok) {
+      if (ok) {
+        // alla chiusura la timeline si ferma sulla tappa dove si era arrivati; "papers" apre la sezione degli articoli
+        window.TLToon.open(ov, items, { key: key, onClose: function (k, action) {
+          if (location.hash.indexOf('#film') === 0 && history.replaceState) history.replaceState(null, '', location.pathname + location.search);
+          sel = -1;
+          select(k);
+          focusOn(k, 3);
+          if (action === 'papers') openSection(SECTIONS.paper);
+          else playBtn.focus({ preventScroll: true });
+        } });
+        return;
+      }
+      var fe = document.fullscreenElement || document.webkitFullscreenElement, ex = document.exitFullscreen || document.webkitExitFullscreen;
+      if (fe === ov && ex) { try { ex.call(document); } catch (e) {} }
+      if (ov.parentNode) ov.parentNode.removeChild(ov);
+      if (key === undefined) tour();
+    });
+  }
+  playBtn.addEventListener('click', function () { if (playTimer) stopPlay(); else film(); });
+  // link diretti: …/#film apre il cartone, #film=2026-05 (data della tappa, o il nome della scena) ci salta dentro
+  function fromHash() {
+    var m = /^#film(?:=(.+))?$/.exec(location.hash);
+    if (m && !document.querySelector('.tlt')) film(m[1] ? decodeURIComponent(m[1]) : '');
+  }
+  window.addEventListener('hashchange', fromHash);
 
   // ingresso: la linea si disegna fino a oggi a velocità costante, tappe e pallini spuntano al suo passaggio,
   // poi la lente si posa sull'ultima tappa e la si scrive
@@ -1268,5 +1332,6 @@
   } else {
     intro();
   }
+  fromHash();
 })();
 </script>
