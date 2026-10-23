@@ -174,9 +174,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const SHOW_TIME   = 5000; // durata delle matrici
   const FADE_TIME   = 300;  // deve matchare il CSS transition in ms
   const AFTER_HOVER = 2500; // matrici ancora visibili dopo che il mouse se ne va
+  const MAX_CYCLES  = 3;    // poi il nome resta fermo (le matrici tornano passandoci sopra)
+  let cycles = 0;
 
   let mode = 'name';        // 'name' | 'matrix' | 'product'
   let hovering = false;
+  let timerB = null;        // ritorno al nome programmato
+  let backToNameLater = null;
 
   /* -------- helper fade (usiamo transition in CSS, qui solo opacità) -------- */
   function swapText(newText, newMode) {
@@ -188,6 +192,8 @@ document.addEventListener('DOMContentLoaded', () => {
       el.style.opacity = '1';
       mode = newMode;
       if (newMode === 'matrix' && hovering) startProduct();
+      // il mouse è già uscito mentre le matrici comparivano: tornano al nome
+      else if (newMode === 'matrix' && !timerB && backToNameLater) backToNameLater(AFTER_HOVER);
     }, FADE_TIME);
   }
 
@@ -218,7 +224,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* -------- LOOP robusto con timer references -------- */
     let timerA = null;
-    let timerB = null;
     let stopped = false;
 
     function clearTimers() {
@@ -237,7 +242,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function scheduleNext() {
-      if (stopped) return;
+      if (stopped || cycles >= MAX_CYCLES) return;
+      cycles += 1;
       timerA = setTimeout(() => {
         timerA = null;
         swapText(matrixText, 'matrix');
@@ -245,12 +251,18 @@ document.addEventListener('DOMContentLoaded', () => {
       }, DELAY_BEFORE);
     }
 
+    backToNameLater = backToName;
+
     // avvia
     scheduleNext();
 
     el.addEventListener('mouseenter', () => {
       hovering = true;
       if (mode === 'matrix') startProduct();
+      else if (mode === 'name' && !timerB) {  // nome fermo: mostra subito le matrici
+        clearTimers();
+        swapText(matrixText, 'matrix');
+      }
     });
 
     el.addEventListener('mouseleave', () => {

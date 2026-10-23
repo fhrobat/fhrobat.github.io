@@ -22,7 +22,10 @@ bio: >
   </p>
   <div class="row">
     <div class="column column--photo reveal">
-      <img src="hrobat.jpg" class="img-portrait" alt="Francesco Hrobat, portrait" width="600" height="600">
+      <picture>
+        <source type="image/webp" srcset="hrobat-300.webp 300w, hrobat-600.webp 600w" sizes="(max-width: 720px) 180px, 300px">
+        <img src="hrobat.jpg" class="img-portrait" alt="Francesco Hrobat, portrait" width="600" height="600">
+      </picture>
     </div>
 
     <div class="column">
@@ -67,6 +70,7 @@ theme_config:
 
 sass:
   style: compressed
+  sourcemap: never
   sass_dir: _sass
 
 plugins:
@@ -74,8 +78,8 @@ plugins:
   - jekyll-seo-tag
   - jektex
 
-# repository files that are not part of the site (Jekyll's own defaults included,
-# as setting this list replaces them)
+# repository files that are not part of the site (Jekyll's own defaults repeated,
+# as Jekyll 3, still used by the classic Pages build, replaces them with this list)
 exclude:
   - Gemfile
   - Gemfile.lock

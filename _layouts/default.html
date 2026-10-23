@@ -18,6 +18,10 @@
       </div>
     </main>
 
+    {%- if page.layout == "home" -%}
+      {%- include footer.html -%}
+    {%- endif -%}
+
     {%-if site.goat_counter and jekyll.environment == "production"-%}
       {%-include goat_counter.html-%}
     {%-endif-%}

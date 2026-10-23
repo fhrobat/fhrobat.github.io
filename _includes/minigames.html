@@ -149,7 +149,14 @@ window.minigame = (id, start) => {
     for (const g of all) if (g !== me) g.close(false);
     box.hidden = false;
     card.setAttribute('aria-expanded', 'true');
-    if (!game) game = start() || {};
+    if (!game) {
+      // start() può restituire il gioco o una Promise (codice scaricato al primo click)
+      game = {};
+      Promise.resolve(start()).then((g) => {
+        game = g || {};
+        if (box.hidden && game.close) game.close();   // chiuso mentre si scaricava
+      }).catch(() => { game = null; });               // si riprova alla prossima apertura
+    }
     box.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const c = box.querySelector('canvas[tabindex]');
     if (c) c.focus({ preventScroll: true });
@@ -170,4 +177,13 @@ window.minigame = (id, start) => {
   const x = box.querySelector('.mg-close');
   if (x) x.addEventListener('click', () => close());
 };
+// carica lo script di un gioco una volta sola e ne chiama la funzione di avvio
+window.minigame.load = (src, name) => new Promise((ok, ko) => {
+  if (window[name]) return ok(window[name]());
+  const s = document.createElement('script');
+  s.src = src;
+  s.onload = () => ok(window[name]());
+  s.onerror = () => { s.remove(); ko(new Error('cannot load ' + src)); };
+  document.head.appendChild(s);
+});
 </script>

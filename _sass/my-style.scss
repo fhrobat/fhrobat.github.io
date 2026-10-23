@@ -124,6 +124,9 @@ li { margin: 0.4rem 0; }
   hyphens: auto;
 }
 
+/* la <picture> non fa da contenitore: la larghezza in % della foto resta riferita alla colonna */
+.column--photo picture { display: contents; }
+
 /* colonna immagine: centra immagine */
 .column--photo{
   display: flex;
@@ -252,11 +255,12 @@ img {
   justify-content: center;
   transition: opacity 300ms ease;
   // the two matrices are 23 characters wide: shrink the font so they fit the column
-  font-size: unquote("min(2em, 4.6vw)");
+  font-size: #{"min(2em, 4.6vw)"};
 }
 
 @media (max-width: 600px) {
-  #name_title { font-size: unquote("min(2em, calc((100vw - 2rem) / 14.5))"); }
+  .minimal-footer { max-width: none; padding: 0 1rem 20px; }
+  #name_title { font-size: #{"min(2em, calc((100vw - 2rem) / 14.5))"}; }
 }
 
 /* Reveal base */
@@ -306,9 +310,11 @@ img {
   display: none;
 }
 
+// fuori da <main>, allineato alla colonna del contenuto
 .minimal-footer {
-  margin-top: 60px;
-  padding-bottom: 20px;
+  max-width: 80%;
+  margin: 0 auto;
+  padding: 0 2rem 20px;
   text-align: right;
   font-size: 12px;
   color: #595959;

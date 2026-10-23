@@ -1,0 +1,1720 @@
+// il gioco parte solo quando qualcuno apre la sua scheda: la home resta leggera
+
+function foosStart() {
+  const canvas = document.getElementById('foos-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const elYou = document.getElementById('foos-you');
+  const elMe = document.getElementById('foos-me');
+  const btnSound = document.getElementById('foos-sound');
+  const switchBtn = document.getElementById('foos-switch');
+  const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- mondo ----------
+  const W = 1200, H = 680;          // campo
+  const MX = 60, MY = 80;           // margini (porte, maniglie)
+  const VW = W + 2 * MX, VH = H + 2 * MY;
+  const R = 15;                     // raggio palla
+  const GOAL = 122;                 // mezza apertura porta
+  const GOAL_DEPTH = 46;
+  const BAND = 46;                  // spondine inclinate lungo i bordi
+  // spondine triangolari negli angoli: sul lato lungo arrivano all'asta dei difensori, sul corto al palo
+  const CORNER_X = W * 1.5 / 8, CORNER_Y = H / 2 - GOAL;
+  const INK = '#000', BLUE = '#0b47d1', ROD = '#9a9a9a', PAPER = '#fff';
+  // a quanti gol si arriva (3, 5 o 8) e, se attivi, i vantaggi:
+  // sul pari a un gol dalla fine si va avanti finché qualcuno non ha due gol di scarto
+  let winTo = 3, deuce = false;
+  try {
+    const t = +localStorage.getItem('foos-to');
+    if (t === 3 || t === 5 || t === 8) winTo = t;
+    deuce = localStorage.getItem('foos-deuce') === '1';
+  } catch (e) {}
+  function matchOver() {
+    return Math.max(score[0], score[1]) >= winTo && (!deuce || Math.abs(score[0] - score[1]) >= 2);
+  }
+  function deuceState() {
+    if (!deuce || matchOver() || Math.min(score[0], score[1]) < winTo - 1) return '';
+    return score[0] === score[1] ? 'Deuce' : score[0] > score[1] ? 'Advantage you' : 'Advantage Francesco';
+  }
+  const HOLD_ANG = 0.45;            // omino inclinato in avanti: blocca la palla sotto il piede
+  const STOP_SPEED = 380;           // sopra questa velocità la palla non si stoppa, rimbalza
+  const PIN_X = 26;                 // distanza della palla bloccata dall'asta
+
+  // 8 aste, da sinistra: P=visitatore (attacca a destra, d=+1), C=Francesco (d=-1)
+  const ROD_DEF = [
+    { team: 0, n: 1, s: 0,   role: 'goalie' },
+    { team: 0, n: 2, s: 250, role: 'def' },
+    { team: 1, n: 3, s: 205, role: 'att' },
+    { team: 0, n: 5, s: 122, role: 'mid' },
+    { team: 1, n: 5, s: 122, role: 'mid' },
+    { team: 0, n: 3, s: 205, role: 'att' },
+    { team: 1, n: 2, s: 250, role: 'def' },
+    { team: 1, n: 1, s: 0,   role: 'goalie' },
+  ];
+  const rods = ROD_DEF.map((r, i) => {
+    const x = W * (i + 0.5) / 8;
+    let limit = H / 2 - (r.n - 1) / 2 * r.s - 34;
+    if (r.n === 1) limit = GOAL + 30;
+    return {
+      ...r, i, x, limit,
+      d: r.team === 0 ? 1 : -1,
+      off: 0, target: 0, vy: 0, maxV: 800,
+      kt: -1, kdir: 1, ang: 0, hold: false, holdT: 0, noHit: 0,
+      aiNext: 0, aiGoal: 0, trapRoll: 1, plan: null,
+    };
+  });
+  const figBase = (rod, j) => H / 2 + (j - (rod.n - 1) / 2) * rod.s;
+  const figY = (rod, j) => figBase(rod, j) + rod.off;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  const KICK_T = 0.34, KICK_FWD = 0.09;
+  function kickAngle(t) {
+    if (t < 0) return 0;
+    if (t < KICK_FWD) { const u = t / KICK_FWD; return 1 - (1 - u) * (1 - u); }
+    const u = (t - KICK_FWD) / (KICK_T - KICK_FWD);
+    return Math.max(0, 1 - u * u * (3 - 2 * u));
+  }
+  function startKick(rod) {
+    if (rod.kt >= 0) return;
+    // palla subito dietro l'omino? allora colpo di tacco all'indietro
+    const rel = (ball.x - rod.x) * rod.d;
+    let back = false;
+    if (!ball.pin && rel < -6 && rel > -60) {
+      for (let j = 0; j < rod.n; j++) if (Math.abs(ball.y - figY(rod, j)) < 34) back = true;
+    }
+    rod.kdir = back ? -1 : 1;
+    // il calcio parte dall'inclinazione attuale, senza scatti all'indietro
+    const a = back ? 0 : clamp(rod.ang, 0, 0.99);
+    rod.kt = (1 - Math.sqrt(1 - a)) * KICK_FWD;
+  }
+
+  // ---------- difficoltà ----------
+  const DIFF = {
+    easy:   { lat: 0.2,  latR: 0.15, noise: 70, maxV: 600,  moveV: 800,  kick: 0.2,  trap: 0.7,  trapMax: 380, setup: 1.5, setupR: 1.0, shot: 1300, shotR: 300, pick: 0.5,
+              plans: { att: [['dritto', 1]], mid: [['pass', 0.5], ['dritto', 0.5]], def: [['dritto', 1]], goalie: [['dritto', 1]] } },
+    medium: { lat: 0.12, latR: 0.1,  noise: 38, maxV: 820,  moveV: 1200, kick: 0.3,  trap: 0.9,  trapMax: 380, setup: 1.1, setupR: 1.1, shot: 1550, shotR: 350, pick: 0.35,
+              plans: { att: [['dritto', 1]], mid: [['pass', 0.5], ['dritto', 0.5]],
+                       def: [['pass', 0.4], ['dritto', 0.6]], goalie: [['pass', 0.5], ['dritto', 0.5]] } },
+    hard:   { lat: 0.05, latR: 0.05, noise: 12, maxV: 1100, moveV: 1800, kick: 0.5,  trap: 0.98, trapMax: 380, setup: 0.8, setupR: 1.2, shot: 1850, shotR: 300, pick: 0,
+              plans: { att: [['frusta', 0.25], ['gancio', 0.25], ['tictac', 0.2], ['sponda', 0.15], ['doppia', 0.1], ['dritto', 0.05]],
+                       mid: [['pass', 0.35], ['tictac', 0.2], ['frusta', 0.15], ['sponda', 0.15], ['doppia', 0.15]],
+                       def: [['sponda', 0.4], ['doppia', 0.3], ['pass', 0.3]], goalie: [['sponda', 0.4], ['doppia', 0.3], ['pass', 0.3]] } },
+  };
+
+  // le aste del visitatore che non sta muovendo lui: si piazzano da sole, ma non tirano
+  const ASSIST = { lat: 0.12, latR: 0.08, noise: 30, maxV: 950, kick: 0, trap: 0 };
+  let diffName = 'medium';
+  try { const s = localStorage.getItem('foos-difficulty'); if (DIFF[s]) diffName = s; } catch (e) {}
+
+  const ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, inGoal: 0, pin: null, deadT: 0, walls: 0 };
+  const score = [0, 0];
+
+  // stati: 'demo' (ciak, gioca da solo), 'clap', 'play', 'goal', 'leader', 'replay', 'fine'
+  let mode = 'demo', modeT = 0, take = 1;
+  let lastScorer = 0, replayFrames = [], goalClock = 0;
+  let human = false;            // il visitatore ha preso i comandi
+  let clock = 0, paused = false;
+  let flash = null;             // scritta breve sul tavolo ("Dead ball")
+
+  // ---------- suono (spento di default) ----------
+  let audio = null, soundOn = false;
+  function blip(kind, vol = 1) {
+    if (!soundOn || !audio) return;
+    const t = audio.currentTime;
+    const g = audio.createGain();
+    g.connect(audio.destination);
+    if (kind === 'net') {
+      const len = 0.35, buf = audio.createBuffer(1, audio.sampleRate * len, audio.sampleRate);
+      const ch = buf.getChannelData(0);
+      for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / ch.length, 2);
+      const src = audio.createBufferSource(); src.buffer = buf;
+      const f = audio.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800;
+      src.connect(f); f.connect(g); g.gain.value = 0.25 * vol; src.start(t);
+      return;
+    }
+    const o = audio.createOscillator();
+    o.type = kind === 'clack' ? 'square' : 'triangle';
+    const f0 = kind === 'kick' ? 180 : kind === 'clack' ? 900 : 520;
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(f0 * 0.4, t + 0.08);
+    g.gain.setValueAtTime(0.18 * vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === 'clack' ? 0.06 : 0.1));
+    o.connect(g); o.start(t); o.stop(t + 0.12);
+  }
+  btnSound.addEventListener('click', () => {
+    soundOn = !soundOn;
+    if (soundOn && !audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { soundOn = false; } }
+    btnSound.textContent = soundOn ? 'Sound on' : 'Sound off';
+    btnSound.setAttribute('aria-pressed', String(soundOn));
+  });
+
+  // ---------- classifica online (facoltativa) ----------
+  // GitHub Pages non ha un server: le ultime partite e "chi sta giocando" passano da un
+  // Realtime Database di Firebase. Per attivarle incolla qui la configurazione del progetto
+  // (Impostazioni progetto → Le tue app → Config). Se è null, la sezione non compare.
+  const FIREBASE_CONFIG = {
+    apiKey: 'AIzaSyDfAOK9xxtThckSAwAGCRTDvuYtPF84sWM',
+    authDomain: 'online-foosball.firebaseapp.com',
+    databaseURL: 'https://online-foosball-default-rtdb.europe-west1.firebasedatabase.app',
+    projectId: 'online-foosball',
+    appId: '1:549951750830:web:0b587fb34345340bfe633f',
+  };
+  /* esempio:
+  const FIREBASE_CONFIG = {
+    apiKey: '...',
+    authDomain: 'nome-progetto.firebaseapp.com',
+    databaseURL: 'https://nome-progetto-default-rtdb.europe-west1.firebasedatabase.app',
+    projectId: 'nome-progetto',
+    appId: '...',
+  };
+  */
+
+  const net = { start() {}, score() {}, finish() {}, settings() {}, leave() {} };
+  const elBoard = document.getElementById('foos-board');
+  const elLive = document.getElementById('foos-live');
+  const elRecent = document.getElementById('foos-recent');
+  const elName = document.getElementById('foos-name');
+
+  // nomi: in classifica compare solo un nome proprio dell'elenco (inglese o italiano), altrimenti "Anonymous".
+  // Lo stesso elenco sta nelle regole del database (firebase-rules.json), quindi aggirare il gioco non serve.
+  // @@NAMES-START (generato da build_names.py a partire da names.txt: non modificare a mano)
+  const NAMES = [
+    'Aaron', 'Abbie', 'Abhinav', 'Abhishek', 'Abigail', 'Achille', 'Ada', 'Adam', 'Adele', 'Adria', 'Adrian',
+    'Adriano', 'Adrien', 'Adva', 'Agnese', 'Agostino', 'Ahmed', 'Aidan', 'Aifang', 'Akash', 'Alain', 'Alan', 'Alba',
+    'Albert', 'Alberto', 'Aleksandra', 'Alessandra', 'Alessandro', 'Alessia', 'Alessio', 'Alex', 'Alexander',
+    'Alexandra', 'Alexandre', 'Alfie', 'Alfredo', 'Ali', 'Alice', 'Alif', 'Alireza', 'Alison', 'Alp', 'Alvaro',
+    'Amanda', 'Amber', 'Amedeo', 'Amelia', 'Amelie', 'Amy', 'Ana', 'Andras', 'Andre', 'Andrea', 'Andreas', 'Andrew',
+    'Andrey', 'Andries', 'Angela', 'Angelica', 'Angelo', 'Anita', 'Anna', 'Annalisa', 'Anne', 'Annie', 'Annika',
+    'Anthony', 'Antonella', 'Antonio', 'Anubhab', 'Apurva', 'Archi', 'Archie', 'Arianna', 'Armands', 'Arne', 'Arthur',
+    'Artur', 'Arturo', 'Augusto', 'Aurelie', 'Aurora', 'Austin', 'Ava', 'Balint', 'Barbara', 'Barnabas', 'Bartolomeo',
+    'Beatrice', 'Bella', 'Ben', 'Benedetta', 'Benedetto', 'Beniamino', 'Benjamin', 'Bernardo', 'Beth', 'Bethan',
+    'Bethany', 'Bianca', 'Bill', 'Blake', 'Blanka', 'Bob', 'Boris', 'Brandon', 'Branton', 'Brenda', 'Brian',
+    'Bridget', 'Bruno', 'Bryan', 'Caitlin', 'Callum', 'Calvin', 'Cameron', 'Camilla', 'Carla', 'Carles', 'Carlo',
+    'Carlotta', 'Carmela', 'Carol', 'Carolina', 'Caroline', 'Casey', 'Caterina', 'Catherine', 'Cecilia', 'Cedric',
+    'Celine', 'Cephas', 'Cesare', 'Charles', 'Charlie', 'Charlotte', 'Chenghao', 'Chenjing', 'Chiara', 'Chloe',
+    'Chris', 'Christian', 'Christiana', 'Christoph', 'Christopher', 'Chun', 'Claire', 'Clara', 'Claudia', 'Claudio',
+    'Clement', 'Clive', 'Coen', 'Colin', 'Connall', 'Connor', 'Coralia', 'Corentin', 'Cornelia', 'Corrado', 'Cosimo',
+    'Cristian', 'Cristiano', 'Cristina', 'Da', 'Daisy', 'Damian', 'Damiano', 'Dan', 'Daniel', 'Daniela', 'Daniele',
+    'Dario', 'Darren', 'Dave', 'David', 'Davide', 'Dawid', 'Dean', 'Debora', 'Den', 'Denise', 'Dennis', 'Derek',
+    'Diana', 'Diego', 'Dino', 'Dmitrii', 'Dmitry', 'Domenico', 'Dominic', 'Donald', 'Dylan', 'Dyrol', 'Eamonn',
+    'Edmund', 'Edoardo', 'Edward', 'Ehud', 'Eleanor', 'Elena', 'Eleonora', 'Elia', 'Elisa', 'Elisabetta', 'Elizabeth',
+    'Elizaveta', 'Ella', 'Ellie', 'Elliot', 'Elliott', 'Emanuele', 'Emil', 'Emilio', 'Emily', 'Emma', 'Emmanuel',
+    'Endre', 'Enrico', 'Enzo', 'Eric', 'Erica', 'Erik', 'Erin', 'Ethan', 'Ettore', 'Eva', 'Evan', 'Evie', 'Fabio',
+    'Fabrizio', 'Faith', 'Fanny', 'Farhad', 'Federica', 'Federico', 'Felice', 'Felix', 'Ferdinand', 'Ferdinando',
+    'Fernando', 'Filippo', 'Finlay', 'Finn', 'Flavio', 'Florence', 'Florian', 'Frances', 'Francesca', 'Francesco',
+    'Francis', 'Franco', 'Frank', 'Fred', 'Freddie', 'Fredrik', 'Freya', 'Gabriele', 'Gaetano', 'Gaia', 'Gal',
+    'Gargi', 'Gary', 'George', 'Georgia', 'Georgii', 'Georgina', 'Giacomo', 'Giada', 'Gianluca', 'Gianluigi',
+    'Gianmarco', 'Gianni', 'Gillian', 'Ginevra', 'Giorgia', 'Giorgio', 'Giovanna', 'Giovanni', 'Giulia', 'Giulio',
+    'Giuseppe', 'Glen', 'Glenys', 'Gobishayini', 'Gordon', 'Grace', 'Graeme', 'Graham', 'Graziella', 'Gregorio',
+    'Gregory', 'Grigori', 'Gui', 'Guido', 'Gunnar', 'Guoxi', 'Hannah', 'Hanneke', 'Hanqing', 'Hans', 'Haochen',
+    'Harald', 'Harriet', 'Harry', 'Harsh', 'Harvey', 'Heather', 'Helen', 'Helena', 'Henry', 'Hilary', 'Holly',
+    'Horace', 'Hsuan', 'Hugo', 'Hulya', 'Hussam', 'Ian', 'Ignazio', 'Ilaria', 'Ilona', 'Ilya', 'Imogen', 'India',
+    'Ioannis', 'Irene', 'Irina', 'Iris', 'Isaac', 'Isabel', 'Isabella', 'Isla', 'Itamar', 'Ivy', 'Jack', 'Jackson',
+    'Jacob', 'Jacopo', 'Jad', 'Jade', 'Jaka', 'Jake', 'Jakob', 'Jakub', 'James', 'Jamie', 'Jamshid', 'Jan', 'Jane',
+    'Janet', 'Jannis', 'Jared', 'Jaroslav', 'Jasmine', 'Jason', 'Jasper', 'Javier', 'Jean', 'Jennifer', 'Jeremy',
+    'Jesse', 'Jessica', 'Jesus', 'Jethro', 'Jia', 'Jianru', 'Jindong', 'Jinyuan', 'Joan', 'Joanna', 'Jochen', 'Joe',
+    'Johanna', 'John', 'Jolanta', 'Jon', 'Jona', 'Jonathan', 'Jordan', 'Joscha', 'Jose', 'Josep', 'Joseph', 'Joshua',
+    'Juan', 'Judd', 'Julia', 'Julius', 'Jun', 'Jung', 'Justin', 'Kaibo', 'Kansei', 'Karel', 'Karin', 'Karl', 'Karla',
+    'Karolina', 'Kars', 'Kasper', 'Kate', 'Katherine', 'Kathryn', 'Katie', 'Keisuke', 'Keith', 'Kelly', 'Kevin',
+    'Kieran', 'Konstantin', 'Kyle', 'Lajos', 'Lara', 'Laura', 'Lauren', 'Leah', 'Leandro', 'Lena', 'Leo', 'Leon',
+    'Leonardo', 'Letizia', 'Lewis', 'Liam', 'Licia', 'Lida', 'Lidia', 'Lila', 'Lily', 'Lin', 'Linda', 'Linus',
+    'Lionel', 'Lisa', 'Liz', 'Logan', 'Lola', 'Lorena', 'Lorenzo', 'Lorraine', 'Louis', 'Luc', 'Luca', 'Lucas',
+    'Lucia', 'Luciana', 'Luciano', 'Lucie', 'Lucio', 'Lucy', 'Ludovica', 'Ludovico', 'Luigi', 'Luis', 'Luisa',
+    'Lukas', 'Luke', 'Lydia', 'Mahin', 'Maisie', 'Malena', 'Manuel', 'Manuela', 'Mara', 'Marc', 'Marcello', 'Marco',
+    'Marcus', 'Margherita', 'Maria', 'Marina', 'Mario', 'Marjorie', 'Mark', 'Marta', 'Martin', 'Martina', 'Mason',
+    'Massimiliano', 'Massimo', 'Matija', 'Matilde', 'Matteo', 'Matthew', 'Mattia', 'Maurizio', 'Max', 'Maximilien',
+    'Maxwell', 'Megan', 'Mehrdad', 'Melanie', 'Melissa', 'Mia', 'Michael', 'Michalina', 'Michela', 'Michele', 'Mie',
+    'Mihriban', 'Mike', 'Millie', 'Mingdong', 'Mira', 'Mirko', 'Mitchell', 'Mohamed', 'Mohit', 'Molly', 'Monica',
+    'Monty', 'Mothibi', 'Muneera', 'Nadia', 'Naomi', 'Natalie', 'Nathan', 'Neil', 'Nestor', 'Niccolo', 'Nicholas',
+    'Nick', 'Nicola', 'Nicole', 'Nicolo', 'Nigel', 'Nikkita', 'Niklas', 'Nikolay', 'Noah', 'Noemi', 'Norris', 'Ojas',
+    'Olav', 'Oliver', 'Olivia', 'Olivio', 'Om', 'Oreste', 'Orlando', 'Orson', 'Oscar', 'Oskar', 'Ottavia', 'Ottavio',
+    'Owen', 'Pablo', 'Panagiotis', 'Paola', 'Paolo', 'Pasquale', 'Patricia', 'Patrick', 'Patrizia', 'Pau', 'Paul',
+    'Paula', 'Paz', 'Pehan', 'Peleg', 'Pengcheng', 'Peter', 'Petra', 'Philip', 'Phoebe', 'Pierluigi', 'Piero',
+    'Pierrick', 'Pietro', 'Po', 'Poppy', 'Puchun', 'Qian', 'Qiu', 'Rachael', 'Rachel', 'Radek', 'Radoslaw', 'Radu',
+    'Raeid', 'Raffaele', 'Rajath', 'Rama', 'Randy', 'Raphael', 'Rawan', 'Ray', 'Raz', 'Rebecca', 'Rebekah', 'Renato',
+    'Renaud', 'Renjing', 'Reuben', 'Rhuaidi', 'Riccardo', 'Richard', 'Ritesh', 'Riya', 'Robert', 'Roberta', 'Roberto',
+    'Robin', 'Rocco', 'Roger', 'Rohit', 'Rolf', 'Romeo', 'Rosa', 'Rosalind', 'Rosario', 'Rose', 'Rosie', 'Rossella',
+    'Ruby', 'Ruggero', 'Rui', 'Ruijia', 'Ruth', 'Ryan', 'Sabrina', 'Sakura', 'Sally', 'Salvador', 'Salvatore', 'Sam',
+    'Sameh', 'Samuel', 'Samuele', 'Sandro', 'Sara', 'Sarah', 'Saverio', 'Scarlett', 'Scott', 'Sean', 'Sebastian',
+    'Sebastiano', 'Serena', 'Sergio', 'Seth', 'Shaked', 'Shiv', 'Shubh', 'Shuchen', 'Shuoxing', 'Siddharth', 'Silvia',
+    'Silvio', 'Simon', 'Simona', 'Simone', 'Sireethon', 'Siting', 'Sofia', 'Sophia', 'Sophie', 'Stefania', 'Stefano',
+    'Stephanie', 'Stephen', 'Steve', 'Steven', 'Stuart', 'Sue', 'Suleika', 'Sun', 'Susan', 'Susannah', 'Svala',
+    'Swathi', 'Tabea', 'Tamas', 'Tao', 'Tasha', 'Tassilo', 'Tejas', 'Teresa', 'Terry', 'Tessa', 'Thea', 'Theo',
+    'Theodore', 'Thiziri', 'Thomas', 'Tim', 'Timothy', 'Tiziana', 'Tiziano', 'Tobias', 'Toby', 'Tom', 'Tomas',
+    'Tommaso', 'Tommi', 'Tommy', 'Tony', 'Torkel', 'Tung', 'Tyler', 'Ugo', 'Ulrike', 'Umberto', 'Uros', 'Ursula',
+    'Valentina', 'Valentino', 'Valeria', 'Valerio', 'Vanessa', 'Varad', 'Vedanta', 'Verena', 'Veronica', 'Victor',
+    'Victoria', 'Vidit', 'Viktoriia', 'Vincenzo', 'Viola', 'Vishal', 'Vittoria', 'Vittorio', 'Vlad', 'Vsevolod',
+    'Vukasin', 'Waldemar', 'Weiquan', 'Wen', 'Wenqi', 'Will', 'William', 'Wojciech', 'Xenia', 'Xiang', 'Xinyu',
+    'Xuanzuo', 'Yakov', 'Yao', 'Yizhou', 'Yuanqiong', 'Yue', 'Yuechen', 'Yuhan', 'Yuhang', 'Yuji', 'Yukun', 'Yunhao',
+    'Yunli', 'Yuyang', 'Yuying', 'Zacarias', 'Zach', 'Zachary', 'Zhongmin', 'Zihan', 'Zihao', 'Ziyang', 'Zoe',
+    'Zubin',
+  ];
+  // @@NAMES-END
+  const NAME_KEY = n => n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const NAME_OF = new Map(NAMES.map(n => [NAME_KEY(n), n]));
+  const knownName = n => (typeof n === 'string' && NAME_OF.get(NAME_KEY(n))) || '';
+  const elNameHint = document.getElementById('foos-name-hint');
+  function playerName() { return knownName(elName ? elName.value : '') || 'Anonymous'; }
+  if (elName) {
+    const dl = document.getElementById('foos-names');
+    for (const n of NAMES) { const o = document.createElement('option'); o.value = n; dl.appendChild(o); }
+    // due campi per il nome, nelle regole e sotto il table: restano uguali, e il nome vale per tutti i minigiochi
+    const elName2 = document.getElementById('foos-name2'), elNameHint2 = document.getElementById('foos-name-hint2');
+    const nameInputs = [elName, elName2].filter(Boolean);
+    const hint = () => {
+      const v = elName.value.trim(), k = knownName(v);
+      elNameHint.textContent = !v ? 'Leave it empty to stay anonymous.'
+        : k ? `You will appear as ${k}.` : 'Not in the list of first names: you will appear as Anonymous.';
+      if (elNameHint2) elNameHint2.textContent = !v ? 'type it to appear on the leaderboard'
+        : k ? `on the leaderboard as ${k}` : 'not in the list of first names: Anonymous';
+    };
+    try { elName.value = knownName(localStorage.getItem('foos-name') || ''); } catch (e) {}
+    for (const el of nameInputs) el.value = elName.value;
+    for (const el of nameInputs) {
+      el.addEventListener('input', () => {
+        const t = el.value.replace(/[^\p{L} ]/gu, '').slice(0, 16);
+        if (t !== el.value) el.value = t;
+        for (const o of nameInputs) if (o !== el) o.value = t;
+        hint();
+      });
+      el.addEventListener('change', () => {
+        const k = knownName(el.value);
+        if (k) for (const o of nameInputs) o.value = k;
+        try { localStorage.setItem('foos-name', k); } catch (e) {}
+        hint();
+        window.dispatchEvent(new CustomEvent('minigame-name', { detail: k }));
+      });
+    }
+    // il nome cambiato nell'altro gioco
+    window.addEventListener('minigame-name', e => {
+      if (e.detail === knownName(elName.value)) return;
+      for (const o of nameInputs) o.value = e.detail;
+      hint();
+    });
+    hint();
+  }
+
+  function ago(ms) {
+    const s = Math.max(0, (Date.now() - ms) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+    const d = Math.floor(s / 86400);
+    return d === 1 ? 'yesterday' : `${d} days ago`;
+  }
+  const validLevel = l => l === 'easy' || l === 'medium' || l === 'hard';
+  const validTo = t => (t === 5 || t === 8 ? t : 3);
+  const cleanName = n => knownName(n) || 'Anonymous';
+
+  function renderLive(list) {
+    if (!elLive) return;
+    if (!list.length) { elLive.textContent = 'Nobody else is playing right now.'; return; }
+    const desc = p => `${p.name} (${p.diff}, ${p.you} : ${p.cpu}, first to ${p.to})`;
+    const shown = list.slice(0, 2).map(desc);
+    const rest = list.length - shown.length;
+    let text = shown.join(rest ? ', ' : ' and ');
+    if (rest) text += ` and ${rest} other${rest > 1 ? 's' : ''}`;
+    elLive.textContent = `\u25CF ${text} ${list.length > 1 ? 'are' : 'is'} playing now.`;
+  }
+
+  let recentCache = [];
+  function renderRecent() {
+    if (!elRecent) return;
+    elRecent.textContent = '';
+    if (!recentCache.length) {
+      const li = document.createElement('li');
+      li.textContent = 'No matches yet. Be the first.';
+      elRecent.appendChild(li);
+      return;
+    }
+    for (const m of recentCache) {
+      const li = document.createElement('li');
+      const won = m.you > m.cpu;
+      const how = `${m.diff}, first to ${m.to}${m.deuce ? ', deuce' : ''}`;
+      li.textContent = won
+        ? `${m.name} beat Francesco ${m.you} : ${m.cpu} (${how}), ${ago(m.at)}`
+        : `Francesco beat ${m.name} ${m.cpu} : ${m.you} (${how}), ${ago(m.at)}`;
+      if (won) li.className = 'won';
+      elRecent.appendChild(li);
+    }
+  }
+  // classifica: la miglior vittoria di ogni giocatore (gli anonimi contano uno per uno). Prima il livello più
+  // difficile, poi più gol segnati (cioè partite più lunghe), poi la differenza reti, poi chi c'è arrivato prima
+  const elBest = document.getElementById('foos-best');
+  const LEVEL = { easy: 0, medium: 1, hard: 2 };
+  let bestCache = [];
+  function leaderboard(list) {
+    const wins = list.filter(m => m.you > m.cpu)
+      .sort((a, b) => LEVEL[b.diff] - LEVEL[a.diff] || b.you - a.you || (b.you - b.cpu) - (a.you - a.cpu) || a.at - b.at);
+    const seen = new Set(), out = [];
+    for (const m of wins) {
+      if (m.name !== 'Anonymous') {
+        if (seen.has(m.name)) continue;
+        seen.add(m.name);
+      }
+      out.push(m);
+      if (out.length === 10) break;
+    }
+    return out;
+  }
+  function renderBest() {
+    if (!elBest) return;
+    elBest.textContent = '';
+    if (!bestCache.length) {
+      const li = document.createElement('li');
+      li.textContent = 'Nobody has beaten me yet.';
+      elBest.appendChild(li);
+      return;
+    }
+    for (const m of bestCache) {
+      const li = document.createElement('li');
+      li.textContent = `${m.name} ${m.you} : ${m.cpu} (${m.diff}, first to ${m.to}${m.deuce ? ', deuce' : ''}), ${ago(m.at)}`;
+      elBest.appendChild(li);
+    }
+  }
+  setInterval(() => { renderRecent(); renderBest(); }, 60000);
+
+  (async () => {
+    if (!FIREBASE_CONFIG || !elBoard) return;
+    try {
+      const base = 'https://www.gstatic.com/firebasejs/10.12.2/';
+      const { initializeApp } = await import(base + 'firebase-app.js');
+      const fdb = await import(base + 'firebase-database.js');
+      const db = fdb.getDatabase(initializeApp(FIREBASE_CONFIG));
+      const myId = 'p' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      const presRef = fdb.ref(db, 'presence/' + myId);
+      let inMatch = false;
+
+      net.start = () => {
+        inMatch = true;
+        fdb.onDisconnect(presRef).remove();
+        fdb.set(presRef, { name: playerName(), diff: diffName, to: winTo, deuce, you: 0, cpu: 0, since: fdb.serverTimestamp() }).catch(() => {});
+      };
+      net.score = (you, cpu) => { if (inMatch) fdb.update(presRef, { you, cpu }).catch(() => {}); };
+      net.settings = () => { if (inMatch) fdb.update(presRef, { diff: diffName, to: winTo, deuce }).catch(() => {}); };
+      // partita lasciata a metà (gioco chiuso): via da "is playing now", senza registrare la partita
+      net.leave = () => { if (inMatch) { inMatch = false; fdb.remove(presRef).catch(() => {}); } };
+      net.finish = (you, cpu) => {
+        if (!inMatch) return;
+        inMatch = false;
+        fdb.remove(presRef).catch(() => {});
+        fdb.push(fdb.ref(db, 'matches'), { name: playerName(), you, cpu, diff: diffName, to: winTo, deuce, at: fdb.serverTimestamp() }).catch(() => {});
+      };
+
+      fdb.onValue(fdb.ref(db, 'presence'), snap => {
+        const list = [];
+        snap.forEach(c => {
+          const v = c.val();
+          if (c.key === myId || !v || !validLevel(v.diff)) return;
+          if (typeof v.since === 'number' && Date.now() - v.since > 30 * 60 * 1000) return;   // sessioni rimaste appese
+          list.push({ name: cleanName(v.name), diff: v.diff, you: v.you | 0, cpu: v.cpu | 0, to: validTo(v.to) });
+        });
+        renderLive(list);
+      });
+      // tutte le partite: le ultime cinque e la classifica si calcolano qui
+      fdb.onValue(fdb.ref(db, 'matches'), snap => {
+        const list = [];
+        snap.forEach(c => {
+          const v = c.val();
+          if (!v || !validLevel(v.diff) || typeof v.at !== 'number') return;
+          list.push({ name: cleanName(v.name), you: v.you | 0, cpu: v.cpu | 0, diff: v.diff, to: validTo(v.to), deuce: v.deuce === true, at: v.at });
+        });
+        recentCache = list.slice().sort((a, b) => b.at - a.at).slice(0, 5);
+        bestCache = leaderboard(list);
+        renderRecent();
+        renderBest();
+      });
+      elBoard.hidden = false;
+    } catch (e) {
+      console.warn('Table football scoreboard is offline:', e);
+    }
+  })();
+
+  // ---------- servizio ----------
+  function serve(towardTeam) {
+    ball.x = W / 2 + (Math.random() - 0.5) * 40;
+    const fromTop = Math.random() < 0.5;
+    ball.y = fromTop ? R + 2 : H - R - 2;
+    ball.vy = (fromTop ? 1 : -1) * (420 + Math.random() * 160);
+    ball.vx = (towardTeam === 0 ? -1 : 1) * (70 + Math.random() * 90);
+    ball.inGoal = 0; ball.pin = null; ball.deadT = 0;
+    for (const r of rods) { r.hold = false; r.plan = null; r.kt = -1; r.noHit = 0; }
+  }
+
+  // ---------- fisica ----------
+  function collideFigure(rod, fy) {
+    const fx = rod.d * 36 * rod.ang;                 // piede avanti
+    const cx = rod.x + fx / 2, hx = 13 + Math.abs(fx) / 2, hy = 24;
+    // omini alzati (asta tenuta) e palla che arriva da dietro: passa sotto, poi si stoppa davanti
+    if (rod.hold && ball.vx * rod.d > 0 && (ball.x - rod.x) * rod.d < 6) return;
+    const px = clamp(ball.x, cx - hx, cx + hx);
+    const py = clamp(ball.y, fy - hy, fy + hy);
+    const dx = ball.x - px, dy = ball.y - py;
+    let dist = Math.hypot(dx, dy);
+    if (dist >= R) return;
+    let nx, ny;
+    if (dist < 1e-6) { nx = Math.sign(ball.x - rod.x) || rod.d; ny = 0; dist = 0; }
+    else { nx = dx / dist; ny = dy / dist; }
+    ball.x += nx * (R - dist); ball.y += ny * (R - dist);
+    // gli omini sono arrotondati: un colpo di fianco devia sempre un po' avanti o indietro
+    if (Math.abs(nx) < 0.3) {
+      const side = Math.sign(ball.x - rod.x) || (Math.random() < 0.5 ? -1 : 1);
+      nx = side * 0.3; ny = Math.sign(ny) * Math.sqrt(1 - 0.09);
+    }
+
+    const swinging = rod.kt >= 0 && rod.kt < KICK_FWD + 0.03;
+    const inFront = (ball.x - rod.x) * rod.d > -6;
+    if (swinging && rod.kdir < 0 && !inFront) {
+      // tocco all'indietro: morbido, verso l'asta dietro
+      const aim = (ball.y - fy) / hy;
+      const speed = 520 + Math.random() * 160;
+      const m = Math.hypot(1, aim * 0.4);
+      ball.vx = -rod.d / m * speed; ball.vy = aim * 0.4 / m * speed;
+      rod.kt = Math.max(rod.kt, KICK_FWD + 0.031);
+      blip('tick');
+      return;
+    }
+    if (swinging && rod.kdir > 0 && inFront) {
+      // tiro al volo: la direzione dipende dal punto di contatto e da come si muove l'asta
+      const aim = (ball.y - fy) / hy;
+      const speed = 1450 + Math.random() * 450;
+      const vx = rod.d, vy = aim * 0.5 + rod.vy / 3200;
+      const m = Math.hypot(vx, vy);
+      ball.vx = vx / m * speed; ball.vy = vy / m * speed;
+      rod.kt = Math.max(rod.kt, KICK_FWD + 0.031);   // un solo impatto per calcio
+      noteShot(rod, 'dritto');
+      blip('kick');
+      return;
+    }
+    const rvy = ball.vy - rod.vy;
+    const vn = ball.vx * nx + rvy * ny;
+    if (vn < 0) {
+      // urto contro un omino: la gomma e la plastica assorbono buona parte della velocità
+      const e = 0.22;
+      ball.vx -= (1 + e) * vn * nx;
+      ball.vy -= (1 + e) * vn * ny;
+      ball.vy += rod.vy * 0.12;
+      if (-vn > 120) blip('tick', Math.min(1, -vn / 900));
+    }
+  }
+
+  function tryCapture(rod) {
+    if (!rod.hold || rod.kt >= 0 || rod.ang < 0.3 || rod.noHit > 0) return;
+    const rel = (ball.x - rod.x) * rod.d;
+    if (rel < 6 || rel > 58) return;
+    for (let j = 0; j < rod.n; j++) {
+      const dy = ball.y - figY(rod, j);
+      if (Math.abs(dy) > 28) continue;
+      if (Math.hypot(ball.vx, ball.vy - rod.vy) > STOP_SPEED) return;   // si stoppa solo una palla lenta
+      ball.pin = { rod, j, dy: clamp(dy, -14, 14) };
+      ball.vx = 0; ball.vy = 0;
+      blip('tick', 0.5);
+      return;
+    }
+  }
+
+  let lastShot = null, goalLabel = '', trick = null;
+  function noteShot(rod, kind) { lastShot = { team: rod.team, kind, t: clock }; ball.walls = 0; }
+  // i nomi dei colpi, come compaiono sul tavolo
+  const TRICK_NAME = { frusta: 'pull shot', gancio: 'snake', tictac: 'tic-tac', sponda: 'bank', doppia: 'double bank' };
+  function showTrick(rod, kind) { trick = { text: TRICK_NAME[kind] || kind, team: rod.team, x: ball.x, y: ball.y, t: 0 }; }
+  function shootFromPin(rod, dirX, dirY, speed, kind = 'dritto') {
+    noteShot(rod, kind);
+    const m = Math.hypot(dirX, dirY) || 1;
+    ball.pin = null;
+    ball.vx = dirX / m * speed; ball.vy = dirY / m * speed;
+    rod.hold = false; rod.plan = null; rod.noHit = 0.14;
+    startKick(rod);
+    blip('kick');
+  }
+
+  // passaggio laterale all'omino accanto sulla stessa asta (dir -1 = sopra, +1 = sotto)
+  function lateralPass(rod, dir) {
+    const pin = ball.pin;
+    if (!pin || pin.rod !== rod || pin.slide) return false;
+    const nj = pin.j + dir;
+    if (nj < 0 || nj >= rod.n) return false;
+    const yTo = figY(rod, nj) + pin.dy;
+    if (yTo < R || yTo > H - R) return false;
+    const dist = Math.abs(yTo - ball.y);
+    ball.pin = { rod, j: nj, dy: pin.dy, slide: { fromY: ball.y, t: 0, dur: 0.1 + dist / 1400 } };
+    blip('tick', 0.5);
+    return true;
+  }
+
+  // la palla è giocabile da qualche omino?
+  function reachable() {
+    for (const rod of rods) {
+      const rel = (ball.x - rod.x) * rod.d;
+      if (rel < -62 || rel > 62) continue;
+      for (let j = 0; j < rod.n; j++) {
+        const b = figBase(rod, j), m = rod.limit + 24 + R;
+        if (ball.y > b - m && ball.y < b + m) return true;
+      }
+    }
+    return false;
+  }
+
+  function stepPhysics(dt) {
+    for (const rod of rods) {
+      const prev = rod.off;
+      const delta = clamp(rod.target - rod.off, -rod.maxV * dt, rod.maxV * dt);
+      rod.off = clamp(rod.off + delta, -rod.limit, rod.limit);
+      rod.vy = (rod.off - prev) / dt;
+      if (rod.kt >= 0) { rod.kt += dt; if (rod.kt > KICK_T) rod.kt = -1; }
+      if (rod.noHit > 0) rod.noHit -= dt;
+      if (rod.kt >= 0) rod.ang = kickAngle(rod.kt) * (rod.kdir < 0 ? -0.8 : 1);
+      else rod.ang += ((rod.hold ? HOLD_ANG : 0) - rod.ang) * Math.min(1, dt * 30);
+      rod.holdT = rod.hold ? rod.holdT + dt : 0;
+    }
+
+    if (ball.inGoal) {
+      ball.vx *= Math.exp(-6 * dt); ball.vy *= Math.exp(-6 * dt);
+      ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+      const back = ball.inGoal < 0 ? -GOAL_DEPTH + R : W + GOAL_DEPTH - R;
+      if (ball.inGoal < 0 && ball.x < back) { ball.x = back; ball.vx = Math.abs(ball.vx) * 0.2; }
+      if (ball.inGoal > 0 && ball.x > back) { ball.x = back; ball.vx = -Math.abs(ball.vx) * 0.2; }
+      ball.y = clamp(ball.y, H / 2 - GOAL + R, H / 2 + GOAL - R);
+      return;
+    }
+
+    // palla bloccata sotto il piede: segue l'asta
+    if (ball.pin) {
+      const { rod, j, dy, slide } = ball.pin;
+      ball.x = rod.x + rod.d * PIN_X;
+      const yTo = clamp(figY(rod, j) + dy, R, H - R);
+      if (slide) {
+        // passaggio all'omino di fianco: la palla scorre sotto i piedi alzati
+        slide.t += dt;
+        const k = Math.min(1, slide.t / slide.dur), e = k * k * (3 - 2 * k);
+        ball.y = slide.fromY + (yTo - slide.fromY) * e;
+        if (k >= 1) ball.pin.slide = null;
+      } else ball.y = yTo;
+      ball.vx = 0; ball.vy = rod.vy;
+      if (!rod.hold) { ball.pin = null; ball.vx = rod.d * 60; }
+      ball.deadT = 0;
+      return;
+    }
+
+    ball.vx *= Math.exp(-0.2 * dt); ball.vy *= Math.exp(-0.2 * dt);
+
+    // spondine: dove il piano sale, la palla scende verso l'interno
+    if (ball.y < BAND) ball.vy += 360 * dt;
+    if (ball.y > H - BAND) ball.vy -= 360 * dt;
+    if ((ball.x < BAND || ball.x > W - BAND) && Math.abs(ball.y - H / 2) > GOAL)
+      ball.vx += Math.sign(W / 2 - ball.x) * 360 * dt;
+
+    const sp = Math.hypot(ball.vx, ball.vy);
+    if (sp > 2400) { ball.vx *= 2400 / sp; ball.vy *= 2400 / sp; }
+    ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+
+    // sponde lunghe
+    if (ball.y < R) { ball.y = R; if (ball.vy < -500) ball.walls++; ball.vy = Math.abs(ball.vy) * 0.8; }
+    if (ball.y > H - R) { ball.y = H - R; if (ball.vy > 500) ball.walls++; ball.vy = -Math.abs(ball.vy) * 0.8; }
+
+    // spondine triangolari negli angoli: il piano sale verso lo spigolo, la palla rotola fuori in diagonale
+    for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+      const lx = sx > 0 ? ball.x : W - ball.x, ly = sy > 0 ? ball.y : H - ball.y;
+      const depth = 1 - lx / CORNER_X - ly / CORNER_Y;    // 0 sul bordo del triangolo, 1 nello spigolo
+      if (depth > 0) {
+        // la pendenza scende perpendicolare all'ipotenusa
+        const nx = sx / CORNER_X, ny = sy / CORNER_Y, m = Math.hypot(nx, ny);
+        const a = 650 * Math.min(1, 0.4 + depth) * dt / m;
+        ball.vx += nx * a; ball.vy += ny * a;
+      }
+    }
+
+    // sponde corte e porte
+    const inMouth = Math.abs(ball.y - H / 2) < GOAL - 2;
+    if (ball.x < R && !inMouth) { ball.x = R; ball.vx = Math.abs(ball.vx) * 0.8; }
+    if (ball.x > W - R && !inMouth) { ball.x = W - R; ball.vx = -Math.abs(ball.vx) * 0.8; }
+    for (const [px, py] of [[0, H / 2 - GOAL], [0, H / 2 + GOAL], [W, H / 2 - GOAL], [W, H / 2 + GOAL]]) {
+      const dx = ball.x - px, dy = ball.y - py, dd = Math.hypot(dx, dy);
+      if (dd < R && dd > 0) {
+        const nx = dx / dd, ny = dy / dd, vn = ball.vx * nx + ball.vy * ny;
+        ball.x = px + nx * R; ball.y = py + ny * R;
+        if (vn < 0) { ball.vx -= 1.7 * vn * nx; ball.vy -= 1.7 * vn * ny; blip('tick', 0.6); }
+      }
+    }
+
+    // omini
+    for (const rod of rods) {
+      if (rod.noHit > 0 || Math.abs(ball.x - rod.x) > 64) continue;
+      for (let j = 0; j < rod.n; j++) collideFigure(rod, figY(rod, j));
+    }
+    for (const rod of rods) { if (!ball.pin) tryCapture(rod); }
+
+    // gol?
+    if (ball.x < -2 && inMouth) return goal(1);
+    if (ball.x > W + 2 && inMouth) return goal(0);
+
+    // palla morta, come da regolamento: ferma dove nessun omino arriva → si rimette in gioco
+    if (Math.hypot(ball.vx, ball.vy) < 30 && !reachable()) {
+      ball.deadT += dt;
+      if (ball.deadT > 1.3) { flash = { text: 'Dead ball', t: 0 }; serve(Math.random() < 0.5 ? 0 : 1); }
+    } else ball.deadT = 0;
+  }
+
+  // ---------- intelligenza ----------
+  function predictY(x) {
+    if ((x - ball.x) * ball.vx <= 0 || Math.abs(ball.vx) < 60) return ball.y;
+    const t = (x - ball.x) / ball.vx;
+    if (t > 0.9) return ball.y;
+    let y = ball.y + ball.vy * t;
+    const lo = R, hi = H - R, span = hi - lo;
+    y = ((y - lo) % (2 * span) + 2 * span) % (2 * span);
+    return lo + (y > span ? 2 * span - y : y);
+  }
+
+  // l'omino più vicino va su ty
+  function aimRodAt(rod, ty) {
+    let best = rod.off, bestD = Infinity;
+    for (let j = 0; j < rod.n; j++) {
+      const want = clamp(ty - figBase(rod, j), -rod.limit, rod.limit);
+      const dd = Math.abs(want - rod.off) + Math.abs(ty - (figBase(rod, j) + want)) * 4;
+      if (dd < bestD) { bestD = dd; best = want; }
+    }
+    return best;
+  }
+
+  // quanto è libera una linea di tiro dagli omini in mezzo (in unità mondo; <0 = colpisce un omino)
+  function clearance(shooter, x0, y0, x1, y1) {
+    let worst = 400;
+    for (const rod of rods) {
+      if (rod === shooter) continue;
+      if ((rod.x - x0) * (x1 - x0) <= 0 || (rod.x - x1) * (x0 - x1) <= 0) continue;
+      let y = y0 + (y1 - y0) * (rod.x - x0) / (x1 - x0);
+      // percorso “aperto” di una sponda: lo ripiego dentro al campo
+      const span = H - 2 * R;
+      y = (((y - R) % (2 * span)) + 2 * span) % (2 * span);
+      y = R + (y > span ? 2 * span - y : y);
+      for (let j = 0; j < rod.n; j++) worst = Math.min(worst, Math.abs(y - figY(rod, j)) - 24 - R);
+    }
+    return worst;
+  }
+
+  // la mira migliore verso la porta avversaria: dritta o di sponda
+  function bestShot(rod, kind, P) {
+    const gx = rod.d > 0 ? W + 20 : -20;
+    const ys = [H / 2 - GOAL + 26, H / 2 - GOAL / 2, H / 2, H / 2 + GOAL / 2, H / 2 + GOAL - 26];
+    const cands = [];
+    const lo = R, hi = H - R, span = hi - lo;
+    for (const ty of ys) {
+      if (kind === 'sponda') { cands.push(2 * lo - ty); cands.push(2 * hi - ty); }
+      else if (kind === 'doppia') { cands.push(ty - 2 * span); cands.push(ty + 2 * span); }
+      else cands.push(ty);
+    }
+    let best = null, bestS = -Infinity;
+    for (const ty of cands) {
+      const s = clearance(rod, ball.x, ball.y, gx, ty) + (Math.random() - 0.5) * 200 * P.pick;
+      if (s > bestS) { bestS = s; best = ty; }
+    }
+    return { dx: gx - ball.x, dy: best - ball.y, score: bestS };
+  }
+
+  // corsia libera per un passaggio dritto in avanti
+  function bestLane(rod) {
+    let best = rod.off, bestS = -Infinity;
+    const dy0 = ball.pin ? ball.pin.dy : 0;
+    for (let o = -rod.limit; o <= rod.limit; o += 12) {
+      const y = figY(rod, ball.pin ? ball.pin.j : 0) - rod.off + o + dy0;
+      if (y < BAND || y > H - BAND) continue;
+      const s = clearance(rod, ball.x, y, ball.x + rod.d * 320, y) - Math.abs(o - rod.off) * 0.05;
+      if (s > bestS) { bestS = s; best = o; }
+    }
+    return best;
+  }
+
+  function pickPlan(list) {
+    let r = Math.random();
+    for (const [name, w] of list) { r -= w; if (r <= 0) return name; }
+    return list.length ? list[list.length - 1][0] : 'dritto';
+  }
+
+  // l'omino ha la palla bloccata: prepara il colpo (o il trick) e tira
+  function newPlan(rod, P, kind) {
+    const plan = { kind, t0: clock, setup: P.setup + Math.random() * P.setupR, base: rod.off, phase: 'setup', moveTo: rod.off, from: rod.off };
+    const roomDir = () => {
+      const room = [rod.limit - rod.off, -rod.limit - rod.off].filter(v => Math.abs(v) > 70);
+      return room.length ? Math.sign(room[Math.floor(Math.random() * room.length)]) : (rod.off > 0 ? -1 : 1);
+    };
+    if (kind === 'frusta') {
+      plan.moveTo = clamp(rod.off + roomDir() * (90 + Math.random() * 90), -rod.limit, rod.limit);
+    } else if (kind === 'gancio') {
+      // la palla va di lato al piede, poi l'omino la aggancia e la porta dall'altra parte
+      plan.side = roomDir();
+      plan.moveTo = clamp(rod.off + plan.side * (60 + Math.random() * 40), -rod.limit, rod.limit);
+    } else if (kind === 'pass') {
+      plan.moveTo = bestLane(rod); plan.fast = true;
+    } else if (kind === 'tictac') {
+      // passaggi avanti e indietro tra gli omini della stessa asta, poi il colpo
+      plan.count = P === DIFF.hard ? 2 + Math.floor(Math.random() * 3) : 1 + Math.floor(Math.random() * 2);
+      plan.gap = plan.setup * 0.5;
+      plan.next = pickPlan([['frusta', 0.4], ['gancio', 0.35], ['dritto', 0.25]]);
+    } else plan.moveTo = clamp(rod.off + (Math.random() - 0.5) * 50, -rod.limit, rod.limit);
+    return plan;
+  }
+
+  function runPlan(rod, P) {
+    rod.hold = true;
+    rod.maxV = P.maxV;
+    if (!rod.plan) rod.plan = newPlan(rod, P, pickPlan(P.plans[rod.role]));
+    const pl = rod.plan, t = clock - pl.t0;
+    const late = rod.holdT > 3.3;                      // la regola dei possessi vale anche per Francesco
+    if (ball.pin && ball.pin.slide) return;
+
+    if (pl.kind === 'tictac') {
+      rod.target = pl.base;
+      if (t < pl.gap && !late) return;
+      if (pl.count > 0 && !late) {
+        pl.dir = pl.dir ? -pl.dir : (Math.random() < 0.5 ? -1 : 1);
+        if (!lateralPass(rod, pl.dir)) { pl.dir = -pl.dir; if (!lateralPass(rod, pl.dir)) pl.count = 0; }
+        if (!pl.shown) { showTrick(rod, 'tictac'); pl.shown = true; }
+        pl.count--; pl.t0 = clock; pl.gap = 0.22 + Math.random() * 0.2;
+        return;
+      }
+      rod.plan = newPlan(rod, P, pl.next);
+      rod.plan.setup = 0.08 + Math.random() * 0.15;
+      return;
+    }
+
+    if (pl.phase === 'setup' && !late) {
+      // finta: piccoli movimenti per non dare riferimenti
+      rod.target = clamp(pl.base + Math.sin(t * 11) * (P === DIFF.hard ? 14 : 5), -rod.limit, rod.limit);
+      if (pl.kind === 'gancio' && ball.pin) ball.pin.dy += (pl.side * 18 - ball.pin.dy) * 0.08;
+      if (t > pl.setup) { pl.phase = 'move'; pl.from = rod.off; }
+      return;
+    }
+    if (pl.phase === 'setup') { pl.phase = 'move'; pl.from = rod.off; }
+
+    const fast = pl.kind === 'frusta' || pl.kind === 'gancio' || pl.fast;
+    rod.maxV = fast ? P.moveV : P.maxV;
+    rod.target = pl.moveTo;
+    const total = Math.max(1, Math.abs(pl.moveTo - pl.from));
+    const prog = clamp(Math.abs(rod.off - pl.from) / total, 0, 1);
+    if (pl.kind === 'gancio' && ball.pin) ball.pin.dy = pl.side * 18 * (1 - 2 * prog);   // la palla gira attorno al piede
+    if (!pl.shown && (pl.kind === 'frusta' || pl.kind === 'gancio')) { showTrick(rod, pl.kind); pl.shown = true; }
+    const ready = pl.kind === 'frusta' ? prog >= 0.7 : pl.kind === 'gancio' ? prog >= 0.95 : Math.abs(rod.off - pl.moveTo) < 4;
+    if (!ready && clock - pl.t0 < pl.setup + 0.8 && !late) return;
+
+    const speed = P.shot + Math.random() * P.shotR;
+    if (pl.kind === 'pass') { shootFromPin(rod, rod.d, rod.vy / 9000 + (Math.random() - 0.5) * 0.05, 330 + Math.random() * 60, 'pass'); return; }
+    const bank = pl.kind === 'sponda' || pl.kind === 'doppia';
+    const s = bestShot(rod, bank ? pl.kind : 'dritto', P);
+    let dy = s.dy;
+    if (pl.kind === 'frusta') dy += rod.vy * 0.04;     // la frusta: l'asta in corsa piega il tiro
+    if (pl.kind === 'gancio') dy += rod.vy * 0.03;
+    if (bank) showTrick(rod, pl.kind);
+    shootFromPin(rod, s.dx, dy, speed + (bank ? 150 : 0), pl.kind);
+  }
+
+  function ai(rod, P, canPlay = true) {
+    rod.maxV = P.maxV;
+    const owner = ball.pin ? ball.pin.rod : null;
+    if (owner === rod) { if (canPlay) runPlan(rod, P); return; }
+    if (rod.plan) rod.plan = null;
+
+    if (clock >= rod.aiNext) {
+      rod.aiNext = clock + P.lat + Math.random() * P.latR;
+      rod.trapRoll = Math.random();
+      let ty;
+      if (owner && owner.team !== rod.team) {
+        // l'avversario ha la palla ferma: chiudo lo specchio, il portiere un po' verso il centro
+        ty = rod.role === 'goalie' ? ball.y * 0.7 + H / 2 * 0.3 : ball.y + (rod.role === 'def' ? Math.sign(H / 2 - ball.y) * 40 : 0);
+      } else ty = predictY(rod.x);
+      rod.aiGoal = aimRodAt(rod, ty + (Math.random() - 0.5) * P.noise);
+    }
+    rod.target = rod.aiGoal;
+    if (!canPlay) { rod.hold = false; return; }
+    if (owner && owner.team === rod.team) {
+      // un compagno ha la palla dietro di me: mi preparo a ricevere il passaggio
+      rod.hold = P.trap > 0 && (owner.x - rod.x) * rod.d < 0 && Math.abs(owner.x - rod.x) < 320;
+      return;
+    }
+
+    const rel = (ball.x - rod.x) * rod.d;
+    const sp = Math.hypot(ball.vx, ball.vy);
+    const fromFront = ball.vx * rod.d < 0 || sp < 260;
+    const fromBehind = ball.vx * rod.d > 0 && rel < 0;
+    const wantTrap = P.trap && rod.trapRoll < P.trap && sp < P.trapMax &&
+      ((rel > 0 && rel < 180 && fromFront) || (fromBehind && rel > -260));
+    // stop: alzo/inclino gli omini per fermare la palla che arriva (anche un passaggio da dietro)
+    if (wantTrap) rod.hold = true;
+    else if (rod.hold && (rel < -270 || rel > 190 || rod.holdT > 1.4)) rod.hold = false;
+
+    // tiro al volo, o tocco all'indietro se la palla è appena dietro
+    if (!rod.hold && rod.kt < 0 && rel > -58 && rel < 58) {
+      for (let j = 0; j < rod.n; j++) {
+        if (Math.abs(ball.y - figY(rod, j)) < 34 && Math.random() < P.kick * (rel < -6 ? 0.5 : 1)) { startKick(rod); break; }
+      }
+    }
+  }
+
+  // ---------- le due mani del visitatore ----------
+  // Come al tavolo vero: due mani, due aste. In difesa portiere e difensori,
+  // in attacco centrocampo e attaccanti. Si passa dall'una all'altra seguendo la palla.
+  const PAIRS = { def: [rods[0], rods[1]], att: [rods[3], rods[5]] };
+  let pairName = 'att';
+  const hands = [0, 1].map(() => ({ up: false, down: false, shoot: false, moveT: 0, drag: null }));
+  const handRod = h => PAIRS[pairName][h];
+
+  // cambio automatico solo quando la palla passa da una zona all'altra: il cambio manuale (Spazio) resta valido
+  let ballZone = 'att';
+  let autoSwitch = true;        // la sceglie il visitatore nella schermata iniziale
+  try { autoSwitch = localStorage.getItem('foos-auto') !== 'manual'; } catch (e) {}
+  function pickPair() {
+    if (!autoSwitch) return pairName;
+    if (ball.pin && ball.pin.rod.team === 0) return PAIRS.def.includes(ball.pin.rod) ? 'def' : 'att';
+    const z = ballZone === 'att' ? (ball.x < 430 ? 'def' : 'att') : (ball.x > 470 ? 'att' : 'def');
+    if (z !== ballZone) { ballZone = z; return z; }
+    return pairName;
+  }
+  function setPair(name) {
+    if (name === pairName) return;
+    for (const r of PAIRS[pairName]) r.hold = false;
+    pairName = name;
+    hands.forEach((hd, h) => { if (hd.drag) hd.drag.target = handRod(h).off; });
+    if (switchBtn) switchBtn.textContent = name === 'att' ? 'Switch to defense' : 'Switch to attack';
+  }
+  function togglePair() { if (mode === 'play') setPair(pairName === 'att' ? 'def' : 'att'); }
+
+  function humanRelease(rod) {
+    if (!rod.hold) return;
+    rod.hold = false;
+    if (ball.pin && ball.pin.rod === rod) {
+      // la direzione la dà l'asta: ferma = dritto, in corsa = frusta
+      const vy = clamp(rod.vy / 2000 + ball.pin.dy / 24 * 0.3, -0.85, 0.85);
+      shootFromPin(rod, rod.d, vy, 1650 + Math.random() * 350, Math.abs(rod.vy) > 500 ? 'frusta' : 'dritto');
+    } else startKick(rod);
+  }
+
+  function handShootDown(h) {
+    if (mode !== 'play') return;
+    hands[h].shoot = true;
+    handRod(h).hold = true;
+  }
+  function handShootUp(h, silent) {
+    if (!hands[h].shoot) return;
+    hands[h].shoot = false;
+    if (mode === 'play' && !silent) humanRelease(handRod(h));
+    else handRod(h).hold = false;
+  }
+  // passaggio all'omino accanto: verso il tasto di movimento premuto, altrimenti verso il centro
+  function handPass(h, forced) {
+    const rod = handRod(h);
+    if (mode !== 'play' || !ball.pin || ball.pin.rod !== rod) return;
+    const hd = hands[h];
+    const dir = forced || (hd.up ? -1 : hd.down ? 1 : (figY(rod, ball.pin.j) > H / 2 ? -1 : 1));
+    if (!lateralPass(rod, dir)) lateralPass(rod, -dir);
+  }
+
+  function controlHumanRods(dt) {
+    setPair(pickPair());
+    for (const rod of rods) {
+      if (rod.team !== 0 || PAIRS[pairName].includes(rod)) continue;
+      rod.target = rod.off; rod.hold = false;             // le aste lasciate restano dove sono
+    }
+    hands.forEach((hd, h) => {
+      const rod = handRod(h);
+      if (hd.drag) {
+        if (!hd.drag.hold && performance.now() - hd.drag.t0 > 220 && hd.drag.moved < 10) hd.drag.hold = true;
+        rod.target = hd.drag.target = clamp(hd.drag.target, -rod.limit, rod.limit);
+        rod.maxV = 3200;
+      } else {
+        const dir = (hd.down ? 1 : 0) - (hd.up ? 1 : 0);
+        if (dir) {
+          // parte piano per i ritocchi, poi accelera
+          hd.moveT += dt;
+          rod.maxV = 420 + Math.min(1, hd.moveT / 0.3) * 900;
+          rod.target = dir * rod.limit;
+        } else { hd.moveT = 0; rod.target = rod.off; }
+      }
+      rod.hold = mode === 'play' && (hd.shoot || !!(hd.drag && hd.drag.hold));
+      // regola dei possessi: dopo 4 secondi la palla va giocata
+      if (ball.pin && ball.pin.rod === rod && rod.holdT > 4) {
+        hd.shoot = false; if (hd.drag) hd.drag.hold = false;
+        humanRelease(rod);
+      }
+    });
+  }
+
+  // ---------- gol, replay, fine ----------
+  const RECORD_SECONDS = 4;
+  const history = [];
+  function record() {
+    history.push({
+      t: clock, bx: ball.x, by: ball.y,
+      off: rods.map(r => r.off), ang: rods.map(r => r.ang),
+      act: human && mode === 'play' ? PAIRS[pairName].map(r => r.i) : [],
+    });
+    while (history.length && clock - history[0].t > RECORD_SECONDS) history.shift();
+  }
+
+  function goal(team) {
+    ball.inGoal = team === 0 ? 1 : -1;
+    goalLabel = '';
+    if (lastShot && lastShot.team === team && clock - lastShot.t < 2.5) {
+      let k = lastShot.kind;
+      if (k === 'dritto' && ball.walls >= 2) k = 'doppia';
+      else if (k === 'dritto' && ball.walls === 1) k = 'sponda';
+      goalLabel = k === 'tictac' || k === 'pass' ? '' : TRICK_NAME[k] || '';
+    }
+    ball.pin = null;
+    lastScorer = team;
+    goalClock = clock;
+    if (mode === 'play') {
+      score[team]++;
+      elYou.textContent = score[0];
+      elMe.textContent = score[1];
+      if (matchOver()) net.finish(score[0], score[1]);
+      else net.score(score[0], score[1]);
+    }
+    blip('net');
+    setMode('goal');
+  }
+
+  function setMode(m) { mode = m; modeT = 0; }
+
+  const REPLAY_BEFORE = 2.3, REPLAY_AFTER = 0.45, REPLAY_SPEED = 0.42;
+  function startReplay() {
+    replayFrames = history.filter(f => f.t >= goalClock - REPLAY_BEFORE && f.t <= goalClock + REPLAY_AFTER);
+    cam.x = replayFrames.length ? replayFrames[0].bx : W / 2;
+    cam.y = replayFrames.length ? replayFrames[0].by : H / 2;
+    cam.z = 1.5;
+    setMode('replay');
+  }
+
+  function frameAt(t) {
+    const fr = replayFrames;
+    if (!fr.length) return null;
+    let i = 0;
+    while (i < fr.length - 2 && fr[i + 1].t < t) i++;
+    const a = fr[i], b = fr[Math.min(i + 1, fr.length - 1)];
+    const k = b.t > a.t ? Math.max(0, Math.min(1, (t - a.t) / (b.t - a.t))) : 0;
+    const lerp = (p, q) => p + (q - p) * k;
+    return {
+      bx: lerp(a.bx, b.bx), by: lerp(a.by, b.by),
+      off: a.off.map((v, j) => lerp(v, b.off[j])),
+      ang: a.ang.map((v, j) => lerp(v, b.ang[j])),
+      act: a.act,
+    };
+  }
+
+  function afterReplay() {
+    for (const r of rods) { r.kt = -1; r.ang = 0; r.hold = false; r.plan = null; }
+    hands.forEach(hd => { hd.shoot = false; if (hd.drag) hd.drag.hold = false; });
+    if (human && matchOver()) { setMode('fine'); lockRules(false); return; }
+    serve(lastScorer === 0 ? 1 : 0);
+    if (human && deuceState()) flash = { text: deuceState(), t: 0 };
+    setMode(human ? 'play' : 'demo');
+  }
+
+  function startTake() {
+    if (!audio && soundOn) audio = new (window.AudioContext || window.webkitAudioContext)();
+    human = true;
+    score[0] = score[1] = 0;
+    elYou.textContent = '0'; elMe.textContent = '0';
+    canvas.classList.add('playing');
+    blip('clack');
+    setMode('clap');
+    lockRules(true);
+    net.start();
+  }
+
+  // ---------- input ----------
+  let lastInput = 'pointer', hasFocus = false;
+  const KEYS = {
+    KeyW: [0, 'up'], KeyS: [0, 'down'], KeyD: [0, 'shoot'], KeyA: [0, 'pass'],
+    ArrowUp: [1, 'up'], ArrowDown: [1, 'down'], ArrowRight: [1, 'shoot'], ArrowLeft: [1, 'pass'],
+    KeyI: [1, 'up'], KeyK: [1, 'down'], KeyL: [1, 'shoot'], KeyJ: [1, 'pass'],
+  };
+  // la prima volta, prima di giocare: regole, comandi e nome
+  const elIntro = document.getElementById('foos-intro');
+  const btnGo = document.getElementById('foos-go');
+  const btnHelp = document.getElementById('foos-help');
+  const autoRadios = document.querySelectorAll('#foos-auto input');
+  let introSeen = false;
+  try { introSeen = localStorage.getItem('foos-intro-seen') === '1'; } catch (e) {}
+
+  function showIntro() {
+    hands.forEach((hd, h) => { hd.up = hd.down = false; handShootUp(h, true); });
+    btnGo.textContent = mode === 'demo' || mode === 'fine' ? 'Play' : 'Back to the game';
+    for (const r of autoRadios) r.checked = (r.value === 'auto') === autoSwitch;
+    canvas.hidden = true;
+    elIntro.hidden = false;
+    elName.focus({ preventScroll: true });
+  }
+  function closeIntro() {
+    const pick = [...autoRadios].find(r => r.checked);
+    if (pick) autoSwitch = pick.value === 'auto';
+    try {
+      localStorage.setItem('foos-name', playerName());
+      localStorage.setItem('foos-auto', autoSwitch ? 'auto' : 'manual');
+      localStorage.setItem('foos-intro-seen', '1');
+    } catch (e) {}
+    introSeen = true;
+    elIntro.hidden = true;
+    canvas.hidden = false;
+    canvas.focus({ preventScroll: true });
+    if (mode === 'demo') startTake();
+    else if (mode === 'fine') { take++; startTake(); }
+  }
+  btnGo.addEventListener('click', closeIntro);
+  elName.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); closeIntro(); } });
+  btnHelp.addEventListener('click', showIntro);
+
+  // fuori dal gioco: click, Invio o Spazio avviano la partita o saltano il replay
+  function metaPress() {
+    if (mode === 'demo' && !introSeen) { showIntro(); return true; }
+    if (mode === 'demo' || mode === 'fine') { if (mode === 'fine') take++; startTake(); return true; }
+    if (mode === 'leader' || mode === 'replay') { afterReplay(); return true; }
+    return false;
+  }
+
+  canvas.addEventListener('focus', () => { hasFocus = true; });
+  canvas.addEventListener('blur', () => {
+    hasFocus = false;
+    hands.forEach((hd, h) => { hd.up = hd.down = false; handShootUp(h, true); });
+  });
+  canvas.addEventListener('keydown', e => {
+    lastInput = 'key';
+    const k = KEYS[e.code];
+    if (e.code === 'Space' || e.code === 'Enter') {
+      e.preventDefault();
+      if (!e.repeat && !metaPress() && e.code === 'Space') togglePair();
+      return;
+    }
+    if (!k) return;
+    e.preventDefault();
+    if (e.repeat) return;
+    if (mode !== 'play') { metaPress(); return; }
+    const [h, act] = k;
+    if (act === 'up') hands[h].up = true;
+    if (act === 'down') hands[h].down = true;
+    if (act === 'shoot') handShootDown(h);
+    if (act === 'pass') handPass(h);
+  });
+  canvas.addEventListener('keyup', e => {
+    const k = KEYS[e.code];
+    if (!k) return;
+    const [h, act] = k;
+    if (act === 'up') hands[h].up = false;
+    if (act === 'down') hands[h].down = false;
+    if (act === 'shoot') handShootUp(h);
+  });
+
+  // touch e mouse: ogni asta attiva è una mano, si prende quella più vicina. Trascina per muovere, tocca per tirare,
+  // tieni premuto per stoppare; con un altro dito, mentre tieni la palla, la passi all'omino accanto.
+  const drags = new Map();
+  canvas.addEventListener('pointerdown', e => {
+    lastInput = 'pointer';
+    canvas.focus({ preventScroll: true });
+    if (metaPress() || mode !== 'play') return;
+    const r = canvas.getBoundingClientRect();
+    for (const d of drags.values()) {
+      const rod = handRod(d.h);
+      if (d.hold && ball.pin && ball.pin.rod === rod) {
+        const ballY = (ball.y + MY) / VH * r.height + r.top;
+        handPass(d.h, e.clientY < ballY ? -1 : 1);
+        return;
+      }
+    }
+    // la mano è quella dell'asta attiva più vicina al punto toccato (in difesa le due aste sono entrambe a sinistra)
+    const wx = (e.clientX - r.left) / r.width * VW - MX;
+    const h = wx < (handRod(0).x + handRod(1).x) / 2 ? 0 : 1;
+    if (hands[h].drag) return;
+    const d = { id: e.pointerId, h, lastY: e.clientY, t0: performance.now(), moved: 0, hold: false, target: handRod(h).off };
+    drags.set(e.pointerId, d);
+    hands[h].drag = d;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  canvas.addEventListener('pointermove', e => {
+    const d = drags.get(e.pointerId);
+    if (!d) return;
+    const r = canvas.getBoundingClientRect();
+    const dy = e.clientY - d.lastY;
+    d.lastY = e.clientY;
+    d.moved += Math.abs(dy);
+    d.target += dy / r.height * VH * 1.15;
+  });
+  function pointerEnd(e) {
+    const d = drags.get(e.pointerId);
+    if (!d) return;
+    drags.delete(e.pointerId);
+    hands[d.h].drag = null;
+    if (mode !== 'play') return;
+    const rod = handRod(d.h);
+    if (d.hold) humanRelease(rod);
+    else if (performance.now() - d.t0 < 260 && d.moved < 12) startKick(rod);   // tocco veloce = tiro
+  }
+  canvas.addEventListener('pointerup', pointerEnd);
+  canvas.addEventListener('pointercancel', pointerEnd);
+
+  if (switchBtn) switchBtn.addEventListener('click', () => {
+    togglePair();
+    if (lastInput === 'key') canvas.focus({ preventScroll: true });
+  });
+
+  // difficoltà
+  const diffButtons = document.querySelectorAll('#foos-diff button');
+  function showDiff() {
+    diffButtons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.level === diffName)));
+  }
+  diffButtons.forEach(b => b.addEventListener('click', () => {
+    diffName = b.dataset.level;
+    net.settings();
+    try { localStorage.setItem('foos-difficulty', diffName); } catch (e) {}
+    showDiff();
+  }));
+  showDiff();
+
+  // a quanto si arriva e vantaggi
+  const toButtons = document.querySelectorAll('#foos-to button');
+  const btnDeuce = document.getElementById('foos-deuce');
+  function showRules() {
+    toButtons.forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.to === winTo)));
+    btnDeuce.textContent = deuce ? 'Deuce on' : 'Deuce off';
+    btnDeuce.setAttribute('aria-pressed', String(deuce));
+    document.getElementById('foos-to-text').textContent = winTo;
+    document.getElementById('foos-deuce-text').textContent = deuce ? ' (with deuce: by two clear goals)' : '';
+  }
+  function saveRules() {
+    try { localStorage.setItem('foos-to', String(winTo)); localStorage.setItem('foos-deuce', deuce ? '1' : '0'); } catch (e) {}
+    net.settings();
+    showRules();
+  }
+  // durante una partita le regole restano quelle con cui è iniziata
+  function lockRules(on) {
+    for (const b of [...toButtons, btnDeuce]) {
+      b.disabled = on;
+      b.title = on ? 'You can change this when the match is over' : b === btnDeuce ? 'At a tie one goal from the end, you must win by two' : '';
+    }
+  }
+  toButtons.forEach(b => b.addEventListener('click', () => { winTo = +b.dataset.to; saveRules(); }));
+  btnDeuce.addEventListener('click', () => { deuce = !deuce; saveRules(); });
+  showRules();
+
+  // schermo intero: quello vero dove c'è, altrimenti (iPhone) il blocco copre la pagina
+  const box = document.getElementById('foos');
+  const btnFull = document.getElementById('foos-full');
+  const realFull = !!(box.requestFullscreen || box.webkitRequestFullscreen);
+  let fakeFull = null;                       // segnaposto per rimettere il blocco al suo posto
+  const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+  function showFull() {
+    const on = fsElement() === box || !!fakeFull;
+    btnFull.textContent = on ? 'Exit full screen' : 'Full screen';
+    btnFull.setAttribute('aria-pressed', String(on));
+  }
+  function fakeEnter() {
+    // fuori dal contenitore del sito: il suo filtro (dark mode) romperebbe position: fixed
+    fakeFull = document.createComment('foos');
+    box.before(fakeFull);
+    document.body.appendChild(box);
+    box.classList.add('foos-full');
+    document.documentElement.style.overflow = 'hidden';
+    showFull();
+  }
+  function enterFull() {
+    if (!realFull) { fakeEnter(); return; }
+    const req = box.requestFullscreen || box.webkitRequestFullscreen;
+    Promise.resolve(req.call(box)).then(() => {
+      // sul telefono, se si può, gira in orizzontale
+      if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
+    }).catch(fakeEnter);                      // il browser rifiuta: uso il ripiego
+  }
+  function exitFull() {
+    if (fakeFull) {
+      box.classList.remove('foos-full');
+      fakeFull.replaceWith(box);
+      fakeFull = null;
+      document.documentElement.style.overflow = '';
+      showFull();
+    } else if (fsElement()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  }
+  btnFull.addEventListener('click', () => {
+    if (fsElement() === box || fakeFull) exitFull(); else enterFull();
+    if (lastInput === 'key') canvas.focus({ preventScroll: true });
+  });
+  document.addEventListener('fullscreenchange', showFull);
+  document.addEventListener('webkitfullscreenchange', showFull);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && fakeFull) exitFull(); });
+
+  // ---------- disegno ----------
+  const cam = { x: W / 2, y: H / 2, z: 1 };
+  let cw = 0, ch = 0, dpr = 1, unit = 1;
+
+  function resize() {
+    const r = canvas.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cw = Math.max(1, Math.round(r.width * dpr));
+    ch = Math.max(1, Math.round(r.width * VH / VW * dpr));
+    canvas.width = cw; canvas.height = ch;
+    unit = cw / VW;
+  }
+  new ResizeObserver(resize).observe(canvas);
+  resize();
+
+  // grana di pellicola precalcolata
+  const grain = document.createElement('canvas');
+  grain.width = grain.height = 256;
+  {
+    const g = grain.getContext('2d'), img = g.createImageData(256, 256);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = Math.random() * 255;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = Math.random() < 0.5 ? 0 : 255;
+    }
+    g.putImageData(img, 0, 0);
+  }
+
+  function applyCam(cx, cy, z) {
+    const s = unit * z;
+    ctx.setTransform(s, 0, 0, s, cw / 2 - cx * s, ch / 2 - cy * s);
+  }
+
+  function rr(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h);
+  }
+
+  function drawTable(st) {
+    // fuori campo
+    ctx.fillStyle = PAPER;
+    ctx.fillRect(-MX - 400, -MY - 400, VW + 800, VH + 800);
+
+    drawBands();
+
+    // porte
+    ctx.lineWidth = 3; ctx.strokeStyle = INK;
+    for (const side of [0, 1]) {
+      const x0 = side ? W : -GOAL_DEPTH;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x0, H / 2 - GOAL, GOAL_DEPTH, GOAL * 2); ctx.clip();
+      ctx.strokeStyle = '#c8c8c8'; ctx.lineWidth = 1;
+      for (let k = -GOAL * 2; k < GOAL * 2 + GOAL_DEPTH; k += 12) {
+        ctx.beginPath(); ctx.moveTo(x0 + k, H / 2 - GOAL); ctx.lineTo(x0 + k + GOAL * 2, H / 2 + GOAL); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x0 + k, H / 2 + GOAL); ctx.lineTo(x0 + k + GOAL * 2, H / 2 - GOAL); ctx.stroke();
+      }
+      ctx.restore();
+      ctx.strokeStyle = INK; ctx.lineWidth = 3;
+      ctx.beginPath();
+      const xb = side ? W + GOAL_DEPTH : -GOAL_DEPTH, xe = side ? W : 0;
+      ctx.moveTo(xe, H / 2 - GOAL); ctx.lineTo(xb, H / 2 - GOAL); ctx.lineTo(xb, H / 2 + GOAL); ctx.lineTo(xe, H / 2 + GOAL);
+      ctx.stroke();
+    }
+
+    // campo
+    ctx.lineWidth = 4;
+    ctx.strokeRect(0, 0, W, H);
+    ctx.fillStyle = PAPER; ctx.fillRect(-2, H / 2 - GOAL + 2, 4, GOAL * 2 - 4);
+    ctx.fillRect(W - 2, H / 2 - GOAL + 2, 4, GOAL * 2 - 4);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, 88, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, 4, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.fill();
+    ctx.strokeRect(0, H / 2 - 190, 150, 380);
+    ctx.strokeRect(W - 150, H / 2 - 190, 150, 380);
+    ctx.strokeRect(0, H / 2 - 120, 55, 240);
+    ctx.strokeRect(W - 55, H / 2 - 120, 55, 240);
+    for (const s of [0, 1]) {
+      ctx.beginPath();
+      ctx.arc(s ? W - 150 : 150, H / 2, 70, s ? Math.PI / 2 : -Math.PI / 2, s ? Math.PI * 1.5 : Math.PI / 2);
+      ctx.stroke();
+    }
+    // spondine triangolari negli angoli: piano inclinato, righe parallele all'ipotenusa come curve di livello
+    for (const [x0, y0, sx, sy] of [[0, 0, 1, 1], [W, 0, -1, 1], [0, H, 1, -1], [W, H, -1, -1]]) {
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + sx * CORNER_X, y0); ctx.lineTo(x0, y0 + sy * CORNER_Y); ctx.closePath();
+      ctx.fillStyle = '#e6e6e6'; ctx.fill();
+      ctx.strokeStyle = '#bdbdbd'; ctx.lineWidth = 1.2;
+      for (let f = 16 / CORNER_X; f < 1; f += 16 / CORNER_X) {
+        ctx.beginPath(); ctx.moveTo(x0 + sx * CORNER_X * f, y0); ctx.lineTo(x0, y0 + sy * CORNER_Y * f); ctx.stroke();
+      }
+      ctx.strokeStyle = '#8a8a8a'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x0 + sx * CORNER_X, y0); ctx.lineTo(x0, y0 + sy * CORNER_Y); ctx.stroke();
+    }
+    ctx.strokeStyle = INK; ctx.lineWidth = 4;
+    for (const x of [0, W]) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H / 2 - GOAL); ctx.moveTo(x, H / 2 + GOAL); ctx.lineTo(x, H); ctx.stroke();
+    }
+    ctx.lineWidth = 2.5;
+
+    // fori di servizio
+    for (const y of [0, H]) { ctx.beginPath(); ctx.arc(W / 2, y, 9, 0, Math.PI * 2); ctx.fillStyle = PAPER; ctx.fill(); ctx.stroke(); }
+
+    // ombra della palla sotto le aste
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.beginPath(); ctx.ellipse(st.bx + 5, st.by + 6, R, R * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+
+    // aste e maniglie
+    rods.forEach((rod, i) => {
+      const off = st.off[i];
+      const handleBottom = rod.team === 0;      // il visitatore tiene le maniglie in basso
+      const isActive = !!st.act && st.act.includes(i);
+      ctx.strokeStyle = isActive ? INK : ROD; ctx.lineWidth = isActive ? 6 : 5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(rod.x, -MY - 400); ctx.lineTo(rod.x, H + MY + 400); ctx.stroke();
+      ctx.lineCap = 'butt';
+      const hy = handleBottom ? H + MY / 2 + 6 : -MY / 2 - 6;
+      ctx.fillStyle = rod.team === 0 ? INK : BLUE;
+      if (isActive) { rr(rod.x - 13, hy - 30, 26, 60, 9); ctx.fill(); }
+      else { rr(rod.x - 10, hy - 24, 20, 48, 7); ctx.fill(); }
+    });
+    // il campo copre le aste fuori dalle sponde? no: le aste attraversano le sponde, si vedono le sponde sopra
+    ctx.strokeStyle = INK; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(W, 0); ctx.moveTo(0, H); ctx.lineTo(W, H); ctx.stroke();
+
+    // palla (sotto i giocatori quando li tocca: in un calcio balilla gli omini sono sopra)
+    drawBall(st.bx, st.by);
+
+    // omini
+    rods.forEach((rod, i) => {
+      for (let j = 0; j < rod.n; j++) {
+        const y = H / 2 + st.off[i] + (j - (rod.n - 1) / 2) * rod.s;
+        drawFigure(rod.x, y, rod.d, st.ang[i], rod.team === 0 ? INK : BLUE);
+      }
+    });
+  }
+
+  function drawBands() {
+    // le spondine: fascia tratteggiata dove il piano sale verso il bordo
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, W, BAND); ctx.rect(0, H - BAND, W, BAND);
+    ctx.rect(0, BAND, BAND * 0.7, H / 2 - GOAL - BAND);
+    ctx.rect(0, H / 2 + GOAL, BAND * 0.7, H / 2 - GOAL - BAND);
+    ctx.rect(W - BAND * 0.7, BAND, BAND * 0.7, H / 2 - GOAL - BAND);
+    ctx.rect(W - BAND * 0.7, H / 2 + GOAL, BAND * 0.7, H / 2 - GOAL - BAND);
+    ctx.fillStyle = '#f3f3f3'; ctx.fill();
+    ctx.clip();
+    ctx.strokeStyle = '#cfcfcf'; ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let k = -H; k < W + H; k += 14) { ctx.moveTo(k, 0); ctx.lineTo(k + H, H); }
+    ctx.stroke();
+    ctx.restore();
+    // dove inizia la salita
+    ctx.save();
+    ctx.setLineDash([10, 8]); ctx.strokeStyle = '#a8a8a8'; ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0, BAND); ctx.lineTo(W, BAND); ctx.moveTo(0, H - BAND); ctx.lineTo(W, H - BAND);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBall(x, y) {
+    ctx.fillStyle = PAPER; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = INK;
+    ctx.beginPath(); ctx.arc(x - 3, y - 2, 4, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawFigure(x, y, d, ang, color) {
+    const fx = d * 36 * ang;
+    ctx.fillStyle = color;
+    // gambe: dall'asta al piede, si allungano quando l'omino ruota
+    rr(Math.min(x, x + fx) - 5, y - 11, Math.abs(fx) + 10, 22, 5); ctx.fill();
+    rr(x + fx - 7, y - 15, 14, 30, 6); ctx.fill();
+    // corpo che ruota attorno all'asta: si accorcia e la testa va indietro
+    const squash = 1 - 0.35 * Math.abs(ang);
+    rr(x - 10 * squash - fx * 0.15, y - 25, 20 * squash, 50, 9); ctx.fill();
+    ctx.fillStyle = PAPER;
+    ctx.fillRect(x - 1.3 - fx * 0.15, y - 25, 2.6, 50); // l'asta che passa nel corpo
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x - fx * 0.45, y, 9.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = PAPER; ctx.lineWidth = 2; ctx.stroke();
+  }
+
+  function liveState() {
+    return { bx: ball.x, by: ball.y, off: rods.map(r => r.off), ang: rods.map(r => r.ang), act: human && mode === 'play' ? PAIRS[pairName].map(r => r.i) : [] };
+  }
+
+  // scia della palla nel gioco live
+  const trail = [];
+  function drawTrail() {
+    for (let k = 0; k < trail.length; k++) {
+      const p = trail[k], a = (k + 1) / trail.length;
+      ctx.fillStyle = `rgba(0,0,0,${0.08 * a})`;
+      ctx.beginPath(); ctx.arc(p[0], p[1], R * (0.5 + 0.5 * a), 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function screenSpace() { ctx.setTransform(1, 0, 0, 1, 0, 0); }
+  function px(v) { return v * unit; }   // unità mondo → pixel canvas
+  function font(size, weight = '') { ctx.font = `${weight} ${Math.round(px(size))}px 'Courier New', monospace`; }
+
+  function drawGrain(alpha) {
+    screenSpace();
+    ctx.globalAlpha = alpha;
+    const ox = Math.random() * 256, oy = Math.random() * 256;
+    const pat = ctx.createPattern(grain, 'repeat');
+    ctx.translate(-ox, -oy);
+    ctx.fillStyle = pat;
+    ctx.fillRect(ox, oy, cw, ch);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawVignette(strength) {
+    screenSpace();
+    const g = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * 0.3, cw / 2, ch / 2, Math.hypot(cw, ch) * 0.6);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, `rgba(0,0,0,${strength})`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch);
+  }
+
+  function drawLetterbox(k) {
+    screenSpace();
+    const h = ch * 0.12 * k;
+    ctx.fillStyle = INK;
+    ctx.fillRect(0, 0, cw, h);
+    ctx.fillRect(0, ch - h, cw, h);
+    return h;
+  }
+
+  function drawSlate(closeK) {
+    // ciak: closeK 0 = aperto, 1 = chiuso
+    screenSpace();
+    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    ctx.fillRect(0, 0, cw, ch);
+    const s = unit;
+    const w = 520 * s, h = 300 * s;
+    const x = (cw - w) / 2, y = (ch - h) / 2 + 26 * s;
+    ctx.fillStyle = INK;
+    rr(x, y, w, h, 10 * s); ctx.fill();
+    // braccio del ciak
+    const armH = 46 * s;
+    ctx.save();
+    ctx.translate(x, y - 4 * s);
+    ctx.rotate(-0.42 * (1 - closeK));
+    ctx.translate(0, -armH);
+    ctx.fillStyle = INK; ctx.fillRect(0, 0, w, armH);
+    ctx.beginPath(); ctx.rect(0, 0, w, armH); ctx.clip();
+    ctx.fillStyle = PAPER;
+    for (let k = -1; k < 9; k++) {
+      ctx.beginPath();
+      ctx.moveTo(k * 70 * s, armH); ctx.lineTo(k * 70 * s + 35 * s, armH);
+      ctx.lineTo(k * 70 * s + 70 * s, 0); ctx.lineTo(k * 70 * s + 35 * s, 0);
+      ctx.fill();
+    }
+    ctx.restore();
+    // righe
+    ctx.strokeStyle = PAPER; ctx.lineWidth = Math.max(1, 1.5 * s);
+    const row = (yy) => { ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x + w, yy); ctx.stroke(); };
+    row(y + 100 * s); row(y + 200 * s);
+    ctx.beginPath(); ctx.moveTo(x + w / 2, y + 100 * s); ctx.lineTo(x + w / 2, y + 200 * s); ctx.stroke();
+    ctx.fillStyle = PAPER; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    font(22); ctx.fillText('production', x + 22 * s, y + 30 * s);
+    font(38, 'bold'); ctx.fillText('Subotto', x + 22 * s, y + 68 * s);
+    font(22); ctx.fillText('scene', x + 22 * s, y + 124 * s); ctx.fillText('take', x + w / 2 + 22 * s, y + 124 * s);
+    font(46, 'bold'); ctx.fillText('1', x + 22 * s, y + 168 * s); ctx.fillText(String(take), x + w / 2 + 22 * s, y + 168 * s);
+    font(22); ctx.fillText(`You vs Francesco, ${diffName}`, x + 22 * s, y + 230 * s);
+    font(22); ctx.fillText(`First to ${winTo}${deuce ? ' with deuce' : ''}. ${human ? 'Action!' : 'Click to play'}`, x + 22 * s, y + 266 * s);
+  }
+
+  function drawLeader(t) {
+    // coda di pellicola: 3, 2, 1 con il settore che gira
+    screenSpace();
+    const step = 0.42;
+    const n = 3 - Math.floor(t / step);
+    const p = (t % step) / step;
+    ctx.fillStyle = '#b9b9b9'; ctx.fillRect(0, 0, cw, ch);
+    const cx = cw / 2, cy = ch / 2, r = Math.min(cw, ch) * 0.36;
+    ctx.fillStyle = '#8d8d8d';
+    ctx.beginPath(); ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, Math.hypot(cw, ch), -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = INK; ctx.lineWidth = Math.max(1, 2 * unit);
+    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(cw, cy); ctx.moveTo(cx, 0); ctx.lineTo(cx, ch); ctx.stroke();
+    ctx.lineWidth = Math.max(2, 5 * unit);
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = Math.max(1, 2 * unit);
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.82, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    font(300, 'bold'); ctx.fillText(String(Math.max(1, n)), cx, cy + px(10));
+    drawGrain(0.16);
+    drawVignette(0.5);
+  }
+
+  function drawCaption(text, sub, barH) {
+    screenSpace();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = PAPER;
+    font(34, 'bold'); ctx.fillText(text, cw / 2, ch - barH / 2 - (sub ? px(14) : 0));
+    if (sub) { font(22); ctx.fillText(sub, cw / 2, ch - barH / 2 + px(20)); }
+  }
+
+  function scoreLine() { return `You ${score[0]} : ${score[1]} Francesco`; }
+
+  function render(dt) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = PAPER; ctx.fillRect(0, 0, cw, ch);
+
+    if (mode === 'leader') { drawLeader(modeT); return; }
+
+    if (mode === 'replay') {
+      const t = goalClock - REPLAY_BEFORE + modeT * REPLAY_SPEED;
+      const st = frameAt(t);
+      if (!st) return;
+      const prog = modeT * REPLAY_SPEED / (REPLAY_BEFORE + REPLAY_AFTER);
+      const zTarget = reduceMotion ? 1.3 : 1.55 + 0.55 * prog;
+      const follow = 1 - Math.exp(-dt * 3.2);
+      cam.x += (st.bx - cam.x) * follow; cam.y += (st.by - cam.y) * follow;
+      cam.z += (zTarget - cam.z) * follow;
+      const halfW = VW / 2 / cam.z, halfH = VH / 2 / cam.z;
+      const cx = Math.max(-MX + halfW, Math.min(W + MX - halfW, cam.x));
+      const cy = Math.max(-MY + halfH, Math.min(H + MY - halfH, cam.y));
+      const shake = reduceMotion ? 0 : (Math.random() - 0.5) * 1.2;
+      applyCam(cx + shake, cy, cam.z);
+      drawTable(st);
+      // pellicola: viraggio caldo, grana, vignetta, graffi
+      screenSpace();
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.fillStyle = `rgba(236,214,178,${0.55 + Math.random() * 0.05})`;
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.globalCompositeOperation = 'source-over';
+      drawGrain(0.13);
+      if (!reduceMotion && Math.random() < 0.3) {
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillRect(Math.random() * cw, 0, Math.max(1, dpr), ch);
+      }
+      drawVignette(0.55);
+      const bar = drawLetterbox(Math.min(1, modeT / 0.35));
+      ctx.fillStyle = PAPER; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      font(22); ctx.fillText(`replay  ${REPLAY_SPEED}x`, px(24), bar / 2);
+      ctx.textAlign = 'right'; ctx.fillText('click to skip', cw - px(24), bar / 2);
+      const who = (goalLabel ? `${goalLabel[0].toUpperCase()}${goalLabel.slice(1)} goal! ` : 'Goal! ') + (lastScorer === 0 ? 'You scored.' : 'Francesco scores.');
+      drawCaption(who, human ? scoreLine() + (deuceState() ? ` - ${deuceState()}` : '') : '', bar);
+      return;
+    }
+
+    applyCam(W / 2, H / 2, 1);
+    drawTrail();
+    drawTable(liveState());
+    if (trick && (mode === 'play' || mode === 'demo')) {
+      // il nome del trick, scritto vicino alla palla
+      ctx.globalAlpha = Math.min(1, (1.1 - trick.t) / 0.35);
+      ctx.fillStyle = trick.team === 0 ? INK : BLUE;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = "italic bold 30px 'Courier New', monospace";
+      const ty = clamp(trick.y - 52 - trick.t * 24, 30, H - 30);
+      ctx.lineWidth = 6; ctx.strokeStyle = PAPER; ctx.strokeText(trick.text, clamp(trick.x, 150, W - 150), ty);
+      ctx.fillText(trick.text, clamp(trick.x, 150, W - 150), ty);
+      ctx.globalAlpha = 1;
+    }
+
+    if (mode === 'goal') {
+      const k = Math.min(1, modeT / 0.3);
+      const bar = drawLetterbox(k);
+      if (bar > px(40)) drawCaption('Goal!', '', bar);
+    }
+
+    if (flash && (mode === 'play' || mode === 'demo')) {
+      screenSpace();
+      ctx.globalAlpha = Math.min(1, (1.2 - flash.t) / 0.3);
+      ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      font(30, 'bold');
+      const tw = ctx.measureText(flash.text).width + px(40);
+      ctx.fillStyle = PAPER; rr(cw / 2 - tw / 2, ch / 2 - px(30), tw, px(60), px(8)); ctx.fill();
+      ctx.strokeStyle = INK; ctx.lineWidth = Math.max(1, px(2)); ctx.stroke();
+      ctx.fillStyle = INK; ctx.fillText(flash.text, cw / 2, ch / 2);
+      ctx.globalAlpha = 1;
+    }
+
+    if (paused) {
+      screenSpace();
+      ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(0, 0, cw, ch);
+      ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      font(40, 'bold'); ctx.fillText('Paused', cw / 2, ch / 2 - px(24));
+      font(24); ctx.fillText('Click the table to keep playing', cw / 2, ch / 2 + px(26));
+    }
+
+    if (mode === 'demo') drawSlate(0);
+    if (mode === 'clap') {
+      const k = Math.min(1, modeT / 0.16);
+      drawSlate(k * k);
+    }
+
+    if (mode === 'fine') {
+      screenSpace();
+      const a = Math.min(1, modeT / 0.8);
+      ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, cw, ch);
+      ctx.globalAlpha = Math.min(1, Math.max(0, (modeT - 0.6) / 0.8));
+      ctx.fillStyle = PAPER; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `italic bold ${Math.round(px(150))}px Georgia, 'Times New Roman', serif`;
+      ctx.fillText('Fine', cw / 2, ch / 2 - px(40));
+      font(28);
+      const verdict = score[0] > score[1] ? 'You beat me. Respect.' : 'Francesco wins this one.';
+      ctx.fillText(`${scoreLine()}. ${verdict}`, cw / 2, ch / 2 + px(70));
+      font(22); ctx.fillText(`Click for take ${take + 1}`, cw / 2, ch / 2 + px(120));
+      if (playerName() === 'Anonymous') { font(18); ctx.fillText('Type your first name below the table to join the leaderboard', cw / 2, ch / 2 + px(160)); }
+      ctx.globalAlpha = 1;
+      drawGrain(0.08 * a);
+    }
+  }
+
+  // ---------- loop ----------
+  let last = performance.now(), acc = 0, visible = true, running = false;
+  const STEP = 1 / 240;
+
+  function update(dt) {
+    modeT += dt;
+    if (flash) { flash.t += dt; if (flash.t > 1.2) flash = null; }
+    if (trick) { trick.t += dt; if (trick.t > 1.1) trick = null; }
+
+    // controlli
+    const P = DIFF[diffName];
+    for (const rod of rods) {
+      if (rod.team === 1) ai(rod, P);
+      else if (!human) ai(rod, DIFF.medium);
+    }
+    if (human) controlHumanRods(dt);
+
+    // chi gioca da tastiera e clicca altrove mette in pausa
+    paused = mode === 'play' && lastInput === 'key' && !hasFocus;
+    const live = !paused && (mode === 'demo' || mode === 'play' || mode === 'goal' || mode === 'clap');
+    if (live) {
+      acc += Math.min(dt, 0.05);
+      while (acc >= STEP) { stepPhysics(STEP); clock += STEP; acc -= STEP; }
+      record();
+      trail.push([ball.x, ball.y]);
+      if (trail.length > 10 || Math.hypot(ball.vx, ball.vy) < 500) trail.shift();
+    }
+
+    if (mode === 'goal' && modeT > 0.9) { trail.length = 0; reduceMotion ? afterReplay() : setMode('leader'); }
+    if (mode === 'leader' && modeT > 1.26) startReplay();
+    if (mode === 'replay' && modeT * REPLAY_SPEED > REPLAY_BEFORE + REPLAY_AFTER) afterReplay();
+    if (mode === 'clap' && modeT > 0.9) { serve(Math.random() < 0.5 ? 0 : 1); setMode('play'); }
+  }
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    update(dt);
+    render(dt);
+    if (visible) requestAnimationFrame(frame); else running = false;
+  }
+  function start() { if (running) return; running = true; last = performance.now(); requestAnimationFrame(frame); }
+
+  new IntersectionObserver(es => {
+    visible = es[0].isIntersecting;
+    if (visible) start();
+  }).observe(canvas);
+
+  serve(0);
+  start();
+
+  // chiusura (pulsante Close o di nuovo la scheda): fuori dallo schermo intero, partita lasciata, si torna alla scena iniziale
+  function closeGame() {
+    exitFull();
+    net.leave();
+    hands.forEach((hd, h) => { hd.up = hd.down = false; handShootUp(h, true); });
+    for (const r of rods) { r.kt = -1; r.ang = 0; r.hold = false; r.plan = null; }
+    human = false;
+    score[0] = score[1] = 0;
+    elYou.textContent = '0'; elMe.textContent = '0';
+    canvas.classList.remove('playing');
+    lockRules(false);
+    elIntro.hidden = true; canvas.hidden = false;
+    flash = null; trick = null; trail.length = 0;
+    serve(0);
+    setMode('demo');
+  }
+  return { close: closeGame };
+}

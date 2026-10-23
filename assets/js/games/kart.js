@@ -1,0 +1,2360 @@
+// il gioco parte solo quando qualcuno apre la sua scheda: la home resta leggera
+
+function kartStart() {
+  const canvas = document.getElementById('kart-canvas');
+  if (!canvas) return;
+  const stage = document.getElementById('kart-stage');
+  const ctx = canvas.getContext('2d');
+  const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const RECORD = new URLSearchParams(location.search).get('record') === '1';
+  const INK = '#000', BLUE = '#0b47d1', PAPER = '#fff';
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const wrapAng = a => Math.atan2(Math.sin(a), Math.cos(a));
+
+  // ---------- pista ----------
+  // La forma segue il tracciato di un classico circuito dei kart racer (ricalcato da una mappa di 128x256 pixel,
+  // un punto ogni 6 pixel di strada); nomi, grafica e dettagli sono nostri. Il giro va in senso orario:
+  // partenza sul lungo rettilineo di destra verso l'alto, curva a sinistra, tornante a V verso destra, la grande
+  // curva circolare, le esse del tunnel, il lungo rettilineo, il tornante in basso, la curva a destra e le esse finali.
+  const TRACK_ID = 'circuit-1';
+  const MAP_SCALE = 27;             // unità del gioco per pixel della mappa: circa 14000 unità al giro
+  const MAP = [
+    [112, 127], [112, 121], [112, 115], [112, 110], [112, 104], [112, 98], [112, 92], [112, 86], [112, 80], [111, 74],
+    [110, 68], [108, 62], [104, 57], [99, 53], [93, 52], [87, 53], [82, 58],                     // Arnoldi Bend
+    [75, 62], [72, 67], [71, 72], [70, 77], [66, 80], [63, 77], [62, 71],                        // Newton Hairpin
+    [62, 66], [62, 60], [62, 54], [61, 48], [57, 43], [52, 38], [46, 36], [40, 35], [34, 37], [28, 40],
+    [23, 45], [20, 50], [18, 56], [18, 62], [19, 68], [22, 74], [26, 79],                        // Lanczos Loop
+    [29, 85], [29, 91], [27, 97], [24, 102], [21, 107], [21, 113], [23, 119], [27, 124], [30, 130], // Krylov Esses
+    [31, 136], [31, 142], [31, 148], [31, 154], [31, 160], [31, 166], [31, 172], [30, 178], [30, 184],
+    [30, 190], [30, 196], [30, 202], [30, 208], [31, 214], [34, 219], [39, 222], [45, 222], [50, 219],
+    [54, 214], [55, 208], [54, 202], [53, 196], [51, 190], [51, 184], [54, 178], [59, 175],       // Householder Hairpin, Givens Corner
+    [65, 175], [71, 175], [77, 175], [83, 174], [88, 171], [93, 169], [99, 170], [105, 171], [110, 168], // Jacobi Esses
+    [112, 163], [113, 157], [113, 151], [112, 145], [112, 139], [112, 133],
+  ];
+  // larghezza: circa 8 kart; un po' più stretta nelle esse
+  const widthAt = ([x, y]) => (x < 34 && y > 80 && y < 130) || (y > 160 && x > 75 && x < 111) ? 150 : 170;
+  // una passata di media mobile toglie i gradini dei pixel della mappa
+  const CTRL = MAP.map((q, i) => {
+    const a = MAP[(i + MAP.length - 1) % MAP.length], b = MAP[(i + 1) % MAP.length];
+    return [(a[0] + 2 * q[0] + b[0]) / 4 * MAP_SCALE, (a[1] + 2 * q[1] + b[1]) / 4 * MAP_SCALE, widthAt(q)];
+  });
+  // il punto di controllo più vicino a un punto della mappa
+  const at = (x, y) => MAP.reduce((b, q, i) => (Math.hypot(q[0] - x, q[1] - y) < Math.hypot(MAP[b][0] - x, MAP[b][1] - y) ? i : b), 0);
+  const CORNERS = [[at(97, 53), 'Arnoldi Bend'], [at(68, 80), 'Newton Hairpin'], [at(22, 46), 'Lanczos Loop'],
+    [at(23, 104), 'Krylov Esses'], [at(42, 222), 'Householder Hairpin'], [at(53, 179), 'Givens Corner'], [at(93, 167), 'Jacobi Esses']];
+  const HAIRPIN = at(74, 63);       // i cartelli di frenata 3, 2, 1 prima del tornante a V
+  // nel tornante a V i due lati sono vicini e non c'è muro in mezzo: si può tagliare sull'erba, ma conviene col turbo
+  const RUNOFF = 60;                // erba tra il bordo pista e il muro di gomme
+  const KR = 13;                    // raggio del kart contro i muri
+
+  // Catmull-Rom centripeta (niente riccioli dove i punti sono irregolari)
+  function centripetal(p0, p1, p2, p3, t) {
+    const d = (a, b) => Math.pow(Math.hypot(b[0] - a[0], b[1] - a[1]), 0.5) || 1e-4;
+    const t0 = 0, t1 = t0 + d(p0, p1), t2 = t1 + d(p1, p2), t3 = t2 + d(p2, p3);
+    const u = t1 + (t2 - t1) * t;
+    const L = (a, b, ta, tb) => a.map((v, i) => ((tb - u) * v + (u - ta) * b[i]) / (tb - ta));
+    const A1 = L(p0, p1, t0, t1), A2 = L(p1, p2, t1, t2), A3 = L(p2, p3, t2, t3);
+    return L(L(A1, A2, t0, t2), L(A2, A3, t1, t3), t1, t2);
+  }
+
+  // la pista ricampionata a passo costante: posizione, tangente, normale (verso destra di chi guida), curvatura
+  const T = (() => {
+    const n = CTRL.length, dense = [], ctrlAt = [];
+    for (let i = 0; i < n; i++) {
+      ctrlAt.push(dense.length);
+      const p0 = CTRL[(i + n - 1) % n], p1 = CTRL[i], p2 = CTRL[(i + 1) % n], p3 = CTRL[(i + 2) % n];
+      for (let k = 0; k < 60; k++) dense.push(centripetal(p0, p1, p2, p3, k / 60));
+    }
+    const m = dense.length, cum = [0];
+    for (let i = 1; i <= m; i++) {
+      const a = dense[i - 1], b = dense[i % m];
+      cum.push(cum[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1]));
+    }
+    const L = cum[m], N = Math.round(L / 6), ds = L / N;
+    const x = new Float64Array(N), y = new Float64Array(N), hw = new Float64Array(N);
+    for (let i = 0, j = 0; i < N; i++) {
+      const s = i * ds;
+      while (cum[j + 1] < s) j++;
+      const u = (s - cum[j]) / (cum[j + 1] - cum[j]), a = dense[j], b = dense[(j + 1) % m];
+      x[i] = a[0] + (b[0] - a[0]) * u; y[i] = a[1] + (b[1] - a[1]) * u; hw[i] = (a[2] + (b[2] - a[2]) * u) / 2;
+    }
+    const tx = new Float64Array(N), ty = new Float64Array(N), nx = new Float64Array(N), ny = new Float64Array(N), k = new Float64Array(N);
+    for (let i = 0; i < N; i++) {
+      const a = (i + N - 1) % N, b = (i + 1) % N, l = Math.hypot(x[b] - x[a], y[b] - y[a]);
+      tx[i] = (x[b] - x[a]) / l; ty[i] = (y[b] - y[a]) / l;
+      nx[i] = -ty[i]; ny[i] = tx[i];
+    }
+    for (let i = 0; i < N; i++) {
+      const a = (i + N - 1) % N, b = (i + 1) % N;
+      k[i] = (tx[a] * ty[b] - ty[a] * tx[b]) / (2 * ds);       // > 0: curva a destra
+    }
+    return { N, L, ds, x, y, hw, tx, ty, nx, ny, k, ctrlS: ctrlAt.map(d => Math.round(cum[d] / ds) % N) };
+  })();
+
+  // griglia per trovare in fretta il punto di pista più vicino
+  const G = 110, grid = new Map();
+  const cellKey = (a, b) => (a + 1000) * 4096 + (b + 1000);
+  for (let i = 0; i < T.N; i++) {
+    const key = cellKey(Math.floor(T.x[i] / G), Math.floor(T.y[i] / G));
+    if (!grid.has(key)) grid.set(key, []);
+    grid.get(key).push(i);
+  }
+  // proiezione sulla linea centrale: indice, ascissa s, scostamento laterale d (> 0 a destra), mezza larghezza
+  function project(px, py, o) {
+    const gx = Math.floor(px / G), gy = Math.floor(py / G);
+    let bi = -1, bd = Infinity;
+    for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) {
+      const c = grid.get(cellKey(gx + a, gy + b));
+      if (!c) continue;
+      for (const i of c) {
+        const dx = px - T.x[i], dy = py - T.y[i], dd = dx * dx + dy * dy;
+        if (dd < bd) { bd = dd; bi = i; }
+      }
+    }
+    if (bi < 0) for (let i = 0; i < T.N; i++) {
+      const dx = px - T.x[i], dy = py - T.y[i], dd = dx * dx + dy * dy;
+      if (dd < bd) { bd = dd; bi = i; }
+    }
+    const N = T.N;
+    let a = bi, b = (bi + 1) % N;
+    const along = (a, b) => ((px - T.x[a]) * (T.x[b] - T.x[a]) + (py - T.y[a]) * (T.y[b] - T.y[a])) / (T.ds * T.ds);
+    let u = along(a, b);
+    if (u < 0) { a = (bi + N - 1) % N; b = bi; u = along(a, b); }
+    u = clamp(u, 0, 1);
+    const qx = T.x[a] + (T.x[b] - T.x[a]) * u, qy = T.y[a] + (T.y[b] - T.y[a]) * u;
+    const nx = T.nx[a] + (T.nx[b] - T.nx[a]) * u, ny = T.ny[a] + (T.ny[b] - T.ny[a]) * u;
+    o.i = a; o.s = (a + u) * T.ds;
+    o.d = (px - qx) * nx + (py - qy) * ny;
+    o.hw = T.hw[a] + (T.hw[b] - T.hw[a]) * u;
+    o.dist = Math.hypot(px - qx, py - qy);
+    return o;
+  }
+  const P = {}, Q = {};
+  // dove c'è davvero il muro di gomme, per ogni punto della pista e per i due lati (indice 0 sinistra, 1 destra):
+  // dove due tratti sono così vicini che l'erba li unisce le gomme non ci sono, e allora nemmeno il muro
+  const WALL = [-1, 1].map(side => {
+    const w = new Uint8Array(T.N);
+    for (let i = 0; i < T.N; i++) {
+      const off = T.hw[i] + RUNOFF + 5;
+      w[i] = project(T.x[i] + T.nx[i] * side * off, T.y[i] + T.ny[i] * side * off, Q).dist >= off - 2 ? 1 : 0;
+    }
+    return w;
+  });
+
+  // pannelli turbo (frecce blu sull'asfalto): dopo il punto di controllo ci, spostati di d dal centro
+  // dopo il tornante a V, a metà del lungo rettilineo, sul ponte prima del traguardo
+  const PADS = [[at(62, 60), 0], [at(31, 160), -40], [at(113, 154), 30]].map(([ci, d]) => ({ s: T.ctrlS[ci] * T.ds, len: 76, d, w: 28 }));
+
+  // ---------- disegno della pista (una volta sola) ----------
+  const geo = (() => {
+    const N = T.N, pt = (i, off) => [T.x[i] + T.nx[i] * off, T.y[i] + T.ny[i] * off];
+    const surface = new Path2D();
+    for (let i = 0; i < N; i++) {
+      const j = (i + 1) % N, a = pt(i, -T.hw[i]), b = pt(j, -T.hw[j]), c = pt(j, T.hw[j]), d = pt(i, T.hw[i]);
+      surface.moveTo(a[0], a[1]); surface.lineTo(b[0], b[1]); surface.lineTo(c[0], c[1]); surface.lineTo(d[0], d[1]); surface.closePath();
+    }
+    const edges = new Path2D();
+    for (const side of [-1, 1]) {
+      for (let i = 0; i <= N; i++) { const p = pt(i % N, side * T.hw[i % N]); i ? edges.lineTo(p[0], p[1]) : edges.moveTo(p[0], p[1]); }
+    }
+    // cordoli dove la curva è stretta: blocchi bianchi e neri a cavallo del bordo
+    const kerbW = new Path2D(), kerbB = new Path2D();
+    for (let i = 0; i < N; i++) {
+      let ks = 0;
+      for (let q = -6; q <= 6; q++) ks += T.k[(i + q + N) % N];
+      if (Math.abs(ks / 13) < 1 / 330) continue;
+      const j = (i + 1) % N;
+      for (const side of [-1, 1]) {
+        const a = pt(i, side * (T.hw[i] - 4)), b = pt(j, side * (T.hw[j] - 4)), c = pt(j, side * (T.hw[j] + 9)), d = pt(i, side * (T.hw[i] + 9));
+        const path = Math.floor(i / 3) % 2 ? kerbB : kerbW;
+        path.moveTo(a[0], a[1]); path.lineTo(b[0], b[1]); path.lineTo(c[0], c[1]); path.lineTo(d[0], d[1]); path.closePath();
+      }
+    }
+    // muri di gomme
+    const tyres = new Path2D(), tyreList = [];
+    for (const side of [-1, 1]) {
+      let acc = 0;
+      for (let i = 0; i < N; i++) {
+        acc += T.ds * (1 - side * T.k[i] * (T.hw[i] + RUNOFF));
+        if (acc < 15) continue;
+        acc = 0;
+        const off = T.hw[i] + RUNOFF + 5, p = pt(i, side * off);
+        if (!WALL[side > 0 ? 1 : 0][i]) continue;
+        tyres.moveTo(p[0] + 6.5, p[1]); tyres.arc(p[0], p[1], 6.5, 0, Math.PI * 2);
+        tyreList.push(p);
+      }
+    }
+    // traguardo a scacchi e piazzole di partenza
+    const checker = new Path2D(), hw0 = T.hw[0], sq = hw0 * 2 / 12;
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 12; c++) {
+      if ((r + c) % 2) continue;
+      const along = (r - 1) * sq, across = -hw0 + c * sq;
+      const x0 = T.x[0] + T.tx[0] * along + T.nx[0] * across, y0 = T.y[0] + T.ty[0] * along + T.ny[0] * across;
+      checker.moveTo(x0, y0);
+      checker.lineTo(x0 + T.tx[0] * sq, y0 + T.ty[0] * sq);
+      checker.lineTo(x0 + T.tx[0] * sq + T.nx[0] * sq, y0 + T.ty[0] * sq + T.ny[0] * sq);
+      checker.lineTo(x0 + T.nx[0] * sq, y0 + T.ny[0] * sq);
+      checker.closePath();
+    }
+    const slots = new Path2D();
+    for (const side of [-1, 1]) {
+      const g = gridPose(side);
+      const c = Math.cos(g.a), s = Math.sin(g.a);
+      const P2 = (f, l) => [g.x + c * f - s * l, g.y + s * f + c * l];
+      const p = [P2(24, -16), P2(-22, -16), P2(-22, 16), P2(24, 16)];
+      slots.moveTo(p[0][0], p[0][1]); for (const q of p.slice(1)) slots.lineTo(q[0], q[1]);
+    }
+    // cartelli di frenata prima del tornante: 3, 2, 1
+    const boards = [];
+    const hp = T.ctrlS[HAIRPIN];
+    for (let b = 1; b <= 3; b++) {
+      const i = (hp - Math.round(b * 70 / T.ds) + N) % N, p = pt(i, T.hw[i] + 24);
+      boards.push([p[0], p[1], String(b)]);
+    }
+    // nomi delle curve, sull'erba all'esterno
+    const names = CORNERS.map(([ci, name]) => {
+      const i = T.ctrlS[ci];
+      let ks = 0;
+      for (let q = -20; q <= 20; q++) ks += T.k[(i + q + N) % N];
+      const side = ks > 0 ? -1 : 1, p = pt(i, side * (T.hw[i] + RUNOFF + 46));
+      return [p[0], p[1], name];
+    });
+    // pannelli turbo: frecce blu
+    const pads = new Path2D();
+    for (const p of PADS) {
+      for (let a = 0; a < p.len; a += 22) {
+        const at = (u, v) => { const i = Math.round((p.s + u) / T.ds) % N; return [T.x[i] + T.nx[i] * (p.d + v), T.y[i] + T.ny[i] * (p.d + v)]; };
+        const q = [at(a, -p.w), at(a + 12, 0), at(a, p.w), at(a + 8, p.w), at(a + 20, 0), at(a + 8, -p.w)];
+        pads.moveTo(q[0][0], q[0][1]); for (const r of q.slice(1)) pads.lineTo(r[0], r[1]); pads.closePath();
+      }
+    }
+    const line = new Path2D();
+    for (let i = 0; i <= N; i += 4) { const k = i % N; i ? line.lineTo(T.x[k], T.y[k]) : line.moveTo(T.x[k], T.y[k]); }
+    line.closePath();
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < N; i++) { x0 = Math.min(x0, T.x[i]); x1 = Math.max(x1, T.x[i]); y0 = Math.min(y0, T.y[i]); y1 = Math.max(y1, T.y[i]); }
+    const m = 160;
+    return { surface, edges, kerbW, kerbB, tyres, checker, slots, boards, names, pads, line, tyreList, box: [x0 - m, y0 - m, x1 + m, y1 + m] };
+  })();
+
+  // piazzola di partenza: side -1 a sinistra (visitatore), +1 a destra (fantasma e registrazione)
+  function gridPose(side) {
+    const i = (T.N - Math.round(64 / T.ds)) % T.N;
+    return { x: T.x[i] + T.nx[i] * side * 36, y: T.y[i] + T.ny[i] * side * 36, a: Math.atan2(T.ty[i], T.tx[i]) };
+  }
+
+  // ---------- fisica del kart ----------
+  // Guida da kart arcade: in curva non si frena quasi mai. La derapata parte con un saltello, ha un verso fisso
+  // e segue un arco che lo sterzo stringe o allarga; la velocità resta quasi piena. Sterzando verso l'interno
+  // il mini-turbo si carica più in fretta (5 contro 2 unità a fotogramma, come nei kart racer classici).
+  const STEP = 1 / 120, HZ = 20, REC_EVERY = 120 / HZ, LAPS = 3;
+  // velocità massima più bassa su una pista più grande; accelerazione esponenziale (scatto pronto,
+  // poi gli ultimi km/h arrivano piano: il 90% in 1.7 s)
+  const VMAX = 400, ACC_K = 1.35, BRAKE = 1100, REV = 150, STEER = 2.4;
+  // derapata esterna: il muso entra subito nella curva, il kart scivola fuori e l'arco è largo;
+  // si stringe sterzando verso l'interno, e controsterzando si apre fin quasi ad andare dritti
+  const DRIFT_IN = 2.2, DRIFT_MID = 1.2, DRIFT_OUT = 0.3;     // rad/s dell'arco: sterzo dentro, neutro, fuori
+  const DRIFT_ANGLE = 0.5, DRIFT_ANGLE_STEER = 0.14;            // muso girato dentro la curva: più se si stringe, meno se si controsterza
+  const DRIFT_SWING = 0.45;                                     // secondi in cui l'arco si chiude dopo l'ingresso
+  // in derapata lo sterzo non comanda l'arco di colpo: lo sposta piano (a fondo in 0.4 s) e, lasciato,
+  // torna al neutro ancora più piano (0.7 s); così anche con la tastiera l'arco si regola di continuo
+  const DRIFT_STEER_RATE = 2.5, DRIFT_STEER_BACK = 1.4;
+  const CHARGE = [270, 570, 870];                               // carica per mini, super, ultra turbo
+  const BOOST = [0, 0.62, 1.2, 1.8];                            // secondi di turbo per livello
+  const HOP = 0.24;                                             // durata del saltello
+
+  function newKart(side) {
+    const g = gridPose(side);
+    const k = { x: g.x, y: g.y, a: g.a, va: g.a, v: 0, drift: 0, charge: 0, boost: 0, off: false, kerb: false, slip: 0, hit: 0,
+      prog: 0, lastS: 0, items: 3, itemHeld: false, hopT: 9, armed: false, driftHeld: false, stall: 0, dSteer: 0 };
+    project(k.x, k.y, P);
+    k.lastS = P.s; k.prog = P.s > T.L / 2 ? P.s - T.L : P.s;
+    return k;
+  }
+  const driftLevel = k => (k.charge >= CHARGE[2] ? 3 : k.charge >= CHARGE[1] ? 2 : k.charge >= CHARGE[0] ? 1 : 0);
+  // segnale per il disegno e per i fantasmi: 0 niente, 1-4 derapata (livello 0-3), 5 turbo
+  const kartFlags = k => (k.boost > 0 ? 5 : k.drift ? 1 + driftLevel(k) : 0);
+  const speedTurn = v => Math.min(1, Math.abs(v) / 90);
+
+  function stepKart(k, inp, dt) {
+    project(k.x, k.y, P);
+    // sull'erba si rallenta, ma non col turbo
+    // il cordolo conta come pista: si è fuori solo quando anche le ruote interne sono sull'erba
+    k.off = Math.abs(P.d) > P.hw + 12; k.kerb = !k.off && Math.abs(P.d) > P.hw - 10;
+    const off = k.off && k.boost <= 0;
+    if (k.boost > 0) k.boost -= dt;
+    if (k.hit > 0) k.hit -= dt;
+    if (k.stall > 0) k.stall -= dt;
+    k.hopT += dt;
+    for (const p of PADS) {
+      let du = P.s - p.s;
+      if (du < 0) du += T.L;
+      if (du < p.len && Math.abs(P.d - p.d) < p.w) { if (k.boost < 0.3) sfx('boost'); k.boost = Math.max(k.boost, 0.8); }
+    }
+    // turbo a scorta: tre per gara
+    if (inp.item && !k.itemHeld && k.items > 0) { k.items--; k.boost = Math.max(k.boost, 1.1); k.v = Math.max(k.v, VMAX); sfx('boost'); }
+    k.itemHeld = !!inp.item;
+    const vmax = VMAX * (off ? 0.5 : 1) * (k.boost > 0 ? 1.3 : 1) * (k.drift ? 0.96 : 1);
+
+    // motore e freni
+    if (inp.brake) {
+      if (k.v > 0) k.v = Math.max(0, k.v - BRAKE * dt);
+      else k.v = Math.max(-REV, k.v - 480 * dt);
+    } else if (inp.gas && k.stall <= 0) {
+      if (k.v < 0) k.v = Math.min(0, k.v + BRAKE * dt);
+      else if (k.v < vmax) k.v = Math.min(vmax, k.v + Math.max(50, (vmax - k.v) * (k.boost > 0 ? 3.2 : ACC_K)) * dt);
+    } else k.v *= Math.exp(-0.4 * dt);
+    if (k.v > vmax) k.v = Math.max(vmax, k.v - ((k.v - vmax) * (off ? 3.5 : 1.2) + 25) * dt);
+
+    // saltello col tasto della derapata; se intanto si sterza, si derapa da quel lato finché lo si tiene
+    const pressed = inp.drift && !k.driftHeld;
+    k.driftHeld = !!inp.drift;
+    if (pressed && !k.drift && k.hopT > HOP) { k.hopT = 0; k.armed = true; }
+    if (!inp.drift) k.armed = false;
+    if (k.armed && !k.drift && k.hopT >= HOP * 0.6 && Math.abs(inp.steer) > 0.3 && k.v > VMAX * 0.3 && !off) {
+      k.drift = Math.sign(inp.steer); k.charge = 0; k.armed = false; k.driftT = 0; k.dSteer = 0;
+    }
+    if (k.drift) {
+      if (!inp.drift || k.v < VMAX * 0.2) {
+        const lvl = !inp.drift ? driftLevel(k) : 0;
+        if (lvl) { k.boost = Math.max(k.boost, BOOST[lvl]); sfx('boost'); }
+        endDrift(k);
+      } else if (!off) k.charge += dt * 60 * (inp.steer * k.drift >= 0.5 ? 5 : 2);
+    }
+
+    if (k.drift) {
+      // arco della derapata: il moto gira sempre dal lato scelto, lo sterzo decide quanto
+      const want = clamp(inp.steer * k.drift, -1, 1), rate = want === 0 ? DRIFT_STEER_BACK : DRIFT_STEER_RATE;
+      k.dSteer += clamp(want - k.dSteer, -rate * dt, rate * dt);
+      const s = k.dSteer;
+      const w = s >= 0 ? DRIFT_MID + (DRIFT_IN - DRIFT_MID) * s : DRIFT_MID + (DRIFT_MID - DRIFT_OUT) * s;
+      // appena entrati il moto gira poco mentre il muso è già dentro: è il kart che scivola verso l'esterno
+      k.driftT += dt;
+      const swing = 0.45 + 0.55 * Math.min(1, k.driftT / DRIFT_SWING);
+      k.va += k.drift * w * swing * speedTurn(k.v) * dt;
+      k.a += wrapAng(k.va + k.drift * (DRIFT_ANGLE + DRIFT_ANGLE_STEER * s) - k.a) * (1 - Math.exp(-10 * dt));
+      k.slip = wrapAng(k.a - k.va);
+    } else {
+      // sterzo pronto, che cala poco con la velocità
+      const yaw = inp.steer * STEER * speedTurn(k.v) * (1 - 0.2 * Math.min(1, Math.abs(k.v) / VMAX)) * (k.v >= 0 ? 1 : -1);
+      k.a += yaw * dt;
+      if (k.v < 0) { k.va = k.a; k.slip = 0; }
+      else {
+        const diff = wrapAng(k.a - k.va);
+        k.va += diff * (1 - Math.exp(-(off ? 7 : 15) * dt));
+        k.slip = diff;
+      }
+    }
+    const mx = Math.cos(k.v >= 0 ? k.va : k.a), my = Math.sin(k.v >= 0 ? k.va : k.a);
+    k.x += mx * k.v * dt; k.y += my * k.v * dt;
+
+    // muri di gomme: si rimbalza perdendo un po' di velocità, senza fermarsi
+    project(k.x, k.y, P);
+    const lim = P.hw + RUNOFF - KR;
+    if (Math.abs(P.d) > lim && WALL[P.d > 0 ? 1 : 0][P.i]) {
+      const sg = Math.sign(P.d), ex = Math.abs(P.d) - lim, nx = T.nx[P.i] * sg, ny = T.ny[P.i] * sg;
+      k.x -= nx * ex; k.y -= ny * ex;
+      let vx = mx * k.v, vy = my * k.v;
+      const vn = vx * nx + vy * ny;
+      if (vn > 0) {
+        vx -= 1.35 * vn * nx; vy -= 1.35 * vn * ny;
+        vx *= 0.88; vy *= 0.88;
+        const s2 = Math.hypot(vx, vy), along = vx * Math.cos(k.va) + vy * Math.sin(k.va);
+        if (along >= 0) { k.v = s2; k.va = Math.atan2(vy, vx); } else { k.v = -Math.min(s2, REV); k.va = k.a; }
+        if (k.drift) endDrift(k);
+        k.a = k.va + wrapAng(k.a - k.va) * 0.5;
+        if (vn > 80) { k.hit = 0.25; sfx('thud', Math.min(1, vn / 400)); }
+      }
+    }
+  }
+  // fine della derapata: il muso torna quasi in linea col moto, un filo verso l'interno
+  function endDrift(k) {
+    k.a = k.va + wrapAng(k.a - k.va) * 0.3;
+    k.drift = 0; k.charge = 0;
+  }
+
+  // avanzamento lungo la pista (continuo, giro dopo giro); i salti grandi non contano
+  function track(k) {
+    project(k.x, k.y, P);
+    let d = P.s - k.lastS;
+    if (d > T.L / 2) d -= T.L;
+    if (d < -T.L / 2) d += T.L;
+    k.lastS = P.s;
+    if (Math.abs(d) < 1200) k.prog += d;        // anche le scorciatoie sull'erba (i salti avanti e indietro si compensano)
+    return d;
+  }
+
+  // ---------- fantasmi ----------
+  // ogni file è una gara intera registrata con ?record=1: posizioni a 20 Hz, codificate a differenze
+  const GHOSTS = [
+    { id: 'easy', label: 'Easy', file: 'ghost-easy.json' },
+    { id: 'medium', label: 'Medium', file: 'ghost-medium.json' },
+    { id: 'hard', label: 'Hard', file: 'ghost-hard.json' },
+    { id: 'francesco', label: 'Francesco', file: 'ghost-francesco.json' },
+    { id: 'record', label: 'Record', file: null },     // la gara più veloce di tutte, dal database (kart/record)
+  ];
+  let recordHolder = '', recordTime = null, pendingRecord = null;
+  // come si chiama il fantasma nelle frasi e sopra il kart
+  const who = id => (id === 'francesco' ? 'Francesco' : id === 'record' ? `${recordHolder || 'Record'} (record)`
+    : `${(GHOSTS.find(g => g.id === id) || { label: '' }).label} ghost`);
+  const GHOST_DIR = '/assets/kart/';
+  const ghosts = {};                // id → gara decodificata
+  let ghostId = 'medium';
+  try { const g = localStorage.getItem('kart-ghost'); if (GHOSTS.some(x => x.id === g)) ghostId = g; } catch (e) {}
+  const ghostOf = () => ghosts[ghostId] || null;
+  const ghostDef = id => GHOSTS.find(g => g.id === id);
+
+  function undelta(a) { const out = new Float64Array(a.length); let v = 0; for (let i = 0; i < a.length; i++) { v += a[i]; out[i] = v; } return out; }
+  function decodeGhost(j) {
+    if (!j || j.v !== 1 || j.track !== TRACK_ID || j.hz !== HZ) throw new Error('not a ghost for this track');
+    const n = j.x.length;
+    if (!(n > 10 && n < 30000 && j.y.length === n && j.a.length === n && j.f.length === n)) throw new Error('bad ghost');
+    if (!Array.isArray(j.laps) || j.laps.length !== LAPS) throw new Error('bad laps');
+    const x = undelta(j.x).map(v => v / 2), y = undelta(j.y).map(v => v / 2), a = undelta(j.a).map(v => v / 100);
+    // avanzamento di ogni campione, per sapere dove era il fantasma e confrontare i tempi
+    const k = { lastS: 0, prog: 0 };
+    project(x[0], y[0], P); k.lastS = P.s; k.prog = P.s > T.L / 2 ? P.s - T.L : P.s;
+    const prog = new Float64Array(n);
+    for (let i = 0; i < n; i++) { k.x = x[i]; k.y = y[i]; if (i) track(k); prog[i] = i ? Math.max(prog[i - 1], k.prog) : k.prog; }
+    const laps = j.laps.map(v => v / 1000);
+    return { x, y, a, f: j.f, n, prog, laps, time: laps.reduce((p, q) => p + q, 0) };
+  }
+  function ghostPose(g, t, o) {
+    const fi = clamp(t * HZ, 0, g.n - 1), i = Math.min(g.n - 2, Math.floor(fi)), u = fi - i;
+    o.x = g.x[i] + (g.x[i + 1] - g.x[i]) * u;
+    o.y = g.y[i] + (g.y[i + 1] - g.y[i]) * u;
+    o.a = g.a[i] + (g.a[i + 1] - g.a[i]) * u;
+    o.f = +g.f[Math.round(fi)] || 0;
+    return o;
+  }
+  // a che tempo il fantasma era arrivato a questo punto della gara
+  function ghostTimeAt(g, p) {
+    if (p <= g.prog[0]) return 0;
+    let lo = 0, hi = g.n - 1;
+    if (p > g.prog[hi]) return null;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (g.prog[m] >= p) hi = m; else lo = m; }
+    const u = (p - g.prog[lo]) / ((g.prog[hi] - g.prog[lo]) || 1);
+    return (lo + u) / HZ;
+  }
+
+  // ---------- registrazione ----------
+  function newTrace() { return { x: [], y: [], a: [], f: [] }; }
+  function recSample(tr, k) {
+    tr.x.push(k.x); tr.y.push(k.y);
+    const last = tr.a.length ? tr.a[tr.a.length - 1] : k.a;
+    tr.a.push(last + wrapAng(k.a - last));       // angolo senza salti di 2π
+    tr.f.push(kartFlags(k));
+  }
+  function encodeTrace(tr, laps, label) {
+    const delta = (arr, mul) => { let p = 0; return arr.map(v => { const q = Math.round(v * mul), d = q - p; p = q; return d; }); };
+    return JSON.stringify({
+      v: 1, track: TRACK_ID, label, hz: HZ,
+      laps: laps.map(t => Math.round(t * 1000)), recorded: new Date().toISOString().slice(0, 10),
+      x: delta(tr.x, 2), y: delta(tr.y, 2), a: delta(tr.a, 100), f: tr.f.join(''),
+    });
+  }
+
+  // ---------- suono (spento di default) ----------
+  let audio = null, soundOn = false, eng = null;
+  const btnSound = document.getElementById('kart-sound');
+  function initAudio() {
+    audio = new (window.AudioContext || window.webkitAudioContext)();
+    const g = audio.createGain(); g.gain.value = 0; g.connect(audio.destination);
+    const lp = audio.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700; lp.connect(g);
+    const o1 = audio.createOscillator(); o1.type = 'sawtooth'; o1.connect(lp); o1.start();
+    const o2 = audio.createOscillator(); o2.type = 'square'; const g2 = audio.createGain(); g2.gain.value = 0.35;
+    o2.connect(g2); g2.connect(lp); o2.start();
+    // stridio delle gomme: rumore filtrato
+    const len = audio.sampleRate, buf = audio.createBuffer(1, len, audio.sampleRate), ch0 = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) ch0[i] = Math.random() * 2 - 1;
+    const nz = audio.createBufferSource(); nz.buffer = buf; nz.loop = true;
+    const bp = audio.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2600; bp.Q.value = 6;
+    const gs = audio.createGain(); gs.gain.value = 0;
+    nz.connect(bp); bp.connect(gs); gs.connect(audio.destination); nz.start();
+    eng = { g, o1, o2, gs, buf };
+  }
+  function sfx(kind, vol = 1) {
+    if (!soundOn || !audio) return;
+    const t = audio.currentTime, g = audio.createGain();
+    g.connect(audio.destination);
+    if (kind === 'boost' || kind === 'thud') {
+      const src = audio.createBufferSource(); src.buffer = eng.buf;
+      const f = audio.createBiquadFilter(); f.type = kind === 'boost' ? 'highpass' : 'lowpass'; f.frequency.value = kind === 'boost' ? 1200 : 300;
+      src.connect(f); f.connect(g);
+      g.gain.setValueAtTime(0.22 * vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === 'boost' ? 0.45 : 0.2));
+      src.start(t, Math.random()); src.stop(t + 0.5);
+      return;
+    }
+    const o = audio.createOscillator();
+    if (kind === 'spark') {
+      // un tic quando la derapata sale di livello
+      o.type = 'square';
+      o.frequency.setValueAtTime(1600, t);
+      g.gain.setValueAtTime(0.05 * vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+      o.connect(g); o.start(t); o.stop(t + 0.3);
+      return;
+    }
+    o.type = 'triangle';
+    o.frequency.value = kind === 'go' ? 880 : kind === 'lap' ? 660 : 440;
+    if (kind === 'lap') o.frequency.setValueAtTime(990, t + 0.09);
+    g.gain.setValueAtTime(0.16 * vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === 'go' ? 0.5 : 0.22));
+    o.connect(g); o.start(t); o.stop(t + 0.55);
+  }
+  function updateSound() {
+    if (!eng) return;
+    const t = audio.currentTime, live = soundOn && !paused && (mode === 'count' || mode === 'race' || mode === 'done');
+    const v = Math.abs(kart.v) / VMAX + (kart.boost > 0 ? 0.15 : 0);
+    eng.g.gain.setTargetAtTime(live ? 0.045 : 0, t, 0.05);
+    eng.o1.frequency.setTargetAtTime(48 + 120 * v, t, 0.04);
+    eng.o2.frequency.setTargetAtTime(24 + 60 * v, t, 0.04);
+    eng.gs.gain.setTargetAtTime(live && (kart.drift || (Math.abs(kart.slip) > 0.25 && kart.v > 150)) ? 0.035 : 0, t, 0.04);
+  }
+  btnSound.addEventListener('click', () => {
+    soundOn = !soundOn;
+    if (soundOn && !audio) { try { initAudio(); } catch (e) { soundOn = false; } }
+    if (audio && audio.state === 'suspended') audio.resume();
+    btnSound.textContent = soundOn ? 'Sound on' : 'Sound off';
+    btnSound.setAttribute('aria-pressed', String(soundOn));
+    if (lastInput === 'key') canvas.focus({ preventScroll: true });
+  });
+
+  // ---------- nomi (stesso elenco del subotto) ----------
+  // in classifica compare solo un nome proprio dell'elenco (inglese o italiano), altrimenti "Anonymous".
+  // Lo stesso elenco sta nelle regole del database (firebase-rules.json), quindi aggirare il gioco non serve.
+  // @@NAMES-START (generato da build_names.py a partire da names.txt: non modificare a mano)
+  const NAMES = [
+    'Aaron', 'Abbie', 'Abhinav', 'Abhishek', 'Abigail', 'Achille', 'Ada', 'Adam', 'Adele', 'Adria', 'Adrian',
+    'Adriano', 'Adrien', 'Adva', 'Agnese', 'Agostino', 'Ahmed', 'Aidan', 'Aifang', 'Akash', 'Alain', 'Alan', 'Alba',
+    'Albert', 'Alberto', 'Aleksandra', 'Alessandra', 'Alessandro', 'Alessia', 'Alessio', 'Alex', 'Alexander',
+    'Alexandra', 'Alexandre', 'Alfie', 'Alfredo', 'Ali', 'Alice', 'Alif', 'Alireza', 'Alison', 'Alp', 'Alvaro',
+    'Amanda', 'Amber', 'Amedeo', 'Amelia', 'Amelie', 'Amy', 'Ana', 'Andras', 'Andre', 'Andrea', 'Andreas', 'Andrew',
+    'Andrey', 'Andries', 'Angela', 'Angelica', 'Angelo', 'Anita', 'Anna', 'Annalisa', 'Anne', 'Annie', 'Annika',
+    'Anthony', 'Antonella', 'Antonio', 'Anubhab', 'Apurva', 'Archi', 'Archie', 'Arianna', 'Armands', 'Arne', 'Arthur',
+    'Artur', 'Arturo', 'Augusto', 'Aurelie', 'Aurora', 'Austin', 'Ava', 'Balint', 'Barbara', 'Barnabas', 'Bartolomeo',
+    'Beatrice', 'Bella', 'Ben', 'Benedetta', 'Benedetto', 'Beniamino', 'Benjamin', 'Bernardo', 'Beth', 'Bethan',
+    'Bethany', 'Bianca', 'Bill', 'Blake', 'Blanka', 'Bob', 'Boris', 'Brandon', 'Branton', 'Brenda', 'Brian',
+    'Bridget', 'Bruno', 'Bryan', 'Caitlin', 'Callum', 'Calvin', 'Cameron', 'Camilla', 'Carla', 'Carles', 'Carlo',
+    'Carlotta', 'Carmela', 'Carol', 'Carolina', 'Caroline', 'Casey', 'Caterina', 'Catherine', 'Cecilia', 'Cedric',
+    'Celine', 'Cephas', 'Cesare', 'Charles', 'Charlie', 'Charlotte', 'Chenghao', 'Chenjing', 'Chiara', 'Chloe',
+    'Chris', 'Christian', 'Christiana', 'Christoph', 'Christopher', 'Chun', 'Claire', 'Clara', 'Claudia', 'Claudio',
+    'Clement', 'Clive', 'Coen', 'Colin', 'Connall', 'Connor', 'Coralia', 'Corentin', 'Cornelia', 'Corrado', 'Cosimo',
+    'Cristian', 'Cristiano', 'Cristina', 'Da', 'Daisy', 'Damian', 'Damiano', 'Dan', 'Daniel', 'Daniela', 'Daniele',
+    'Dario', 'Darren', 'Dave', 'David', 'Davide', 'Dawid', 'Dean', 'Debora', 'Den', 'Denise', 'Dennis', 'Derek',
+    'Diana', 'Diego', 'Dino', 'Dmitrii', 'Dmitry', 'Domenico', 'Dominic', 'Donald', 'Dylan', 'Dyrol', 'Eamonn',
+    'Edmund', 'Edoardo', 'Edward', 'Ehud', 'Eleanor', 'Elena', 'Eleonora', 'Elia', 'Elisa', 'Elisabetta', 'Elizabeth',
+    'Elizaveta', 'Ella', 'Ellie', 'Elliot', 'Elliott', 'Emanuele', 'Emil', 'Emilio', 'Emily', 'Emma', 'Emmanuel',
+    'Endre', 'Enrico', 'Enzo', 'Eric', 'Erica', 'Erik', 'Erin', 'Ethan', 'Ettore', 'Eva', 'Evan', 'Evie', 'Fabio',
+    'Fabrizio', 'Faith', 'Fanny', 'Farhad', 'Federica', 'Federico', 'Felice', 'Felix', 'Ferdinand', 'Ferdinando',
+    'Fernando', 'Filippo', 'Finlay', 'Finn', 'Flavio', 'Florence', 'Florian', 'Frances', 'Francesca', 'Francesco',
+    'Francis', 'Franco', 'Frank', 'Fred', 'Freddie', 'Fredrik', 'Freya', 'Gabriele', 'Gaetano', 'Gaia', 'Gal',
+    'Gargi', 'Gary', 'George', 'Georgia', 'Georgii', 'Georgina', 'Giacomo', 'Giada', 'Gianluca', 'Gianluigi',
+    'Gianmarco', 'Gianni', 'Gillian', 'Ginevra', 'Giorgia', 'Giorgio', 'Giovanna', 'Giovanni', 'Giulia', 'Giulio',
+    'Giuseppe', 'Glen', 'Glenys', 'Gobishayini', 'Gordon', 'Grace', 'Graeme', 'Graham', 'Graziella', 'Gregorio',
+    'Gregory', 'Grigori', 'Gui', 'Guido', 'Gunnar', 'Guoxi', 'Hannah', 'Hanneke', 'Hanqing', 'Hans', 'Haochen',
+    'Harald', 'Harriet', 'Harry', 'Harsh', 'Harvey', 'Heather', 'Helen', 'Helena', 'Henry', 'Hilary', 'Holly',
+    'Horace', 'Hsuan', 'Hugo', 'Hulya', 'Hussam', 'Ian', 'Ignazio', 'Ilaria', 'Ilona', 'Ilya', 'Imogen', 'India',
+    'Ioannis', 'Irene', 'Irina', 'Iris', 'Isaac', 'Isabel', 'Isabella', 'Isla', 'Itamar', 'Ivy', 'Jack', 'Jackson',
+    'Jacob', 'Jacopo', 'Jad', 'Jade', 'Jaka', 'Jake', 'Jakob', 'Jakub', 'James', 'Jamie', 'Jamshid', 'Jan', 'Jane',
+    'Janet', 'Jannis', 'Jared', 'Jaroslav', 'Jasmine', 'Jason', 'Jasper', 'Javier', 'Jean', 'Jennifer', 'Jeremy',
+    'Jesse', 'Jessica', 'Jesus', 'Jethro', 'Jia', 'Jianru', 'Jindong', 'Jinyuan', 'Joan', 'Joanna', 'Jochen', 'Joe',
+    'Johanna', 'John', 'Jolanta', 'Jon', 'Jona', 'Jonathan', 'Jordan', 'Joscha', 'Jose', 'Josep', 'Joseph', 'Joshua',
+    'Juan', 'Judd', 'Julia', 'Julius', 'Jun', 'Jung', 'Justin', 'Kaibo', 'Kansei', 'Karel', 'Karin', 'Karl', 'Karla',
+    'Karolina', 'Kars', 'Kasper', 'Kate', 'Katherine', 'Kathryn', 'Katie', 'Keisuke', 'Keith', 'Kelly', 'Kevin',
+    'Kieran', 'Konstantin', 'Kyle', 'Lajos', 'Lara', 'Laura', 'Lauren', 'Leah', 'Leandro', 'Lena', 'Leo', 'Leon',
+    'Leonardo', 'Letizia', 'Lewis', 'Liam', 'Licia', 'Lida', 'Lidia', 'Lila', 'Lily', 'Lin', 'Linda', 'Linus',
+    'Lionel', 'Lisa', 'Liz', 'Logan', 'Lola', 'Lorena', 'Lorenzo', 'Lorraine', 'Louis', 'Luc', 'Luca', 'Lucas',
+    'Lucia', 'Luciana', 'Luciano', 'Lucie', 'Lucio', 'Lucy', 'Ludovica', 'Ludovico', 'Luigi', 'Luis', 'Luisa',
+    'Lukas', 'Luke', 'Lydia', 'Mahin', 'Maisie', 'Malena', 'Manuel', 'Manuela', 'Mara', 'Marc', 'Marcello', 'Marco',
+    'Marcus', 'Margherita', 'Maria', 'Marina', 'Mario', 'Marjorie', 'Mark', 'Marta', 'Martin', 'Martina', 'Mason',
+    'Massimiliano', 'Massimo', 'Matija', 'Matilde', 'Matteo', 'Matthew', 'Mattia', 'Maurizio', 'Max', 'Maximilien',
+    'Maxwell', 'Megan', 'Mehrdad', 'Melanie', 'Melissa', 'Mia', 'Michael', 'Michalina', 'Michela', 'Michele', 'Mie',
+    'Mihriban', 'Mike', 'Millie', 'Mingdong', 'Mira', 'Mirko', 'Mitchell', 'Mohamed', 'Mohit', 'Molly', 'Monica',
+    'Monty', 'Mothibi', 'Muneera', 'Nadia', 'Naomi', 'Natalie', 'Nathan', 'Neil', 'Nestor', 'Niccolo', 'Nicholas',
+    'Nick', 'Nicola', 'Nicole', 'Nicolo', 'Nigel', 'Nikkita', 'Niklas', 'Nikolay', 'Noah', 'Noemi', 'Norris', 'Ojas',
+    'Olav', 'Oliver', 'Olivia', 'Olivio', 'Om', 'Oreste', 'Orlando', 'Orson', 'Oscar', 'Oskar', 'Ottavia', 'Ottavio',
+    'Owen', 'Pablo', 'Panagiotis', 'Paola', 'Paolo', 'Pasquale', 'Patricia', 'Patrick', 'Patrizia', 'Pau', 'Paul',
+    'Paula', 'Paz', 'Pehan', 'Peleg', 'Pengcheng', 'Peter', 'Petra', 'Philip', 'Phoebe', 'Pierluigi', 'Piero',
+    'Pierrick', 'Pietro', 'Po', 'Poppy', 'Puchun', 'Qian', 'Qiu', 'Rachael', 'Rachel', 'Radek', 'Radoslaw', 'Radu',
+    'Raeid', 'Raffaele', 'Rajath', 'Rama', 'Randy', 'Raphael', 'Rawan', 'Ray', 'Raz', 'Rebecca', 'Rebekah', 'Renato',
+    'Renaud', 'Renjing', 'Reuben', 'Rhuaidi', 'Riccardo', 'Richard', 'Ritesh', 'Riya', 'Robert', 'Roberta', 'Roberto',
+    'Robin', 'Rocco', 'Roger', 'Rohit', 'Rolf', 'Romeo', 'Rosa', 'Rosalind', 'Rosario', 'Rose', 'Rosie', 'Rossella',
+    'Ruby', 'Ruggero', 'Rui', 'Ruijia', 'Ruth', 'Ryan', 'Sabrina', 'Sakura', 'Sally', 'Salvador', 'Salvatore', 'Sam',
+    'Sameh', 'Samuel', 'Samuele', 'Sandro', 'Sara', 'Sarah', 'Saverio', 'Scarlett', 'Scott', 'Sean', 'Sebastian',
+    'Sebastiano', 'Serena', 'Sergio', 'Seth', 'Shaked', 'Shiv', 'Shubh', 'Shuchen', 'Shuoxing', 'Siddharth', 'Silvia',
+    'Silvio', 'Simon', 'Simona', 'Simone', 'Sireethon', 'Siting', 'Sofia', 'Sophia', 'Sophie', 'Stefania', 'Stefano',
+    'Stephanie', 'Stephen', 'Steve', 'Steven', 'Stuart', 'Sue', 'Suleika', 'Sun', 'Susan', 'Susannah', 'Svala',
+    'Swathi', 'Tabea', 'Tamas', 'Tao', 'Tasha', 'Tassilo', 'Tejas', 'Teresa', 'Terry', 'Tessa', 'Thea', 'Theo',
+    'Theodore', 'Thiziri', 'Thomas', 'Tim', 'Timothy', 'Tiziana', 'Tiziano', 'Tobias', 'Toby', 'Tom', 'Tomas',
+    'Tommaso', 'Tommi', 'Tommy', 'Tony', 'Torkel', 'Tung', 'Tyler', 'Ugo', 'Ulrike', 'Umberto', 'Uros', 'Ursula',
+    'Valentina', 'Valentino', 'Valeria', 'Valerio', 'Vanessa', 'Varad', 'Vedanta', 'Verena', 'Veronica', 'Victor',
+    'Victoria', 'Vidit', 'Viktoriia', 'Vincenzo', 'Viola', 'Vishal', 'Vittoria', 'Vittorio', 'Vlad', 'Vsevolod',
+    'Vukasin', 'Waldemar', 'Weiquan', 'Wen', 'Wenqi', 'Will', 'William', 'Wojciech', 'Xenia', 'Xiang', 'Xinyu',
+    'Xuanzuo', 'Yakov', 'Yao', 'Yizhou', 'Yuanqiong', 'Yue', 'Yuechen', 'Yuhan', 'Yuhang', 'Yuji', 'Yukun', 'Yunhao',
+    'Yunli', 'Yuyang', 'Yuying', 'Zacarias', 'Zach', 'Zachary', 'Zhongmin', 'Zihan', 'Zihao', 'Ziyang', 'Zoe',
+    'Zubin',
+  ];
+  // @@NAMES-END
+  const elName = document.getElementById('kart-name');
+  const elNameHint = document.getElementById('kart-name-hint');
+  const NAME_KEY = n => n.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const NAME_OF = new Map(NAMES.map(n => [NAME_KEY(n), n]));
+  const knownName = n => (typeof n === 'string' && NAME_OF.get(NAME_KEY(n))) || '';
+  const cleanName = n => knownName(n) || 'Anonymous';
+  function playerName() { return knownName(elName.value) || 'Anonymous'; }
+  {
+    const dl = document.getElementById('kart-names');
+    for (const n of NAMES) { const o = document.createElement('option'); o.value = n; dl.appendChild(o); }
+    // due campi per il nome, nelle regole e sotto il track: restano uguali, e il nome vale per tutti i minigiochi
+    const elName2 = document.getElementById('kart-name2'), elNameHint2 = document.getElementById('kart-name-hint2');
+    const nameInputs = [elName, elName2].filter(Boolean);
+    const hint = () => {
+      const v = elName.value.trim(), k = knownName(v);
+      elNameHint.textContent = !v ? 'Leave it empty to stay anonymous.'
+        : k ? `You will appear as ${k}.` : 'Not in the list of first names: you will appear as Anonymous.';
+      if (elNameHint2) elNameHint2.textContent = !v ? 'type it to appear on the leaderboard'
+        : k ? `on the leaderboard as ${k}` : 'not in the list of first names: Anonymous';
+    };
+    try { elName.value = knownName(localStorage.getItem('foos-name') || ''); } catch (e) {}
+    for (const el of nameInputs) el.value = elName.value;
+    for (const el of nameInputs) {
+      el.addEventListener('input', () => {
+        const t = el.value.replace(/[^\p{L} ]/gu, '').slice(0, 16);
+        if (t !== el.value) el.value = t;
+        for (const o of nameInputs) if (o !== el) o.value = t;
+        hint();
+      });
+      el.addEventListener('change', () => {
+        const k = knownName(el.value);
+        if (k) for (const o of nameInputs) o.value = k;
+        try { localStorage.setItem('foos-name', k); } catch (e) {}
+        hint();
+        window.dispatchEvent(new CustomEvent('minigame-name', { detail: k }));
+      });
+    }
+    // il nome cambiato nell'altro gioco
+    window.addEventListener('minigame-name', e => {
+      if (e.detail === knownName(elName.value)) return;
+      for (const o of nameInputs) o.value = e.detail;
+      hint();
+    });
+    hint();
+  }
+
+  // ---------- classifica online (facoltativa) ----------
+  // Stesso Realtime Database del subotto, ramo "kart": chi sta correndo e i migliori tempi.
+  const FIREBASE_CONFIG = {
+    apiKey: 'AIzaSyDfAOK9xxtThckSAwAGCRTDvuYtPF84sWM',
+    authDomain: 'online-foosball.firebaseapp.com',
+    databaseURL: 'https://online-foosball-default-rtdb.europe-west1.firebasedatabase.app',
+    projectId: 'online-foosball',
+    appId: '1:549951750830:web:0b587fb34345340bfe633f',
+  };
+  const net = { start() {}, lap() {}, finish() {}, stop() {}, record() {} };
+  const elBoard = document.getElementById('kart-board');
+  const elLive = document.getElementById('kart-live');
+  const elBest = document.getElementById('kart-best');
+  const validGhost = g => g === 'none' || GHOSTS.some(x => x.id === g);
+
+  function ago(ms) {
+    const s = Math.max(0, (Date.now() - ms) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+    const d = Math.floor(s / 86400);
+    return d === 1 ? 'yesterday' : `${d} days ago`;
+  }
+  const ghostWord = id => (id === 'none' ? 'no ghost' : who(id));
+
+  function renderLive(list) {
+    if (!list.length) { elLive.textContent = 'Nobody else is racing right now.'; return; }
+    const desc = p => `${p.name} (lap ${p.lap} of ${LAPS}, vs ${ghostWord(p.ghost)})`;
+    const shown = list.slice(0, 2).map(desc), rest = list.length - shown.length;
+    let text = shown.join(rest ? ', ' : ' and ');
+    if (rest) text += ` and ${rest} other${rest > 1 ? 's' : ''}`;
+    elLive.textContent = `● ${text} ${list.length > 1 ? 'are' : 'is'} racing now.`;
+  }
+  // classifica: il miglior tempo di ogni giocatore (gli anonimi contano uno per uno); sotto, le ultime gare
+  const elRecent = document.getElementById('kart-recent');
+  let bestCache = [], recentCache = [];
+  function leaderboard(list) {
+    const seen = new Set(), out = [];
+    for (const r of list.slice().sort((a, b) => a.time - b.time || a.at - b.at)) {
+      if (r.name !== 'Anonymous') {
+        if (seen.has(r.name)) continue;
+        seen.add(r.name);
+      }
+      out.push(r);
+      if (out.length === 10) break;
+    }
+    return out;
+  }
+  function renderBest() {
+    const fill = (el, rows, empty, line) => {
+      el.textContent = '';
+      if (!rows.length) { const li = document.createElement('li'); li.textContent = empty; el.appendChild(li); return; }
+      for (const r of rows) { const li = document.createElement('li'); line(li, r); el.appendChild(li); }
+    };
+    fill(elBest, bestCache, 'No times yet. Be the first.', (li, r) => {
+      li.textContent = `${r.name} ${fmt(r.time)}, best lap ${fmt(r.lap)}, ${ago(r.at)}`;
+    });
+    fill(elRecent, recentCache, 'No races yet.', (li, r) => {
+      const g = ghosts[r.ghost], won = g && r.time < g.time;
+      li.textContent = `${r.name} ${fmt(r.time)} against ${ghostWord(r.ghost)}${g ? (won ? ': won' : ': lost') : ''}, ${ago(r.at)}`;
+      if (won) li.className = 'won';
+    });
+  }
+  setInterval(renderBest, 60000);
+
+  (async () => {
+    if (!FIREBASE_CONFIG || RECORD) return;
+    try {
+      const base = 'https://www.gstatic.com/firebasejs/10.12.2/';
+      const { initializeApp } = await import(base + 'firebase-app.js');
+      const fdb = await import(base + 'firebase-database.js');
+      // app con un nome suo: se nella pagina è aperto anche il subotto, la sua app resta separata
+      const db = fdb.getDatabase(initializeApp(FIREBASE_CONFIG, 'kart'));
+      const myId = 'k' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      const presRef = fdb.ref(db, 'kart/presence/' + myId);
+      let racing = false;
+      net.start = () => {
+        racing = true;
+        fdb.onDisconnect(presRef).remove();
+        fdb.set(presRef, { name: playerName(), ghost: ghostOf() ? ghostId : 'none', lap: 1, since: fdb.serverTimestamp() }).catch(() => {});
+      };
+      net.lap = n => { if (racing) fdb.update(presRef, { lap: n }).catch(() => {}); };
+      net.stop = () => { if (racing) { racing = false; fdb.remove(presRef).catch(() => {}); } };
+      net.finish = (time, lap) => {
+        net.stop();
+        fdb.push(fdb.ref(db, 'kart/times'), {
+          name: playerName(), ghost: ghostOf() ? ghostId : 'none',
+          time: Math.round(time * 1000), lap: Math.round(lap * 1000), at: fdb.serverTimestamp(),
+        }).catch(() => {});
+      };
+      // la gara del nuovo primo in classifica diventa il fantasma del record (le regole accettano solo tempi migliori)
+      net.record = r => {
+        fdb.set(fdb.ref(db, 'kart/record'), {
+          name: playerName(), time: Math.round(r.time * 1000),
+          ghost: encodeTrace(r.trace, r.laps, playerName()), at: fdb.serverTimestamp(),
+        }).catch(() => {});
+      };
+      fdb.onValue(fdb.ref(db, 'kart/record'), snap => {
+        const v = snap.val();
+        recordTime = v && typeof v.time === 'number' ? v.time / 1000 : null;
+        let g = null;
+        try { if (v && typeof v.ghost === 'string') { g = decodeGhost(JSON.parse(v.ghost)); if (!plausible(g, recordTime)) g = null; } } catch (e) { g = null; }
+        pendingRecord = { g, name: v ? cleanName(v.name) : '' };
+        applyRecord();
+      });
+      fdb.onValue(fdb.ref(db, 'kart/presence'), snap => {
+        const list = [];
+        snap.forEach(c => {
+          const v = c.val();
+          if (c.key === myId || !v || !validGhost(v.ghost)) return;
+          if (typeof v.since === 'number' && Date.now() - v.since > 20 * 60 * 1000) return;   // sessioni rimaste appese
+          list.push({ name: cleanName(v.name), ghost: v.ghost, lap: clamp(v.lap | 0, 1, LAPS) });
+        });
+        renderLive(list);
+      });
+      // tutti i tempi: la classifica e le ultime cinque gare si calcolano qui
+      fdb.onValue(fdb.ref(db, 'kart/times'), snap => {
+        const list = [];
+        snap.forEach(c => {
+          const v = c.val();
+          if (!v || !validGhost(v.ghost) || typeof v.time !== 'number' || typeof v.at !== 'number') return;
+          list.push({ name: cleanName(v.name), ghost: v.ghost, time: v.time / 1000, lap: (+v.lap || 0) / 1000, at: v.at });
+        });
+        bestCache = leaderboard(list);
+        recentCache = list.slice().sort((a, b) => b.at - a.at).slice(0, 5);
+        renderBest();
+      });
+      elBoard.hidden = false;
+    } catch (e) {
+      console.warn('Kart leaderboard is offline:', e);
+    }
+  })();
+
+  // ---------- stato del gioco ----------
+  // modi: 'idle' (pista vista dall'alto, il fantasma gira da solo), 'count', 'race', 'done', 'replay'
+  let mode = 'idle', modeT = 0, paused = false;
+  let kart = newKart(RECORD ? 1 : -1);
+  let race = null;                  // gara in corso o appena finita
+  let lastRace = null;              // l'ultima gara finita, per il replay e per scaricarla
+  let flash = null;                 // scritta breve in alto (giro, record)
+  let banner = null;                // scritta grande al centro: FINAL LAP, FINISH!
+  let idleT = 0;
+  const skids = [], parts = [];
+  const gp = {};                    // posa del fantasma
+  let pb = null;
+  try { pb = JSON.parse(localStorage.getItem('kart-pb-' + TRACK_ID) || 'null'); } catch (e) {}
+
+  const elYou = document.getElementById('kart-you');
+  const elGhostName = document.getElementById('kart-ghost-name');
+  const elGhostTime = document.getElementById('kart-ghost-time');
+  const btnReplay = document.getElementById('kart-replay');
+
+  function fmt(t) {
+    if (t == null || !isFinite(t)) return '-:--.--';
+    const cs = Math.round(t * 100), m = Math.floor(cs / 6000), s = (cs % 6000) / 100;
+    return `${m}:${s.toFixed(2).padStart(5, '0')}`;
+  }
+  const fmtGap = d => Math.abs(d).toFixed(2);
+  function showScore() {
+    const g = ghostOf(), def = ghostDef(ghostId);
+    elGhostName.textContent = g ? who(def.id) : 'No ghost';
+    elGhostTime.textContent = g ? fmt(g.time) : '';
+    elYou.textContent = fmt(lastRace ? lastRace.time : null);
+  }
+
+  function setMode(m) { mode = m; modeT = 0; }
+
+  function startRace() {
+    kart = newKart(RECORD ? 1 : -1);
+    race = { steps: 0, t: 0, laps: [], lapStart: 0, trace: newTrace(), done: false, time: 0, best: 0, wrong: 0, after: 0 };
+    skids.length = 0; parts.length = 0; flash = null; banner = null;
+    cam.snap = true; cam3.snap = true;
+    canvas.classList.add('playing');
+    setMode('count');
+    countGas = false; countGasT = -1;
+    net.stop();
+    if (!window.kartAutopilot) net.start();
+  }
+
+  function finishRace(tf) {
+    race.done = true; race.time = tf; race.best = Math.min(...race.laps);
+    const g = ghostOf();
+    race.ghost = g ? ghostId : null;
+    race.verdict = !g ? 'Time trial: no ghost to race.'
+      : Math.abs(tf - g.time) < 0.005 ? `Dead heat with ${theGhost()}.`
+        : tf < g.time ? `You beat ${theGhost()} by ${fmtGap(g.time - tf)} s.` : `${up(theGhost())} wins by ${fmtGap(tf - g.time)} s.`;
+    race.newPb = !RECORD && (!pb || tf < pb.time);
+    if (race.newPb) { pb = { time: tf, lap: race.best }; try { localStorage.setItem('kart-pb-' + TRACK_ID, JSON.stringify(pb)); } catch (e) {} }
+    lastRace = race;
+    btnReplay.disabled = false;
+    setMode('done');
+    // nuovo primo della classifica (e più veloce del fantasma del record): la sua gara diventa il fantasma del record
+    race.newRecord = !RECORD && !window.kartAutopilot && (recordTime == null || tf < recordTime) && (!bestCache.length || tf <= bestCache[0].time);
+    if (!RECORD && !window.kartAutopilot) net.finish(tf, race.best);   // le prove col pilota automatico non vanno in classifica
+    showScore();
+    elYou.textContent = fmt(tf);
+    document.getElementById('kart-score').setAttribute('aria-label', `Your time ${fmt(tf)}. ${race.verdict}`);
+    showRecButtons();
+  }
+
+  function stepRace() {
+    const inp = race.done ? { gas: false, brake: race.after > 0.6, steer: 0, drift: false } : lastInp;
+    if (race.steps % REC_EVERY === 0 && (!race.done || race.after < 2)) recSample(race.trace, kart);
+    stepKart(kart, inp, STEP);
+    race.steps++;
+    race.t = race.steps * STEP;
+    if (race.done) {
+      race.after += STEP;
+      if (race.newRecord && race.after >= 2.1) { race.newRecord = false; race.uploaded = true; net.record(race); }
+      return;
+    }
+    const prev = kart.prog, d = track(kart);
+    // contromano?
+    race.wrong = d < -0.1 && kart.v > 30 ? race.wrong + STEP : Math.max(0, race.wrong - STEP * 2);
+    const target = (race.laps.length + 1) * T.L;
+    if (prev < target && kart.prog >= target) {
+      const f = (target - prev) / (kart.prog - prev), tc = race.t - STEP * (1 - f);
+      const lap = tc - race.lapStart;
+      race.laps.push(lap); race.lapStart = tc;
+      const g = ghostOf(), n = race.laps.length;
+      const gc = g ? g.laps.slice(0, n).reduce((p, q) => p + q, 0) : null;
+      flash = n === LAPS ? null : { text: `Lap ${n}  ${fmt(lap)}`, sub: g ? gapText(tc - gc) : '', t: 0 };
+      if (n === LAPS - 1) banner = { text: 'FINAL LAP', t: 0 };
+      if (n === LAPS) banner = { text: 'FINISH!', t: 0 };
+      sfx(n === LAPS ? 'go' : 'lap');
+      if (n === LAPS) finishRace(tc);
+      else net.lap(n + 1);
+    }
+  }
+  const gapText = d => (Math.abs(d) < 0.005 ? `level with ${theGhost()}` : d > 0 ? `${fmtGap(d)} s behind ${theGhost()}` : `${fmtGap(d)} s ahead of ${theGhost()}`);
+  // nelle frasi: "Francesco" oppure "the hard ghost"
+  const theGhost = (id = ghostId) => (id === 'francesco' ? 'Francesco' : id === 'record' ? recordHolder || 'the record ghost'
+    : `the ${who(id).toLowerCase()}`);
+  const up = t => t[0].toUpperCase() + t.slice(1);
+
+  // ---------- comandi ----------
+  const keys = new Set();
+  let steerK = 0, lastInput = 'pointer', hasFocus = false, touchUI = false;
+  const touch = { steerId: null, steer: 0, brakeId: null, driftId: null, itemId: null };
+  const KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'KeyZ', 'KeyC', 'KeyE', 'KeyX'];
+
+  function readInput(dt) {
+    if (typeof window.kartAutopilot === 'function') {
+      const r = window.kartAutopilot({ kart, T, project, C: { STEER, DRIFT_IN, DRIFT_MID, DRIFT_OUT, VMAX } });
+      if (r) return r;
+    }
+    const left = keys.has('ArrowLeft') || keys.has('KeyA'), right = keys.has('ArrowRight') || keys.has('KeyD');
+    const want = (right ? 1 : 0) - (left ? 1 : 0);
+    // da tastiera lo sterzo arriva a fondo corsa in un attimo, non di colpo
+    const rate = want === 0 ? 10 : want * steerK < 0 ? 14 : 7;
+    steerK += clamp(want - steerK, -rate * dt, rate * dt);
+    let steer = touch.steerId != null ? touch.steer : steerK;
+    const p = pad();
+    if (p && Math.abs(p.steer) > 0.01) steer = p.steer;
+    const brake = keys.has('ArrowDown') || keys.has('KeyS') || touch.brakeId != null || !!(p && p.brake);
+    const manual = keys.has('ArrowUp') || keys.has('KeyW') || !!(p && p.gas);
+    const gas = !brake && (manual || (touchUI && lastInput === 'touch'));
+    // più tasti per la derapata: tante tastiere di portatili perdono il terzo tasto premuto insieme a due frecce
+    const drift = keys.has('Space') || keys.has('ShiftLeft') || keys.has('ShiftRight') || keys.has('KeyZ') || keys.has('KeyC') || touch.driftId != null || !!(p && p.drift);
+    const item = keys.has('KeyE') || keys.has('KeyX') || touch.itemId != null || !!(p && p.item);
+    return { gas, brake, steer, drift, item, manual };
+  }
+  // controller (mappatura standard): levetta sinistra sterza, A o RT accelera, B o LT frena,
+  // RB o R derapa, LB o X turbo, Start o A per partire
+  let padPrev = {};
+  function pad() {
+    const list = navigator.getGamepads ? navigator.getGamepads() : [];
+    const g = [...list].find(x => x && x.connected && x.mapping === 'standard') || [...list].find(x => x && x.connected);
+    if (!g) return null;
+    const b = i => (g.buttons[i] ? g.buttons[i].value > 0.4 || g.buttons[i].pressed : false);
+    let ax = g.axes[0] || 0;
+    ax = Math.abs(ax) < 0.15 ? 0 : (ax - Math.sign(ax) * 0.15) / 0.85;
+    if (b(14)) ax = -1;
+    if (b(15)) ax = 1;
+    const r = { steer: clamp(ax, -1, 1), gas: b(0) || b(7), brake: b(1) || b(6), drift: b(5), item: b(4) || b(2), start: b(9) || b(0) };
+    if (r.gas || r.brake || r.drift || r.item || r.start || ax) lastInput = 'pad';
+    return r;
+  }
+
+  const elIntro = document.getElementById('kart-intro');
+  const btnGo = document.getElementById('kart-go');
+  let introSeen = false;
+  try { introSeen = localStorage.getItem('kart-intro-seen') === '1'; } catch (e) {}
+  function showIntro() {
+    keys.clear();
+    btnGo.textContent = mode === 'race' || mode === 'count' ? 'Back to the race' : 'Race';
+    stage.hidden = true;
+    elIntro.hidden = false;
+    elName.focus({ preventScroll: true });
+  }
+  function closeIntro() {
+    try { localStorage.setItem('foos-name', knownName(elName.value)); localStorage.setItem('kart-intro-seen', '1'); } catch (e) {}
+    introSeen = true;
+    elIntro.hidden = true;
+    stage.hidden = false;
+    canvas.focus({ preventScroll: true });
+    if (mode === 'idle' || mode === 'done') startRace();
+  }
+  btnGo.addEventListener('click', closeIntro);
+  elName.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); closeIntro(); } });
+  document.getElementById('kart-help').addEventListener('click', showIntro);
+  document.getElementById('kart-again').addEventListener('click', () => {
+    if (!introSeen) showIntro(); else startRace();
+    if (lastInput === 'key') canvas.focus({ preventScroll: true });
+  });
+  btnReplay.addEventListener('click', () => {
+    if (lastRace) startReplay();
+    canvas.focus({ preventScroll: true });
+  });
+
+  // fuori dalla gara: click, tocco o Invio fanno partire la gara o saltano il replay
+  function metaPress() {
+    if (mode === 'idle' || mode === 'done') {
+      if (mode === 'done' && modeT < 1) return true;   // non ripartire per sbaglio subito dopo il traguardo
+      if (!introSeen) showIntro(); else startRace();
+      return true;
+    }
+    if (mode === 'replay') { setMode('done'); modeT = 5; return true; }
+    return false;
+  }
+
+  canvas.addEventListener('focus', () => { hasFocus = true; });
+  canvas.addEventListener('blur', () => { hasFocus = false; keys.clear(); });
+  canvas.addEventListener('keydown', e => {
+    if (e.code === 'Enter') { e.preventDefault(); if (!e.repeat) metaPress(); return; }
+    if (e.code === 'KeyR') { e.preventDefault(); if (mode !== 'idle') startRace(); return; }
+    if (!KEYS.includes(e.code)) return;
+    e.preventDefault();
+    lastInput = 'key';
+    if (mode === 'idle' || mode === 'replay' || (mode === 'done' && e.code !== 'Space' && !e.code.startsWith('Shift'))) {
+      if (!e.repeat && (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space')) metaPress();
+      return;
+    }
+    keys.add(e.code);
+  });
+  canvas.addEventListener('keyup', e => keys.delete(e.code));
+  document.addEventListener('visibilitychange', () => keys.clear());
+
+  // touch: a sinistra il volante (analogico: più lontano dal centro, più sterza), a destra freno e derapata
+  function touchLayout() {
+    const b = Math.min(cw, ch), m = b * 0.05, y = ch - b * 0.17;
+    const rd = b * 0.1, rb = b * 0.08, ri = b * 0.065, ph = b * 0.07, padW = Math.min(cw * 0.12, b * 0.2);
+    const padX = m + ph + padW, driftX = cw - m - rd, brakeX = driftX - rd - rb - b * 0.04;
+    return { y, padX, padW, driftX, brakeX, rd, rb, ph, ri, itemX: driftX, itemY: y - rd - ri - b * 0.05 };
+  }
+  function canvasXY(e) {
+    const r = canvas.getBoundingClientRect();
+    return [(e.clientX - r.left) / r.width * cw, (e.clientY - r.top) / r.height * ch];
+  }
+  canvas.addEventListener('pointerdown', e => {
+    canvas.focus({ preventScroll: true });
+    if (e.pointerType === 'mouse') lastInput = lastInput === 'key' ? 'key' : 'pointer';
+    else { lastInput = 'touch'; touchUI = true; }
+    if (mode !== 'race' && mode !== 'count') { metaPress(); return; }
+    if (e.pointerType === 'mouse') return;
+    const [x, y] = canvasXY(e), L = touchLayout();
+    if (x < cw / 2) { touch.steerId = e.pointerId; touch.steer = clamp((x - L.padX) / (L.padW * 0.8), -1, 1); }
+    else if (Math.hypot(x - L.itemX, y - L.itemY) < L.ri * 1.5) touch.itemId = e.pointerId;
+    else if (x > (L.driftX + L.brakeX) / 2) touch.driftId = e.pointerId;
+    else touch.brakeId = e.pointerId;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (e.pointerId !== touch.steerId) return;
+    const [x] = canvasXY(e), L = touchLayout();
+    touch.steer = clamp((x - L.padX) / (L.padW * 0.8), -1, 1);
+  });
+  function pointerEnd(e) {
+    if (e.pointerId === touch.steerId) { touch.steerId = null; touch.steer = 0; }
+    if (e.pointerId === touch.driftId) touch.driftId = null;
+    if (e.pointerId === touch.brakeId) touch.brakeId = null;
+    if (e.pointerId === touch.itemId) touch.itemId = null;
+  }
+  canvas.addEventListener('pointerup', pointerEnd);
+  canvas.addEventListener('pointercancel', pointerEnd);
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  // scelta del fantasma
+  const elGhosts = document.getElementById('kart-ghosts');
+  const ghostButtons = GHOSTS.map(def => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = def.label; b.disabled = true; b.title = 'Loading...';
+    b.addEventListener('click', () => {
+      ghostId = def.id;
+      try { localStorage.setItem('kart-ghost', ghostId); } catch (e) {}
+      showGhosts();
+      if (mode === 'count' || mode === 'race') startRace();
+      if (lastInput === 'key') canvas.focus({ preventScroll: true });
+    });
+    elGhosts.appendChild(b);
+    return b;
+  });
+  function showGhosts() {
+    GHOSTS.forEach((def, i) => {
+      const g = ghosts[def.id], b = ghostButtons[i];
+      b.setAttribute('aria-pressed', String(def.id === ghostId));
+      if (def.id === 'record') {
+        b.disabled = !g;
+        b.title = g ? 'The fastest race on the leaderboard' : 'Set the best time on the leaderboard and your race becomes the record ghost';
+        b.textContent = g ? `Record: ${recordHolder} ${fmt(g.time)}` : 'Record (none yet)';
+      } else if (g) { b.disabled = false; b.title = ''; b.textContent = `${def.label} ${fmt(g.time)}`; }
+    });
+    showScore();
+  }
+  // il fantasma del record cambia solo fuori dalla gara, mai mentre ci si sta correndo contro
+  function applyRecord() {
+    if (!pendingRecord || mode === 'count' || mode === 'race' || mode === 'replay') return;
+    const { g, name } = pendingRecord;
+    pendingRecord = null;
+    if (g) ghosts.record = g; else delete ghosts.record;
+    recordHolder = g ? name : '';
+    if (ghostId === 'record' && !g) { const d = GHOSTS.find(x => ghosts[x.id]); if (d) ghostId = d.id; }
+    showGhosts();
+  }
+  // viene dalla rete: prima di usarlo controllo che sia una corsa vera, dentro i muri, alla velocità del kart,
+  // con il traguardo del terzo giro tagliato proprio al tempo dichiarato
+  function plausible(g, time) {
+    if (Math.abs(g.time - time) > 0.02) return false;
+    const step = VMAX * 1.3 * 1.1 / HZ;
+    for (let i = 1; i < g.n; i++) if (Math.hypot(g.x[i] - g.x[i - 1], g.y[i] - g.y[i - 1]) > step) return false;
+    for (let i = 0; i < g.n; i++) {
+      project(g.x[i], g.y[i], P);
+      if (Math.abs(P.d) > P.hw + RUNOFF - KR + 3 && WALL[P.d > 0 ? 1 : 0][P.i]) return false;
+    }
+    const tf = ghostTimeAt(g, LAPS * T.L);
+    return tf != null && Math.abs(tf - time) < 0.15;
+  }
+  Promise.allSettled(GHOSTS.filter(def => def.file).map(def => fetch(GHOST_DIR + def.file, { cache: 'no-cache' })
+    .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then(j => { ghosts[def.id] = decodeGhost(j); showGhosts(); })
+    .catch(() => { const b = ghostButtons[GHOSTS.indexOf(def)]; b.title = 'Not recorded yet'; b.textContent = `${def.label} (not recorded yet)`; })))
+    .then(() => {
+      // se il fantasma scelto manca, si passa al primo che c'è
+      if (!ghosts[ghostId]) { const d = GHOSTS.find(x => ghosts[x.id]); if (d) ghostId = d.id; }
+      showGhosts();
+    });
+  showGhosts();
+
+  // registrazione: alla fine della gara si scarica il file del fantasma
+  const elRec = document.getElementById('kart-rec');
+  const recButtons = [];
+  if (RECORD) {
+    elRec.hidden = false;
+    const holder = document.getElementById('kart-rec-buttons');
+    for (const def of GHOSTS.filter(d => d.file)) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.disabled = true; b.textContent = `Save as ${def.file}`;
+      b.addEventListener('click', () => {
+        if (!lastRace) return;
+        const blob = new Blob([encodeTrace(lastRace.trace, lastRace.laps, def.label)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = def.file;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      });
+      holder.appendChild(b);
+      recButtons.push(b);
+    }
+  }
+  function showRecButtons() {
+    for (const b of recButtons) b.disabled = !lastRace || lastRace.trace.x.length < 10;
+  }
+
+  // ---------- schermo intero: quello vero dove c'è, altrimenti (iPhone) il blocco copre la pagina ----------
+  const box = document.getElementById('kart');
+  const btnFull = document.getElementById('kart-full');
+  const realFull = !!(box.requestFullscreen || box.webkitRequestFullscreen);
+  let fakeFull = null;
+  const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+  function showFull() {
+    const on = fsElement() === box || !!fakeFull;
+    btnFull.textContent = on ? 'Exit full screen' : 'Full screen';
+    btnFull.setAttribute('aria-pressed', String(on));
+  }
+  function fakeEnter() {
+    // fuori dal contenitore del sito: il suo filtro (dark mode) romperebbe position: fixed
+    fakeFull = document.createComment('kart');
+    box.before(fakeFull);
+    document.body.appendChild(box);
+    box.classList.add('kart-full');
+    document.documentElement.style.overflow = 'hidden';
+    showFull();
+  }
+  function enterFull() {
+    if (!realFull) { fakeEnter(); return; }
+    const req = box.requestFullscreen || box.webkitRequestFullscreen;
+    Promise.resolve(req.call(box)).then(() => {
+      if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
+    }).catch(fakeEnter);
+  }
+  function exitFull() {
+    if (fakeFull) {
+      box.classList.remove('kart-full');
+      fakeFull.replaceWith(box);
+      fakeFull = null;
+      document.documentElement.style.overflow = '';
+      showFull();
+    } else if (fsElement()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  }
+  btnFull.addEventListener('click', () => {
+    if (fsElement() === box || fakeFull) exitFull(); else enterFull();
+    canvas.focus({ preventScroll: true });
+  });
+  document.addEventListener('fullscreenchange', showFull);
+  document.addEventListener('webkitfullscreenchange', showFull);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && fakeFull) exitFull(); });
+
+  // ---------- disegno ----------
+  let cw = 1, ch = 1, dpr = 1, hu = 1;
+  const cam = { x: 0, y: 0, z: 1, snap: true };
+  function resize() {
+    const r = canvas.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cw = Math.max(1, Math.round(r.width * dpr));
+    ch = Math.max(1, Math.round(r.height * dpr));
+    canvas.width = cw; canvas.height = ch;
+    hu = Math.min(cw, ch) / 420;
+  }
+  new ResizeObserver(resize).observe(canvas);
+  resize();
+
+  // erba: tratteggio diagonale; grana di pellicola per il replay
+  const hatch = document.createElement('canvas');
+  hatch.width = hatch.height = 18;
+  {
+    const g = hatch.getContext('2d');
+    g.fillStyle = '#f1f1f1'; g.fillRect(0, 0, 18, 18);
+    g.strokeStyle = '#d2d2d2'; g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(-2, 20); g.lineTo(20, -2); g.moveTo(-2, 2); g.lineTo(2, -2); g.moveTo(16, 20); g.lineTo(20, 16); g.stroke();
+  }
+  const grassPat = ctx.createPattern(hatch, 'repeat');
+  const grain = document.createElement('canvas');
+  grain.width = grain.height = 256;
+  {
+    const g = grain.getContext('2d'), img = g.createImageData(256, 256);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = Math.random() * 255;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = Math.random() < 0.5 ? 0 : 255;
+    }
+    g.putImageData(img, 0, 0);
+  }
+  const screenSpace = () => ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const font = (size, weight = '') => { ctx.font = `${weight} ${Math.round(size * hu)}px 'Courier New', monospace`; };
+  function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
+
+  function drawWorld() {
+    const [bx0, by0, bx1, by1] = geo.box;
+    ctx.fillStyle = grassPat;
+    ctx.fillRect(bx0 - 2000, by0 - 2000, bx1 - bx0 + 4000, by1 - by0 + 4000);
+    ctx.fillStyle = PAPER; ctx.fill(geo.surface);
+    ctx.fill(geo.kerbW); ctx.fillStyle = INK; ctx.fill(geo.kerbB);
+    ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+    ctx.stroke(geo.edges);
+    ctx.fill(geo.checker);
+    ctx.fillStyle = BLUE; ctx.fill(geo.pads);
+    ctx.lineWidth = 2; ctx.strokeStyle = '#9a9a9a'; ctx.stroke(geo.slots);
+    // segni delle gomme
+    if (skids.length) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.16)'; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (const s of skids) { ctx.moveTo(s[0], s[1]); ctx.lineTo(s[2], s[3]); }
+      ctx.stroke(); ctx.lineCap = 'butt';
+    }
+    // cartelli e nomi delle curve
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const [x, y, t] of geo.boards) {
+      ctx.fillStyle = PAPER; ctx.fillRect(x - 9, y - 11, 18, 22);
+      ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.strokeRect(x - 9, y - 11, 18, 22);
+      ctx.fillStyle = INK; ctx.font = "bold 15px 'Courier New', monospace"; ctx.fillText(t, x, y + 1);
+    }
+    ctx.fillStyle = '#8c8c8c'; ctx.font = "italic bold 24px 'Courier New', monospace";
+    for (const [x, y, t] of geo.names) ctx.fillText(t, x, y);
+    // muri di gomme
+    ctx.fillStyle = PAPER; ctx.fill(geo.tyres);
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2.2; ctx.stroke(geo.tyres);
+  }
+
+  // kart visto dall'alto: muso verso +x
+  function drawKart(x, y, a, color, alpha, flags, label) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(a);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = 'rgba(0,0,0,0.14)'; rr(-17, -11, 37, 26, 8); ctx.fill();     // ombra
+    ctx.fillStyle = INK === color ? '#222' : color;
+    rr(9, -14, 11, 6, 2); ctx.fill(); rr(9, 8, 11, 6, 2); ctx.fill();            // ruote davanti
+    rr(-17, -16, 13, 8, 2); ctx.fill(); rr(-17, 8, 13, 8, 2); ctx.fill();        // ruote dietro, più larghe
+    ctx.fillStyle = color;
+    rr(-15, -8, 34, 16, 6); ctx.fill();                                           // telaio
+    rr(16, -11, 6, 22, 3); ctx.fill();                                            // musetto
+    ctx.fillStyle = PAPER;
+    ctx.fillRect(-12, -1, 25, 2);                                                 // riga sul telaio
+    ctx.beginPath(); ctx.arc(-3, 0, 6.2, 0, Math.PI * 2); ctx.fill();             // casco
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = color; ctx.fillRect(0, -3.5, 3, 7);                           // visiera
+    if (flags === 5) {
+      // turbo: fiammata dal retro
+      ctx.fillStyle = BLUE;
+      ctx.beginPath(); ctx.moveTo(-16, -5); ctx.lineTo(-30 - Math.random() * 10, 0); ctx.lineTo(-16, 5); ctx.fill();
+    }
+    ctx.restore();
+    if (label) {
+      ctx.globalAlpha = Math.min(1, alpha * 1.6);
+      ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = "bold 15px 'Courier New', monospace";
+      ctx.fillText(label, x, y - 30);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // scintille della derapata, polvere sull'erba, fiamme del turbo (solo grafica, non toccano la fisica)
+  function emit(k, flags, dt) {
+    if (reduceMotion) return;
+    const c = Math.cos(k.a), s = Math.sin(k.a);
+    const rear = side => [k.x - c * 15 - s * 12 * side, k.y - s * 15 + c * 12 * side];
+    if (flags >= 1 && flags <= 4 && Math.random() < dt * 50) {
+      const lvl = flags - 1;
+      for (const side of [-1, 1]) {
+        const [x, y] = rear(side);
+        if (!lvl) { if (Math.random() < 0.4) parts.push({ x, y, vx: -c * 30 + (Math.random() - 0.5) * 40, vy: -s * 30 + (Math.random() - 0.5) * 40, t: 0, life: 0.35, kind: 0, light: true }); }
+        else parts.push({ x, y, vx: -c * 90 + (Math.random() - 0.5) * 140, vy: -s * 90 + (Math.random() - 0.5) * 140, t: 0, life: 0.22, kind: 1 + lvl, w: Math.random() < 0.4 });
+      }
+    }
+    if (((k.off && Math.abs(k.v) > 60) || k.stall > 0) && Math.random() < dt * 40) {
+      const [x, y] = rear(Math.random() < 0.5 ? -1 : 1);
+      parts.push({ x, y, vx: (Math.random() - 0.5) * 50, vy: (Math.random() - 0.5) * 50, t: 0, life: 0.6, kind: 0 });
+    }
+    if (parts.length > 300) parts.splice(0, parts.length - 300);
+  }
+  // scintille: fumo grigio mentre si carica, poi azzurre (mini), blu (super), blu e bianche (ultra)
+  const SPARK = ['#9a9a9a', '#6f98ff', BLUE, BLUE];
+  const sparkColor = p => (p.kind === 4 ? (p.w ? PAPER : BLUE) : SPARK[p.kind - 1]);
+  // fiammella su ciascuna ruota posteriore (solo in 3D, disegnata sulla tela del cruscotto)
+  function sparkFlame(x, y, a, flags, alpha, vs) {
+    const lvl = flags >= 2 && flags <= 4 ? flags - 1 : 0;
+    if (!lvl || reduceMotion) return;
+    const c = Math.cos(a), s = Math.sin(a), hop = vs && vs.hop < HOP ? Math.sin(vs.hop / HOP * Math.PI) * 6 : 0;
+    for (const sd of [-1, 1]) {
+      const q = V3.toScreen(x - c * 16 - s * 14 * sd, 3 + hop, y - s * 16 + c * 14 * sd);
+      if (!q) continue;
+      const R = (3.5 + 1.6 * lvl) * q[2] * (0.8 + Math.random() * 0.4);
+      const col = lvl === 3 && Math.random() < 0.5 ? PAPER : SPARK[lvl];
+      ctx.globalAlpha = alpha;
+      const gr = ctx.createRadialGradient(q[0], q[1], 0, q[0], q[1], R);
+      gr.addColorStop(0, '#fff'); gr.addColorStop(0.35, col); gr.addColorStop(1, 'rgba(11,71,209,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(q[0], q[1], R, 0, Math.PI * 2); ctx.fill();
+      // raggi
+      ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, R * 0.12); ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let i = 0; i < 4 + lvl; i++) {
+        const t = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, L = R * (1 + Math.random() * 0.9);
+        ctx.moveTo(q[0], q[1]); ctx.lineTo(q[0] + Math.cos(t) * L, q[1] + Math.sin(t) * L);
+      }
+      ctx.stroke(); ctx.lineCap = 'butt';
+      ctx.globalAlpha = 1;
+    }
+  }
+  function updateParts(dt) {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.t > p.life) parts.splice(i, 1);
+    }
+  }
+  function drawParts() {
+    for (const p of parts) {
+      const a = 1 - p.t / p.life;
+      if (p.kind === 0) { ctx.fillStyle = `rgba(120,120,120,${0.35 * a})`; ctx.beginPath(); ctx.arc(p.x, p.y, 5 + 8 * (1 - a), 0, Math.PI * 2); ctx.fill(); }
+      else {
+        ctx.fillStyle = sparkColor(p);
+        ctx.globalAlpha = a; ctx.fillRect(p.x - 2, p.y - 2, 4, 4); ctx.globalAlpha = 1;
+      }
+    }
+  }
+  let skidTick = 0;
+  function addSkids(k) {
+    if (!(k.drift || (Math.abs(k.slip) > 0.22 && k.v > 160) || (k.hit > 0))) { k.skidPrev = null; return; }
+    const c = Math.cos(k.a), s = Math.sin(k.a);
+    const pts = [-1, 1].map(side => [k.x - c * 12 - s * 12 * side, k.y - s * 12 + c * 12 * side]);
+    if (k.skidPrev) for (let i = 0; i < 2; i++) skids.push([k.skidPrev[i][0], k.skidPrev[i][1], pts[i][0], pts[i][1]]);
+    k.skidPrev = pts;
+    if (skids.length > 1600) skids.splice(0, skids.length - 1600);
+  }
+
+  // la telecamera: dall'alto, segue il kart guardando un po' avanti; per la pista intera si allontana
+  function follow(x, y, vx, vy, zoom, dt, anchorY) {
+    const tx = x + vx * 0.32, ty = y + vy * 0.32;
+    const z = Math.min(cw, ch) / 640 * zoom;
+    if (cam.snap) { cam.x = tx; cam.y = ty; cam.z = z; cam.snap = false; }
+    const f = 1 - Math.exp(-dt * 5);
+    cam.x += (tx - cam.x) * f; cam.y += (ty - cam.y) * f; cam.z += (z - cam.z) * f;
+    ctx.setTransform(cam.z, 0, 0, cam.z, cw / 2 - cam.x * cam.z, ch * anchorY - cam.y * cam.z);
+  }
+  function overview() {
+    const [x0, y0, x1, y1] = geo.box;
+    const z = Math.min(cw / (x1 - x0), ch / (y1 - y0));
+    ctx.setTransform(z, 0, 0, z, cw / 2 - (x0 + x1) / 2 * z, ch / 2 - (y0 + y1) / 2 * z);
+    cam.snap = true;
+  }
+
+  function drawMinimap(x, y, w, h) {
+    const [x0, y0, x1, y1] = geo.box, z = Math.min(w / (x1 - x0), h / (y1 - y0));
+    const ox = x + (w - (x1 - x0) * z) / 2 - x0 * z, oy = y + (h - (y1 - y0) * z) / 2 - y0 * z;
+    ctx.save();
+    ctx.setTransform(z, 0, 0, z, ox, oy);
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 3 / z * dpr * 0.8; ctx.stroke(geo.line);
+    ctx.restore();
+    const dot = (px, py, c, r) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(ox + px * z, oy + py * z, r, 0, Math.PI * 2); ctx.fill(); };
+    const g = ghostOf();
+    if (g && race) { ghostPose(g, race.t, gp); dot(gp.x, gp.y, BLUE, 3.2 * hu); }
+    dot(kart.x, kart.y, INK, 3.6 * hu);
+  }
+
+  function textBox(lines, cx, cy, opts = {}) {
+    // riquadro bianco con bordo nero e righe di testo centrate
+    screenSpace();
+    const sizes = lines.map(l => l[1]);
+    const lh = sizes.map(s => s * hu * 1.45), H = lh.reduce((a, b) => a + b, 0) + 26 * hu;
+    let W = 0;
+    for (const [t, s, w] of lines) { font(s, w || ''); W = Math.max(W, ctx.measureText(t).width); }
+    W += 44 * hu;
+    ctx.fillStyle = opts.bg || 'rgba(255,255,255,0.93)'; rr(cx - W / 2, cy - H / 2, W, H, 8 * hu); ctx.fill();
+    ctx.strokeStyle = INK; ctx.lineWidth = Math.max(1, 2 * hu); ctx.stroke();
+    let y = cy - H / 2 + 13 * hu;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    lines.forEach(([t, s, w, c], i) => {
+      font(s, w || ''); ctx.fillStyle = c || INK;
+      ctx.fillText(t, cx, y + lh[i] / 2); y += lh[i];
+    });
+  }
+
+  // cruscotto: in alto a sinistra i turbo, il giro e le monete; in alto a destra il tempo, i giri e il fantasma
+  const outline = (t, x, y, w = 4) => {
+    ctx.lineJoin = 'round'; ctx.lineWidth = w * hu; ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.strokeText(t, x, y); ctx.fillText(t, x, y);
+  };
+  function chevron(x, y, r) {
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.55, y - r); ctx.lineTo(x + r * 0.45, y); ctx.lineTo(x - r * 0.55, y + r);
+    ctx.lineTo(x - r * 0.05, y + r); ctx.lineTo(x + r * 0.95, y); ctx.lineTo(x - r * 0.05, y - r); ctx.closePath();
+    ctx.fill();
+  }
+  function drawHUD() {
+    screenSpace();
+    const pad = 12 * hu, g = ghostOf();
+    const lapN = race ? Math.min(LAPS, race.laps.length + 1) : 1;
+    // riquadro dei turbo
+    const bs = 46 * hu;
+    ctx.fillStyle = 'rgba(255,255,255,0.88)'; rr(pad, pad, bs, bs, 9 * hu); ctx.fill();
+    ctx.strokeStyle = INK; ctx.lineWidth = 2.5 * hu; ctx.stroke();
+    ctx.fillStyle = BLUE;
+    for (let i = 0; i < kart.items; i++) chevron(pad + bs / 2 + (i - (kart.items - 1) / 2) * 10 * hu - 2 * hu, pad + bs / 2, 9 * hu);
+    if (!kart.items) { ctx.fillStyle = '#aaa'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; font(10, 'bold'); ctx.fillText('empty', pad + bs / 2, pad + bs / 2); }
+    // giro e monete
+    const lx = pad + bs + 9 * hu;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = INK;
+    font(11, 'bold'); outline('LAP', lx, pad + 11 * hu);
+    font(28, 'bold'); outline(`${lapN}/${LAPS}`, lx, pad + 38 * hu, 5);
+    if (RECORD) { ctx.fillStyle = BLUE; font(13, 'bold'); outline('\u25CF REC', pad, pad + bs + 30 * hu); }
+    // tempo totale e giri
+    ctx.textAlign = 'right'; ctx.fillStyle = INK;
+    const total = race && mode !== 'count' ? (race.done ? race.time : race.t) : 0;
+    font(24, 'bold'); outline(fmt(total), cw - pad, pad + 22 * hu, 5);
+    font(12);
+    let y = pad + 40 * hu;
+    if (race) {
+      const best = race.laps.length ? Math.min(...race.laps) : 0;
+      race.laps.forEach((l, i) => {
+        ctx.fillStyle = race.laps.length > 1 && l === best ? BLUE : INK;
+        outline(`${i + 1}  ${fmt(l)}`, cw - pad, y); y += 15 * hu;
+      });
+      if (!race.done && mode !== 'count') { ctx.fillStyle = '#666'; outline(`${lapN}  ${fmt(Math.max(0, race.t - race.lapStart))}`, cw - pad, y); y += 15 * hu; }
+    }
+    // distacco dal fantasma, in tempo
+    if (g) {
+      y += 6 * hu;
+      ctx.fillStyle = BLUE; font(12, 'bold'); outline(who(ghostId), cw - pad, y); y += 21 * hu;
+      let gap = null;
+      if (race && mode === 'race' && kart.prog > 0) { const gt = ghostTimeAt(g, kart.prog); if (gt != null) gap = race.t - gt; }
+      if (race && race.done) gap = race.time - g.time;
+      font(19, 'bold');
+      if (gap == null) { ctx.fillStyle = BLUE; outline(fmt(g.time), cw - pad, y); }
+      else { ctx.fillStyle = gap > 0 ? BLUE : INK; outline((gap > 0 ? '+' : '\u2212') + fmtGap(gap), cw - pad, y); }
+    }
+    // mappa
+    if (touchUI) drawMinimap(pad, pad + bs + 8 * hu, 92 * hu, 60 * hu);
+    else drawMinimap(cw - pad - 120 * hu, ch - pad - 78 * hu, 120 * hu, 78 * hu);
+
+    if (race && race.wrong > 0.8 && mode === 'race') textBox([['Wrong way', 26, 'bold']], cw / 2, ch * 0.3);
+    if (flash) {
+      ctx.globalAlpha = Math.max(0, Math.min(1, (2.4 - flash.t) / 0.4));
+      const lines = [[flash.text, 22, 'bold']];
+      if (flash.sub) lines.push([flash.sub, 15, '', flash.sub.includes('behind') ? BLUE : INK]);
+      textBox(lines, cw / 2, ch * 0.2 + 10 * hu);
+      ctx.globalAlpha = 1;
+    }
+    if (banner) bigText(banner.text, banner.t, banner.text === 'FINISH!' ? INK : BLUE, 1.6);
+  }
+  // scritta grande al centro che arriva con un piccolo rimbalzo e poi sfuma
+  function bigText(t, age, color, life) {
+    screenSpace();
+    const pop = 1 + 0.45 * Math.max(0, 1 - age * 5) ** 2;
+    ctx.globalAlpha = clamp((life - age) / 0.3, 0, 1);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = color;
+    font(Math.min(64, cw / hu / (t.length * 0.62)) * pop, 'bold');
+    outline(t, cw / 2, ch * 0.36, 8);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawTouch(inp) {
+    if (!touchUI || (mode !== 'race' && mode !== 'count')) return;
+    screenSpace();
+    const L = touchLayout();
+    ctx.lineWidth = Math.max(1.5, 2 * hu);
+    // volante: una barra con le due frecce e il cursore
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    rr(L.padX - L.padW - L.ph, L.y - L.ph, 2 * (L.padW + L.ph), 2 * L.ph, L.ph); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    for (const sg of [-1, 1]) {
+      const x = L.padX + sg * L.padW;
+      ctx.beginPath(); ctx.moveTo(x + sg * L.ph * 0.45, L.y); ctx.lineTo(x - sg * L.ph * 0.3, L.y - L.ph * 0.5); ctx.lineTo(x - sg * L.ph * 0.3, L.y + L.ph * 0.5); ctx.fill();
+    }
+    ctx.fillStyle = touch.steerId != null ? INK : 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.arc(L.padX + inp * L.padW * 0.8, L.y, L.ph * 0.55, 0, Math.PI * 2); ctx.fill();
+    // freno e derapata
+    const btn = (x, r, label, on) => {
+      ctx.fillStyle = on ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.55)';
+      ctx.beginPath(); ctx.arc(x, L.y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.stroke();
+      ctx.fillStyle = on ? PAPER : 'rgba(0,0,0,0.75)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      font(13, 'bold'); ctx.fillText(label, x, L.y, r * 1.7);
+    };
+    btn(L.brakeX, L.rb, 'BRAKE', touch.brakeId != null);
+    btn(L.driftX, L.rd, 'DRIFT', touch.driftId != null);
+    if (kart.items > 0) {
+      const y0 = L.y; L.y = L.itemY;
+      btn(L.itemX, L.ri, `TURBO ${kart.items}`, touch.itemId != null);
+      L.y = y0;
+    }
+  }
+
+  function drawGrain(alpha) {
+    screenSpace();
+    ctx.globalAlpha = alpha;
+    const ox = Math.random() * 256, oy = Math.random() * 256;
+    ctx.translate(-ox, -oy);
+    ctx.fillStyle = ctx.createPattern(grain, 'repeat');
+    ctx.fillRect(ox, oy, cw, ch);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- replay dell'ultimo giro, in pellicola ----------
+  let replayT = 0, replayEnd = 0;
+  const rp = {};
+  function startReplay() {
+    const r = lastRace;
+    replayT = r.time - r.laps[LAPS - 1];
+    replayEnd = Math.min(r.time + 1.2, (r.trace.x.length - 1) / HZ);
+    cam.snap = true; tv.cur = -1;
+    canvas.classList.remove('playing');
+    setMode('replay');
+  }
+  function tracePose(tr, t, o) {
+    const n = tr.x.length, fi = clamp(t * HZ, 0, n - 1), i = Math.min(n - 2, Math.floor(fi)), u = fi - i;
+    o.x = tr.x[i] + (tr.x[i + 1] - tr.x[i]) * u; o.y = tr.y[i] + (tr.y[i + 1] - tr.y[i]) * u;
+    o.a = tr.a[i] + (tr.a[i + 1] - tr.a[i]) * u; o.f = +tr.f[Math.round(fi)] || 0;
+    o.vx = (tr.x[i + 1] - tr.x[i]) * HZ; o.vy = (tr.y[i + 1] - tr.y[i]) * HZ;
+    o.turn = clamp((tr.a[i + 1] - tr.a[i]) * HZ * 0.18, -0.45, 0.45);
+    return o;
+  }
+
+  // ---------- 3D: WebGL scritto a mano, nessuna libreria ----------
+  // Il mondo è quello della pista vista dall'alto: (x, y) della mappa diventano (x, z), l'altezza è y.
+  const glc = document.getElementById('kart-gl');
+  const V3 = init3D();
+  if (!V3) glc.hidden = true;      // niente WebGL: resta la vista dall'alto
+
+  function init3D() {
+    let gl = null;
+    try { gl = glc.getContext('webgl', { antialias: true, alpha: false }); } catch (e) {}
+    if (!gl || !gl.getExtension('OES_standard_derivatives')) return null;
+    try { return build3D(gl); } catch (e) { console.warn('Kart 3D is off:', e); return null; }
+  }
+
+  function build3D(gl) {
+    const hp = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
+    const PREC = hp && hp.precision > 0 ? 'highp' : 'mediump';
+    function program(vs, fs) {
+      const p = gl.createProgram();
+      for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, src); gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+        gl.attachShader(p, s);
+      }
+      gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+      const u = {}, a = {};
+      for (let i = 0, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); i < n; i++) {
+        const info = gl.getActiveUniform(p, i);
+        // niente barra rovescia e parentesi quadre qui: il sito passa la pagina a KaTeX, che le prenderebbe per una formula
+        u[info.name.endsWith('[0]') ? info.name.slice(0, -3) : info.name] = gl.getUniformLocation(p, info.name);
+      }
+      for (let i = 0, n = gl.getProgramParameter(p, gl.ACTIVE_ATTRIBUTES); i < n; i++) {
+        const info = gl.getActiveAttrib(p, i);
+        a[info.name] = gl.getAttribLocation(p, info.name);
+      }
+      return { p, u, a };
+    }
+    const FOG = `uniform vec3 u_fogc; uniform vec2 u_fog;
+      vec3 fog(vec3 c, float d) { float f = clamp((d - u_fog.x) / (u_fog.y - u_fog.x), 0.0, 1.0); return mix(c, u_fogc, f); }`;
+
+    // oggetti: colore per vertice, luce dall'alto, nebbia; u_tint ricolora (il fantasma) e dà la trasparenza
+    const mesh = program(`
+      attribute vec3 a_pos; attribute vec3 a_nor; attribute vec3 a_col;
+      uniform mat4 u_vp; uniform mat4 u_m; uniform vec3 u_eye;
+      varying vec3 v_col; varying vec3 v_nor; varying float v_dist;
+      void main() {
+        vec4 w = u_m * vec4(a_pos, 1.0);
+        v_nor = (u_m * vec4(a_nor, 0.0)).xyz; v_col = a_col; v_dist = distance(w.xyz, u_eye);
+        gl_Position = u_vp * w;
+      }`, `precision mediump float;
+      varying vec3 v_col; varying vec3 v_nor; varying float v_dist;
+      uniform vec4 u_tint; uniform float u_mix; uniform float u_lit; ${FOG}
+      void main() {
+        vec3 n = normalize(v_nor);
+        float l = 0.58 + 0.42 * max(0.0, dot(n, vec3(0.37, 0.85, 0.37)));
+        vec3 c = mix(v_col, u_tint.rgb, u_mix) * mix(1.0, l, u_lit);
+        gl_FragColor = vec4(fog(c, v_dist), u_tint.a);
+      }`);
+
+    // prato e asfalto disegnati nello shader: righe nette a qualunque distanza
+    const ground = program(`
+      attribute vec3 a_pos; attribute vec4 a_trk;
+      uniform mat4 u_vp; uniform vec3 u_eye;
+      varying vec4 v_trk; varying vec2 v_w; varying float v_dist;
+      void main() { v_trk = a_trk; v_w = a_pos.xz; v_dist = distance(a_pos, u_eye); gl_Position = u_vp * vec4(a_pos, 1.0); }`,
+    `#extension GL_OES_standard_derivatives : enable
+      precision ${PREC} float;
+      varying vec4 v_trk; varying vec2 v_w; varying float v_dist;
+      uniform float u_L; uniform float u_sq; uniform float u_time; uniform vec4 u_pad[3]; ${FOG}
+      const vec3 INK = vec3(0.06), WHITE = vec3(0.985), BLUE = vec3(0.043, 0.278, 0.82);
+      // distanza dall'intero più vicino, in periodi; righe sottili e bande, sfumate da lontano
+      float line(float q, float w0) {
+        float w = fwidth(q), d = abs(fract(q + 0.5) - 0.5);
+        return mix(1.0 - smoothstep(w0 - w, w0 + w, d), 2.0 * w0, clamp(w * 2.5 - 0.3, 0.0, 1.0));
+      }
+      float band(float q) {
+        float w = fwidth(q), d = abs(fract(q + 0.5) - 0.5);
+        return mix(smoothstep(0.25 - w, 0.25 + w, d), 0.5, clamp(w * 2.5 - 0.3, 0.0, 1.0));
+      }
+      vec3 grass(vec2 p) {
+        vec3 c = mix(vec3(0.885), vec3(0.935), band((p.x - p.y) / 170.0));
+        return mix(c, vec3(0.78), 0.55 * line((p.x + p.y) / 13.0, 0.09));
+      }
+      void main() {
+        vec3 c;
+        if (v_trk.w < -0.5) c = grass(v_w);
+        else {
+          float u = v_trk.x, v = v_trk.y, hw = v_trk.z, av = abs(v), wv = fwidth(av);
+          if (av > hw) {
+            if (v_trk.w < 0.5) discard;
+            c = mix(BLUE, WHITE, band(u / 36.0));                         // cordolo
+          } else {
+            c = WHITE;
+            c = mix(c, vec3(0.93), 0.5 * line(u / 90.0, 0.012));          // giunti dell'asfalto
+            float uu = u > u_L * 0.5 ? u - u_L : u;
+            if (abs(uu) < u_sq) c = mix(WHITE, INK, mod(floor(uu / u_sq) + floor((v + hw) / u_sq), 2.0));
+            float gu = uu + 64.0;                                          // piazzole di partenza
+            if (gu > -22.0 && gu < 24.0 && av > 20.0 && av < 52.0) {
+              float e = min(min(gu + 22.0, 24.0 - gu), min(av - 20.0, 52.0 - av));
+              c = mix(vec3(0.62), c, smoothstep(1.4, 2.6, e));
+            }
+            for (int i = 0; i < 3; i++) {                                  // pannelli turbo
+              vec4 p = u_pad[i];
+              float du = u - p.x, dv = abs(v - p.z);
+              if (du > 0.0 && du < p.y && dv < p.w) c = fract((du + dv * 0.9) / 22.0 - u_time * 1.6) < 0.5 ? BLUE : vec3(0.62, 0.74, 0.98);
+            }
+            c = mix(c, INK, smoothstep(hw - 4.0 - wv, hw - 4.0 + wv, av)); // riga del bordo
+          }
+        }
+        gl_FragColor = vec4(fog(c, v_dist), 1.0);
+      }`);
+
+    // cartelli con le scritte
+    const texp = program(`
+      attribute vec3 a_pos; attribute vec2 a_uv;
+      uniform mat4 u_vp; uniform vec3 u_eye;
+      varying vec2 v_uv; varying float v_dist;
+      void main() { v_uv = a_uv; v_dist = distance(a_pos, u_eye); gl_Position = u_vp * vec4(a_pos, 1.0); }`,
+    `precision mediump float;
+      varying vec2 v_uv; varying float v_dist; uniform sampler2D u_tex; ${FOG}
+      void main() { gl_FragColor = vec4(fog(texture2D(u_tex, v_uv).rgb, v_dist), 1.0); }`);
+
+    // ---- costruzione delle forme ----
+    const newMesh = () => ({ d: [] });
+    const put = (m, p, n, c) => m.d.push(p[0], p[1], p[2], n[0], n[1], n[2], c[0], c[1], c[2]);
+    function tri(m, a, b, c, col, ctr) {
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+      let n = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
+      const l = Math.hypot(n[0], n[1], n[2]) || 1;
+      n = n.map(q => q / l);
+      // normale verso l'esterno rispetto al centro del pezzo
+      if (ctr && n[0] * (a[0] - ctr[0]) + n[1] * (a[1] - ctr[1]) + n[2] * (a[2] - ctr[2]) < 0) n = n.map(q => -q);
+      put(m, a, n, col); put(m, b, n, col); put(m, c, n, col);
+    }
+    const quad = (m, a, b, c, d, col, ctr) => { tri(m, a, b, c, col, ctr); tri(m, a, c, d, col, ctr); };
+    function box(m, x, y, z, sx, sy, sz, col) {
+      const X = [x - sx / 2, x + sx / 2], Y = [y - sy / 2, y + sy / 2], Z = [z - sz / 2, z + sz / 2], c = [x, y, z];
+      const p = (i, j, k) => [X[i], Y[j], Z[k]];
+      quad(m, p(0, 0, 0), p(1, 0, 0), p(1, 1, 0), p(0, 1, 0), col, c);
+      quad(m, p(0, 0, 1), p(1, 0, 1), p(1, 1, 1), p(0, 1, 1), col, c);
+      quad(m, p(0, 0, 0), p(0, 1, 0), p(0, 1, 1), p(0, 0, 1), col, c);
+      quad(m, p(1, 0, 0), p(1, 1, 0), p(1, 1, 1), p(1, 0, 1), col, c);
+      quad(m, p(0, 0, 0), p(1, 0, 0), p(1, 0, 1), p(0, 0, 1), col, c);
+      quad(m, p(0, 1, 0), p(1, 1, 0), p(1, 1, 1), p(0, 1, 1), col, c);
+    }
+    // cilindro con l'asse lungo y (gomme dei muri) o lungo z (ruote)
+    function cyl(m, x, y, z, r, len, seg, col, axisY, capCol) {
+      const at = (a, h) => (axisY ? [x + r * Math.cos(a), y + h, z + r * Math.sin(a)] : [x + r * Math.cos(a), y + r * Math.sin(a), z + h]);
+      const ctr = [x, y, z], c0 = axisY ? [x, y - len / 2, z] : [x, y, z - len / 2], c1 = axisY ? [x, y + len / 2, z] : [x, y, z + len / 2];
+      for (let i = 0; i < seg; i++) {
+        const a0 = i / seg * Math.PI * 2, a1 = (i + 1) / seg * Math.PI * 2;
+        quad(m, at(a0, -len / 2), at(a1, -len / 2), at(a1, len / 2), at(a0, len / 2), col, ctr);
+        tri(m, c1, at(a0, len / 2), at(a1, len / 2), capCol || col, ctr);
+        if (!axisY) tri(m, c0, at(a0, -len / 2), at(a1, -len / 2), capCol || col, ctr);
+      }
+    }
+    function sphere(m, x, y, z, r, col) {
+      const lat = 5, lon = 9, ctr = [x, y, z];
+      const at = (i, j) => { const t = i / lat * Math.PI, f = j / lon * Math.PI * 2; return [x + r * Math.sin(t) * Math.cos(f), y + r * Math.cos(t), z + r * Math.sin(t) * Math.sin(f)]; };
+      for (let i = 0; i < lat; i++) for (let j = 0; j < lon; j++) quad(m, at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1), col, ctr);
+    }
+    function cone(m, x, z, y0, r, h, seg, col) {
+      const apex = [x, y0 + h, z], ctr = [x, y0 + h * 0.3, z];
+      for (let i = 0; i < seg; i++) {
+        const a0 = i / seg * Math.PI * 2, a1 = (i + 1) / seg * Math.PI * 2;
+        tri(m, [x + r * Math.cos(a0), y0, z + r * Math.sin(a0)], [x + r * Math.cos(a1), y0, z + r * Math.sin(a1)], apex, col, ctr);
+      }
+    }
+    function upload(m, stride = 9) {
+      const b = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, b);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(m.d), gl.STATIC_DRAW);
+      return { b, n: m.d.length / stride };
+    }
+    const grey = v => [v, v, v];
+    const BL = [0.043, 0.278, 0.82];
+    const N = T.N, pt3 = (i, off, h = 0) => [T.x[i] + T.nx[i] * off, h, T.y[i] + T.ny[i] * off];
+
+    // asfalto: una striscia larga quanto la pista più i cordoli; [x, y, z, s, d, mezza larghezza, cordolo]
+    const trk = [];
+    const kerbAt = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      let ks = 0;
+      for (let q = -6; q <= 6; q++) ks += T.k[(i + q + N) % N];
+      kerbAt[i] = Math.abs(ks / 13) >= 1 / 330 ? 1 : 0;
+    }
+    const tv3 = (i, side, s) => { const hw = T.hw[i], w = hw + 10, p = pt3(i, side * w); trk.push(p[0], 0, p[2], s, side * w, hw, kerbAt[i]); };
+    for (let i = 0; i < N; i++) {
+      const j = (i + 1) % N, s0 = i * T.ds, s1 = (i + 1) * T.ds;
+      tv3(i, -1, s0); tv3(j, -1, s1); tv3(j, 1, s1);
+      tv3(i, -1, s0); tv3(j, 1, s1); tv3(i, 1, s0);
+    }
+    const trackBuf = upload({ d: trk }, 7);
+    const [bx0, by0, bx1, by1] = geo.box, E = 7000;
+    const planeBuf = upload({ d: [
+      bx0 - E, -0.4, by0 - E, 0, 0, 0, -1, bx1 + E, -0.4, by0 - E, 0, 0, 0, -1, bx1 + E, -0.4, by1 + E, 0, 0, 0, -1,
+      bx0 - E, -0.4, by0 - E, 0, 0, 0, -1, bx1 + E, -0.4, by1 + E, 0, 0, 0, -1, bx0 - E, -0.4, by1 + E, 0, 0, 0, -1,
+    ] }, 7);
+
+    // scenario fisso: muri di gomme, alberi, portale di partenza, pali dei cartelli
+    const scen = newMesh();
+    geo.tyreList.forEach((p, i) => {
+      const dark = Math.floor(i / 2) % 2 === 0;
+      cyl(scen, p[0], 2.6, p[1], 6.5, 5, 8, grey(dark ? 0.16 : 0.95), true, grey(dark ? 0.3 : 0.8));
+      cyl(scen, p[0], 7.8, p[1], 6.5, 5, 8, grey(dark ? 0.16 : 0.95), true, grey(dark ? 0.3 : 0.8));
+    });
+    // alberi a caso (ma sempre gli stessi) dove non danno fastidio
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const signSpots = geo.names.map(n => [n[0], n[1]]);
+    for (let t = 0, placed = 0; t < 6000 && placed < 480; t++) {
+      const x = bx0 - 700 + rnd() * (bx1 - bx0 + 1400), z = by0 - 700 + rnd() * (by1 - by0 + 1400);
+      project(x, z, Q);
+      if (Q.dist < Q.hw + RUNOFF + 40 || signSpots.some(s => Math.hypot(s[0] - x, s[1] - z) < 110)) continue;
+      placed++;
+      const h = 55 + rnd() * 55, r = 15 + rnd() * 12, g = 0.32 + rnd() * 0.25;
+      box(scen, x, 6, z, 5, 12, 5, grey(0.25));
+      cone(scen, x, z, 10, r, h, 7, grey(g));
+      cone(scen, x, z, 10 + h * 0.45, r * 0.75, h * 0.7, 7, grey(g + 0.06));
+    }
+    // portale sul traguardo: due pali e una trave, con le luci della partenza sotto
+    const hw0 = T.hw[0], t0 = [T.tx[0], T.ty[0]];
+    const gantryDir = Math.atan2(t0[1], t0[0]);
+    for (const sd of [-1, 1]) { const p = pt3(0, sd * (hw0 + 16)); box(scen, p[0], 33, p[2], 5, 66, 5, grey(0.12)); }
+    {
+      // trave lungo la normale: la costruisco a pezzi per seguirne la direzione
+      const steps = 12;
+      for (let q = 0; q < steps; q++) {
+        const off = -(hw0 + 16) + (q + 0.5) * (2 * (hw0 + 16)) / steps, p = pt3(0, off);
+        box(scen, p[0], 62, p[2], Math.abs(T.nx[0]) * (2 * (hw0 + 16)) / steps + 6, 8, Math.abs(T.ny[0]) * (2 * (hw0 + 16)) / steps + 6, grey(0.1));
+      }
+    }
+    const scenery = upload(scen);
+
+    // cartelli: le scritte in un'unica texture
+    const atlas = document.createElement('canvas');
+    atlas.width = 1024; atlas.height = 1024;
+    const ag = atlas.getContext('2d');
+    const labels = [...CORNERS.map(c => c[1]), '3', '2', '1', 'MATHS KART', 'MEADOW RING'];
+    labels.forEach((t, i) => {
+      const x = (i % 2) * 512, y = Math.floor(i / 2) * 128;
+      const inv = t === 'MATHS KART' || t === 'MEADOW RING';
+      ag.fillStyle = inv ? '#000' : '#fff'; ag.fillRect(x, y, 512, 128);
+      ag.strokeStyle = inv ? '#fff' : '#000'; ag.lineWidth = 8; ag.strokeRect(x + 6, y + 6, 500, 116);
+      ag.fillStyle = inv ? '#fff' : '#000'; ag.textAlign = 'center'; ag.textBaseline = 'middle';
+      ag.font = `bold ${t.length > 14 ? 50 : t.length > 3 ? 58 : 96}px 'Courier New', monospace`;
+      ag.fillText(t, x + 256, y + 68, 480);
+      if (t.length === 1) { ag.fillStyle = '#fff'; ag.fillRect(x, y, 192, 128); ag.fillRect(x + 320, y, 192, 128); ag.strokeStyle = '#000'; ag.strokeRect(x + 198, y + 6, 116, 116); }
+    });
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlas);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    const sgn = [], posts = newMesh();
+    // cartello piano con centro (x, z), girato verso la direzione (nx, nz), largo w, da y0 a y1; due facce
+    function sign(label, x, z, nx, nz, w, y0, y1, back, square) {
+      const face = (fx, fz, la) => {
+        const rx = fz, rz = -fx, ox = x + fx * 0.6, oz = z + fz * 0.6;
+        const L = [ox - rx * w / 2, oz - rz * w / 2], R = [ox + rx * w / 2, oz + rz * w / 2];
+        const li = labels.indexOf(la), lu = (li % 2) * 512, lv = Math.floor(li / 2) * 128;
+        const U0 = (lu + (square ? 192 : 0)) / 1024, U1 = (lu + (square ? 320 : 512)) / 1024, V0 = lv / 1024, V1 = (lv + 128) / 1024;
+        sgn.push(L[0], y0, L[1], U0, V1, R[0], y0, R[1], U1, V1, R[0], y1, R[1], U1, V0,
+          L[0], y0, L[1], U0, V1, R[0], y1, R[1], U1, V0, L[0], y1, L[1], U0, V0);
+      };
+      face(nx, nz, label);
+      face(-nx, -nz, back || label);
+    }
+    for (const [x, z, name] of geo.names) {
+      project(x, z, Q);
+      const tx = T.x[Q.i], tz = T.y[Q.i], l = Math.hypot(tx - x, tz - z) || 1, nx = (tx - x) / l, nz = (tz - z) / l;
+      sign(name, x, z, nx, nz, 150, 16, 53.5);
+      const rx = nz, rz = -nx;
+      for (const sd of [-1, 1]) box(posts, x + rx * sd * 60, 8, z + rz * sd * 60, 3, 16, 3, grey(0.2));
+    }
+    for (const [x, z, t] of geo.boards) {
+      project(x, z, Q);
+      sign(t, x, z, -T.tx[Q.i], -T.ty[Q.i], 22, 10, 32, null, true);
+      box(posts, x, 5, z, 3, 10, 3, grey(0.2));
+    }
+    {
+      const p = pt3(0, 0);
+      sign('MATHS KART', p[0], p[2], -t0[0], -t0[1], 96, 66, 90, 'MEADOW RING');
+    }
+    const signBuf = upload({ d: sgn }, 5), postBuf = upload(posts);
+
+    // luci della partenza: tre scatole sotto la trave, che si accendono
+    const lightBuf = upload((() => { const m = newMesh(); box(m, 0, 0, 0, 3, 9, 11, [1, 1, 1]); return m; })());
+    const lightPos = [-16, 0, 16].map(off => { const p = pt3(0, off); return [p[0] - t0[0] * 4, 52, p[2] - t0[1] * 4]; });
+
+    // colline e montagne all'orizzonte
+    const cx0 = (bx0 + bx1) / 2, cz0 = (by0 + by1) / 2;
+    function ring(m, R, base, amp, f, col) {
+      const seg = 160, hAt = a => base + amp * (0.5 + 0.3 * Math.sin(a * f) + 0.2 * Math.sin(a * f * 2.7 + 1.3) + 0.15 * Math.sin(a * 11 + 0.4));
+      for (let i = 0; i < seg; i++) {
+        const a0 = i / seg * Math.PI * 2, a1 = (i + 1) / seg * Math.PI * 2;
+        const p = (a, h) => [cx0 + R * Math.cos(a), h, cz0 + R * Math.sin(a)];
+        const n = [0, 1, 0];
+        const A = p(a0, -30), B = p(a1, -30), C = p(a1, hAt(a1)), D = p(a0, hAt(a0));
+        put(m, A, n, col); put(m, B, n, col); put(m, C, n, col); put(m, A, n, col); put(m, C, n, col); put(m, D, n, col);
+      }
+    }
+    const hills = newMesh();
+    ring(hills, 7600, 260, 900, 3, [0.80, 0.84, 0.94]);
+    ring(hills, 6200, 60, 380, 5, grey(0.86));
+    const hillBuf = upload(hills);
+
+    // il kart, muso verso +x, destra verso +z; telaio, pilota e ruote a parte, per farli muovere
+    const kb = newMesh();
+    box(kb, 0, 3.5, 0, 32, 2.5, 17, grey(0.14));              // pianale
+    box(kb, -2, 6, 9.5, 18, 4.5, 3.5, grey(0.14));            // pance laterali
+    box(kb, -2, 6, -9.5, 18, 4.5, 3.5, grey(0.14));
+    box(kb, 14, 6, 0, 9, 5, 15, grey(0.14));                  // musetto
+    box(kb, 19.5, 4, 0, 3, 3.5, 22, grey(0.32));              // paraurti
+    box(kb, -18, 5, 0, 3, 4.5, 25, grey(0.32));
+    box(kb, -12, 9, 0, 8, 7, 11, grey(0.5));                  // motore
+    box(kb, -17, 9, 4, 3, 3, 3, grey(0.25));                  // scarichi
+    box(kb, -17, 9, -4, 3, 3, 3, grey(0.25));
+    box(kb, -5, 10, 0, 5, 9, 11, grey(0.22));                 // sedile
+    box(kb, 6, 13, 0, 1.5, 4.5, 7, grey(0.1));                // volante
+    const kartBuf = upload(kb);
+    const db = newMesh();
+    box(db, -1, 12.5, 0, 8, 9, 10, grey(0.93));               // pilota
+    box(db, 3, 12, 3.5, 6, 2.5, 2.5, grey(0.93));             // braccia verso il volante
+    box(db, 3, 12, -3.5, 6, 2.5, 2.5, grey(0.93));
+    sphere(db, -1, 21, 0, 5.8, grey(0.97));                   // casco
+    box(db, 3.6, 21, 0, 3, 3, 8, grey(0.08));                 // visiera
+    box(db, -1, 26.5, 0, 9, 1.2, 1.8, grey(0.08));            // riga sul casco
+    const driverBuf = upload(db);
+    // ruote con un raggio bianco sul mozzo, così si vede che girano
+    const wheelMesh = (r, w) => {
+      const m = newMesh();
+      cyl(m, 0, 0, 0, r, w, 12, grey(0.08), false, grey(0.5));
+      for (const sd of [-1, 1]) box(m, 0, 0, sd * (w / 2 + 0.25), r * 1.5, 1.4, 0.5, grey(0.95));
+      return upload(m);
+    };
+    const wheelBuf = wheelMesh(5, 6), rearBuf = wheelMesh(6, 7);
+    const sh = newMesh();
+    for (let i = 0; i < 12; i++) {
+      const a0 = i / 12 * Math.PI * 2, a1 = (i + 1) / 12 * Math.PI * 2;
+      put(sh, [0, 0.5, 0], [0, 1, 0], [0, 0, 0]); put(sh, [24 * Math.cos(a0), 0.5, 15 * Math.sin(a0)], [0, 1, 0], [0, 0, 0]); put(sh, [24 * Math.cos(a1), 0.5, 15 * Math.sin(a1)], [0, 1, 0], [0, 0, 0]);
+    }
+    const shadowBuf = upload(sh);
+    const fl = newMesh();
+    for (let i = 0; i < 8; i++) {
+      const a0 = i / 8 * Math.PI * 2, a1 = (i + 1) / 8 * Math.PI * 2, r = 4.5;
+      tri(fl, [-36, 7, 0], [-19, 7 + r * Math.cos(a0), r * Math.sin(a0)], [-19, 7 + r * Math.cos(a1), r * Math.sin(a1)], BL, [-25, 7, 0]);
+    }
+    const flameBuf = upload(fl);
+    const skidGL = gl.createBuffer();
+
+    // ---- matrici ----
+    const proj = new Float32Array(16), view = new Float32Array(16), vp = new Float32Array(16), mm = new Float32Array(16), tmp = new Float32Array(16), wm = new Float32Array(16);
+    function perspective(o, fovy, asp, n, f) {
+      const t = 1 / Math.tan(fovy / 2);
+      o.fill(0); o[0] = t / asp; o[5] = t; o[10] = (f + n) / (n - f); o[11] = -1; o[14] = 2 * f * n / (n - f);
+    }
+    function lookAt(o, e, c) {
+      let zx = e[0] - c[0], zy = e[1] - c[1], zz = e[2] - c[2], l = Math.hypot(zx, zy, zz);
+      zx /= l; zy /= l; zz /= l;
+      let xx = zz, xy = 0, xz = -zx;                           // (0, 1, 0) × z
+      l = Math.hypot(xx, xz) || 1; xx /= l; xz /= l;
+      const yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
+      o[0] = xx; o[1] = yx; o[2] = zx; o[3] = 0; o[4] = xy; o[5] = yy; o[6] = zy; o[7] = 0; o[8] = xz; o[9] = yz; o[10] = zz; o[11] = 0;
+      o[12] = -(xx * e[0] + xy * e[1] + xz * e[2]); o[13] = -(yx * e[0] + yy * e[1] + yz * e[2]); o[14] = -(zx * e[0] + zy * e[1] + zz * e[2]); o[15] = 1;
+    }
+    function mul(o, a, b) {
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+        let s = 0;
+        for (let k = 0; k < 4; k++) s += a[k * 4 + j] * b[i * 4 + k];
+        tmp[i * 4 + j] = s;
+      }
+      o.set(tmp);
+    }
+    // posizione (x, h, z), direzione a come sulla mappa, rollio attorno all'asse del kart
+    function model(o, x, h, z, a, roll) {
+      const c = Math.cos(a), s = Math.sin(a), cr = Math.cos(roll), sr = Math.sin(roll);
+      o[0] = c; o[1] = 0; o[2] = s; o[3] = 0;
+      o[4] = -sr * s; o[5] = cr; o[6] = sr * c; o[7] = 0;
+      o[8] = -cr * s; o[9] = -sr; o[10] = cr * c; o[11] = 0;
+      o[12] = x; o[13] = h; o[14] = z; o[15] = 1;
+    }
+    const ID = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+    // matrici elementari: rollio attorno all'asse del kart (x), beccheggio attorno a z, scala, spostamento
+    const rotX = (o, r) => { o.set(ID); const c = Math.cos(r), s = Math.sin(r); o[5] = c; o[6] = s; o[9] = -s; o[10] = c; return o; };
+    const rotZ = (o, r) => { o.set(ID); const c = Math.cos(r), s = Math.sin(r); o[0] = c; o[1] = s; o[4] = -s; o[5] = c; return o; };
+    const scl = (o, x, y, z) => { o.set(ID); o[0] = x; o[5] = y; o[10] = z; return o; };
+    const mv = (o, x, y, z) => { o.set(ID); o[12] = x; o[13] = y; o[14] = z; return o; };
+    const A = new Float32Array(16), B = new Float32Array(16), KM = new Float32Array(16), W2 = new Float32Array(16);
+
+    let attrsOn = 0;
+    function attribs(prog, layout, stride) {
+      for (let i = 0; i < attrsOn; i++) gl.disableVertexAttribArray(i);
+      attrsOn = 0;
+      let off = 0;
+      for (const [name, size] of layout) {
+        const loc = prog.a[name];
+        if (loc !== undefined && loc >= 0) {
+          gl.enableVertexAttribArray(loc); attrsOn = Math.max(attrsOn, loc + 1);
+          gl.vertexAttribPointer(loc, size, gl.FLOAT, false, stride * 4, off * 4);
+        }
+        off += size;
+      }
+    }
+    const MESH_LAYOUT = [['a_pos', 3], ['a_nor', 3], ['a_col', 3]];
+    let eye = [0, 0, 0], fogNear = 900, fogFar = 3400;
+    const SKY = [0.962, 0.966, 0.972];
+    function useMesh() {
+      gl.useProgram(mesh.p);
+      gl.uniformMatrix4fv(mesh.u.u_vp, false, vp); gl.uniform3fv(mesh.u.u_eye, eye);
+      gl.uniform3fv(mesh.u.u_fogc, SKY); gl.uniform2f(mesh.u.u_fog, fogNear, fogFar);
+    }
+    function drawMesh(buf, m, tint, mix, lit, fogOff) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf.b);
+      attribs(mesh, MESH_LAYOUT, 9);
+      gl.uniformMatrix4fv(mesh.u.u_m, false, m || ID);
+      gl.uniform4fv(mesh.u.u_tint, tint || [0, 0, 0, 1]);
+      gl.uniform1f(mesh.u.u_mix, mix || 0); gl.uniform1f(mesh.u.u_lit, lit === undefined ? 1 : lit);
+      if (fogOff) gl.uniform2f(mesh.u.u_fog, 1e6, 2e6);
+      gl.drawArrays(gl.TRIANGLES, 0, buf.n);
+      if (fogOff) gl.uniform2f(mesh.u.u_fog, fogNear, fogFar);
+    }
+    // aspetto di ogni kart disegnato (il visitatore, il fantasma): tutto ricavato dal movimento,
+    // così il fantasma registrato si inclina e salta proprio come il kart vero
+    const kvis = new Map();
+    function drawKart3(id, p) {
+      const dt = Math.max(1 / 240, p.dt || 0);
+      let vs = kvis.get(id);
+      const jump = vs && Math.hypot(p.x - vs.px, p.y - vs.py) > 120;
+      if (!vs || jump) { vs = { px: p.x, py: p.y, pa: p.a, spd: 0, yr: 0, acc: 0, roll: 0, pitch: 0, spin: 0, hop: 9, drift: false, dir: 1, lean: 0 }; kvis.set(id, vs); }
+      const dist = Math.hypot(p.x - vs.px, p.y - vs.py), spd = dist / dt, yr = wrapAng(p.a - vs.pa) / dt;
+      const f = 1 - Math.exp(-dt * 10);
+      vs.acc += (clamp((spd - vs.spd) / dt, -1500, 1500) - vs.acc) * (1 - Math.exp(-dt * 5));
+      vs.spd += (spd - vs.spd) * f; vs.yr += (clamp(yr, -6, 6) - vs.yr) * f;
+      vs.px = p.x; vs.py = p.y; vs.pa = p.a;
+      vs.spin += dist / 6;
+      const drifting = p.flags >= 1 && p.flags <= 4;
+      if (drifting && !vs.drift) { vs.hop = 0; vs.dir = Math.sign(vs.yr) || 1; }
+      vs.drift = drifting;
+      vs.hop += dt;
+      const h = p.hopT === undefined ? vs.hop : p.hopT;
+      // saltello: si allunga salendo, si schiaccia atterrando
+      let hop = 0, sx = 1, sy = 1;
+      if (h < HOP) { hop = Math.sin(h / HOP * Math.PI) * 6; sy = 1 + 0.07 * Math.sin(h / HOP * Math.PI); }
+      else if (h < HOP + 0.14) { const u = Math.sin((h - HOP) / 0.14 * Math.PI); sy = 1 - 0.12 * u; sx = 1 + 0.06 * u; }
+      // il telaio si piega verso l'esterno in curva e alza il muso accelerando; il pilota si sporge dentro
+      const lat = vs.yr * vs.spd;
+      vs.roll += (clamp(-lat / 2600, -0.1, 0.1) - vs.roll) * f;
+      vs.pitch += (clamp(vs.acc / 9000, -0.045, 0.045) - vs.pitch) * f;
+      const steerVis = drifting ? -vs.dir * 0.28 + clamp(p.steer || 0, -1, 1) * 0.12
+        : clamp(p.steer != null ? p.steer : vs.yr / 2.4, -1, 1) * 0.45;
+      vs.lean += (clamp(vs.yr / 2.4, -1, 1) * 0.3 - vs.lean) * f;
+      model(KM, p.x, hop, p.y, p.a, 0);
+      mul(KM, KM, rotX(A, vs.roll)); mul(KM, KM, rotZ(A, vs.pitch)); mul(KM, KM, scl(A, sx, sy, sx));
+      const tint = p.ghost ? [BL[0], BL[1], BL[2], 0.48] : [0, 0, 0, 1];
+      const mix = p.ghost ? 0.72 : 0;
+      if (!p.ghost) {
+        gl.enable(gl.BLEND); gl.depthMask(false);
+        model(A, p.x, 0, p.y, p.a, 0); mul(A, A, scl(B, 1 - hop / 18, 1, 1 - hop / 18));
+        drawMesh(shadowBuf, A, [0, 0, 0, 0.22], 1, 0);
+        gl.depthMask(true); gl.disable(gl.BLEND);
+      }
+      drawMesh(kartBuf, KM, tint, mix, 1);
+      // pilota, girato attorno al sedile
+      mul(W2, KM, mv(A, -3, 9, 0)); mul(W2, W2, rotX(A, vs.lean)); mul(W2, W2, mv(A, 3, -9, 0));
+      drawMesh(driverBuf, W2, tint, mix, 1);
+      for (const sd of [-1, 1]) {
+        model(A, 12, 5, sd * 12.5, steerVis, 0); mul(A, A, rotZ(B, -vs.spin * 1.2));
+        mul(W2, KM, A); drawMesh(wheelBuf, W2, tint, mix, 1);
+        mul(W2, KM, mv(A, -11, 6, sd * 13.5)); mul(W2, W2, rotZ(B, -vs.spin)); drawMesh(rearBuf, W2, tint, mix, 1);
+      }
+      if (p.flags === 5) drawMesh(flameBuf, KM, [BL[0], BL[1], BL[2], p.ghost ? 0.5 : 0.75 + Math.random() * 0.25], 0.2, 0);
+      return vs;
+    }
+
+    function frame3(cam3, now, lights) {
+      // tela alla stessa misura di quella del cruscotto (un po' meno fitta sui telefoni)
+      const sc = Math.min(window.devicePixelRatio || 1, 1.5);
+      const r = glc.getBoundingClientRect(), W = Math.max(1, Math.round(r.width * sc)), H = Math.max(1, Math.round(r.height * sc));
+      if (glc.width !== W || glc.height !== H) { glc.width = W; glc.height = H; }
+      gl.viewport(0, 0, W, H);
+      const asp = W / H;
+      const fovy = 2 * Math.atan(Math.tan(cam3.fov * Math.PI / 360) * Math.max(1, 1.45 / asp));
+      perspective(proj, fovy, asp, 2, 11000);
+      eye = cam3.eye;
+      lookAt(view, cam3.eye, cam3.at);
+      mul(vp, proj, view);
+      fogNear = cam3.fogNear || 900; fogFar = cam3.fogFar || 3400;
+
+      gl.clearColor(SKY[0], SKY[1], SKY[2], 1);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.depthMask(true);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      useMesh();
+      drawMesh(hillBuf, ID, [0, 0, 0, 1], 0, 0, true);
+
+      gl.useProgram(ground.p);
+      gl.uniformMatrix4fv(ground.u.u_vp, false, vp); gl.uniform3fv(ground.u.u_eye, eye);
+      gl.uniform3fv(ground.u.u_fogc, SKY); gl.uniform2f(ground.u.u_fog, fogNear, fogFar);
+      gl.uniform1f(ground.u.u_L, T.L); gl.uniform1f(ground.u.u_sq, hw0 * 2 / 12); gl.uniform1f(ground.u.u_time, now);
+      gl.uniform4fv(ground.u.u_pad, PADS.flatMap(p => [p.s, p.len, p.d, p.w]));
+      const GL_LAYOUT = [['a_pos', 3], ['a_trk', 4]];
+      gl.bindBuffer(gl.ARRAY_BUFFER, planeBuf.b); attribs(ground, GL_LAYOUT, 7); gl.drawArrays(gl.TRIANGLES, 0, planeBuf.n);
+      gl.bindBuffer(gl.ARRAY_BUFFER, trackBuf.b); attribs(ground, GL_LAYOUT, 7); gl.drawArrays(gl.TRIANGLES, 0, trackBuf.n);
+
+      useMesh();
+      // segni delle gomme
+      if (skids.length) {
+        const d = new Float32Array(skids.length * 54);
+        let o = 0;
+        for (const s of skids) {
+          const dx = s[2] - s[0], dy = s[3] - s[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l * 1.4, ny = dx / l * 1.4;
+          const pts = [[s[0] - nx, s[1] - ny], [s[2] - nx, s[3] - ny], [s[2] + nx, s[3] + ny], [s[0] - nx, s[1] - ny], [s[2] + nx, s[3] + ny], [s[0] + nx, s[1] + ny]];
+          for (const p of pts) { d[o++] = p[0]; d[o++] = 0.25; d[o++] = p[1]; d[o++] = 0; d[o++] = 1; d[o++] = 0; d[o++] = 0; d[o++] = 0; d[o++] = 0; }
+        }
+        gl.bindBuffer(gl.ARRAY_BUFFER, skidGL);
+        gl.bufferData(gl.ARRAY_BUFFER, d, gl.DYNAMIC_DRAW);
+        gl.enable(gl.BLEND); gl.depthMask(false);
+        drawMesh({ b: skidGL, n: skids.length * 6 }, ID, [0.1, 0.1, 0.1, 0.2], 1, 0);
+        gl.depthMask(true); gl.disable(gl.BLEND);
+      }
+      drawMesh(scenery, ID);
+      drawMesh(postBuf, ID);
+      for (let i = 0; i < 3; i++) {
+        model(mm, lightPos[i][0], lightPos[i][1], lightPos[i][2], gantryDir, 0);
+        const c = lights[i];
+        drawMesh(lightBuf, mm, [c[0], c[1], c[2], 1], 1, 0);
+      }
+      gl.useProgram(texp.p);
+      gl.uniformMatrix4fv(texp.u.u_vp, false, vp); gl.uniform3fv(texp.u.u_eye, eye);
+      gl.uniform3fv(texp.u.u_fogc, SKY); gl.uniform2f(texp.u.u_fog, fogNear, fogFar);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(texp.u.u_tex, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, signBuf.b); attribs(texp, [['a_pos', 3], ['a_uv', 2]], 5);
+      gl.drawArrays(gl.TRIANGLES, 0, signBuf.n);
+      useMesh();
+    }
+    function ghost3(p) {
+      // il fantasma per ultimo, trasparente e senza scrivere la profondità
+      gl.enable(gl.BLEND); gl.depthMask(false);
+      useMesh();
+      const vs = drawKart3('ghost', { ...p, ghost: true });
+      gl.depthMask(true); gl.disable(gl.BLEND);
+      return vs;
+    }
+    // da un punto del mondo alla tela del cruscotto: [x, y, pixel per unità] oppure null se è dietro
+    function toScreen(x, h, z) {
+      const X = vp[0] * x + vp[4] * h + vp[8] * z + vp[12], Y = vp[1] * x + vp[5] * h + vp[9] * z + vp[13], Wc = vp[3] * x + vp[7] * h + vp[11] * z + vp[15];
+      if (Wc < 5) return null;
+      return [(X / Wc * 0.5 + 0.5) * cw, (0.5 - Y / Wc * 0.5) * ch, proj[5] * ch / 2 / Wc];
+    }
+    return { frame3, drawKart3, ghost3, toScreen, useMesh };
+  }
+
+  // ---- telecamere 3D ----
+  const cam3 = { yaw: 0, fov: 56, eye: [0, 0, 0], at: [0, 0, 0], snap: true, fogNear: 900, fogFar: 3400, boost: 0, shake: 0 };
+  const smooth = u => u * u * (3 - 2 * u);
+  // dietro e sopra il kart, come nei kart racer: segue la direzione del moto con un po' di ritardo
+  // (così in curva si vede il kart girare), sale col saltello, si allontana e allarga l'obiettivo col turbo
+  function chaseCam(k, dt, intro) {
+    const vYaw = k.v > 30 ? k.va : k.a;
+    const target = k.a + wrapAng(vYaw - k.a) * 0.75;
+    if (cam3.snap) { cam3.yaw = target; cam3.fov = 56; cam3.boost = 0; cam3.shake = 0; cam3.snap = false; }
+    cam3.yaw += wrapAng(target - cam3.yaw) * (1 - Math.exp(-dt * 4));
+    cam3.boost += ((k.boost > 0 ? 1 : 0) - cam3.boost) * (1 - Math.exp(-dt * 5));
+    let yaw = cam3.yaw, dist = 100 + 16 * cam3.boost, h = 42 + (k.hopT < HOP ? Math.sin(k.hopT / HOP * Math.PI) * 2.5 : 0);
+    if (intro != null) {
+      // all'inizio la telecamera gira attorno al kart, dal davanti fino a dietro
+      const e = smooth(clamp(intro / 2.6, 0, 1));
+      yaw += Math.PI * 1.15 * (1 - e); dist = 64 + 24 * e; h = 22 + 12 * e;
+    }
+    const sp = clamp(Math.abs(k.v) / VMAX, 0, 1.4);
+    const fov = 54 + 5 * sp + 9 * cam3.boost;
+    cam3.fov += (fov - cam3.fov) * (1 - Math.exp(-dt * 4));
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    // botta contro il muro: la telecamera trema un attimo
+    if (k.hit > 0.2) cam3.shake = 1;
+    cam3.shake *= Math.exp(-dt * 8);
+    const sh = reduceMotion ? 0 : cam3.shake * 3;
+    cam3.eye = [k.x - c * dist + (Math.random() - 0.5) * sh, h + (Math.random() - 0.5) * sh, k.y - s * dist + (Math.random() - 0.5) * sh];
+    // in verticale la telecamera guarda più in basso: meno cielo, il kart sopra i comandi touch
+    const tall = cw < ch;
+    cam3.at = tall ? [k.x + c * 14, -8, k.y + s * 14] : [k.x + c * 55, 10, k.y + s * 55];
+    cam3.fogNear = 900; cam3.fogFar = 3400;
+  }
+  // replay: telecamere fisse a bordo pista, come in televisione
+  const tv = { cams: [], cur: -1, at: [0, 0, 0] };
+  for (let s = 0; s < T.L; s += 420) {
+    const i = Math.floor(s / T.ds);
+    let ks = 0;
+    for (let q = -15; q <= 15; q++) ks += T.k[(i + q + T.N) % T.N];
+    const side = ks > 0 ? -1 : 1, off = T.hw[i] + RUNOFF + 26;
+    tv.cams.push([T.x[i] + T.nx[i] * side * off, 30 + (tv.cams.length % 3) * 14, T.y[i] + T.ny[i] * side * off]);
+  }
+  function tvCam(x, y, dt) {
+    let best = 0, bd = Infinity;
+    tv.cams.forEach((c, i) => { const d = Math.hypot(c[0] - x, c[2] - y); if (d < bd) { bd = d; best = i; } });
+    const cd = tv.cur >= 0 ? Math.hypot(tv.cams[tv.cur][0] - x, tv.cams[tv.cur][2] - y) : Infinity;
+    if (tv.cur < 0 || bd < cd * 0.8) { tv.cur = best; tv.at = [x, 8, y]; }
+    const c = tv.cams[tv.cur];
+    const f = 1 - Math.exp(-dt * 9);
+    tv.at[0] += (x - tv.at[0]) * f; tv.at[2] += (y - tv.at[2]) * f;
+    const d = Math.hypot(c[0] - x, c[2] - y);
+    cam3.eye = c; cam3.at = tv.at;
+    cam3.fov = clamp(2 * Math.atan(90 / Math.max(1, d)) * 180 / Math.PI, 10, 60);
+    cam3.fogNear = 1400; cam3.fogFar = 4200;
+  }
+  function orbitCam(t) {
+    const [x0, y0, x1, y1] = geo.box, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, a = t * 0.05 + 1.2;
+    const r = Math.max(x1 - x0, y1 - y0) * 0.8;
+    cam3.eye = [cx + Math.cos(a) * r, r * 0.62, cy + Math.sin(a) * r];
+    cam3.at = [cx, 0, cy];
+    cam3.fov = 52; cam3.fogNear = r * 1.4; cam3.fogFar = r * 3.2;
+  }
+
+
+  // ---------- disegno: il mondo (3D o dall'alto), poi il cruscotto ----------
+  let clock3 = 0, sparkLvl = 0;
+  function render(dt) {
+    screenSpace();
+    if (V3) ctx.clearRect(0, 0, cw, ch);
+    else { ctx.fillStyle = PAPER; ctx.fillRect(0, 0, cw, ch); }
+    clock3 += dt;
+    const g = ghostOf();
+    const live = mode === 'count' || mode === 'race' || mode === 'done';
+    if (mode === 'idle' && g) { idleT = (idleT + dt) % (g.time + 3); ghostPose(g, idleT, gp); }
+    if (mode === 'replay') {
+      replayT += dt;
+      if (replayT > replayEnd) { setMode('done'); modeT = 5; canvas.classList.add('playing'); }
+    }
+    const r = lastRace;
+    if (mode === 'replay') tracePose(r.trace, replayT, rp);
+    const rg = mode === 'replay' ? r.ghost && ghosts[r.ghost] : g;
+    const gt = mode === 'replay' ? replayT : mode === 'idle' ? idleT : mode === 'count' ? 0 : race ? race.t : 0;
+    const showGhost = !!rg && (mode !== 'idle' || g);
+    if (showGhost && mode !== 'idle') ghostPose(rg, gt, gp);
+    if (live && !paused && mode !== 'count') {
+      if (showGhost) emit({ x: gp.x, y: gp.y, a: gp.a, v: 400, off: false }, gp.f, dt);
+      emit(kart, kartFlags(kart), dt);
+    }
+    const inpSteer = mode === 'race' && race && !race.done ? lastInp.steer : 0;
+    const lv = mode === 'race' && kart.drift ? driftLevel(kart) : 0;
+    if (lv > sparkLvl) sfx('spark');
+    sparkLvl = lv;
+
+    if (V3) {
+      if (mode === 'idle') orbitCam(clock3);
+      else if (mode === 'replay') tvCam(rp.x, rp.y, dt);
+      else chaseCam(kart, dt, mode === 'count' ? modeT : null);
+      const on = [1, 1, 1], off = [0.28, 0.28, 0.28], blue = [0.043, 0.278, 0.82];
+      const lit = mode === 'count' ? Math.floor(modeT) + 1 : 0;
+      const lights = [0, 1, 2].map(i => (mode === 'race' && race.t < 1.5 ? blue : i < lit ? on : off));
+      V3.frame3(cam3, clock3, lights);
+      V3.useMesh();
+      let pv = null, gv = null;
+      if (mode === 'replay') pv = V3.drawKart3('player', { x: rp.x, y: rp.y, a: rp.a, flags: rp.f, dt });
+      else if (mode !== 'idle') {
+        const shake = kart.hit > 0 && !reduceMotion ? (Math.random() - 0.5) * 2 : 0;
+        pv = V3.drawKart3('player', { x: kart.x + shake, y: kart.y, a: kart.a, flags: kartFlags(kart), steer: inpSteer, hopT: kart.hopT, dt });
+      }
+      if (showGhost) gv = V3.ghost3({ x: gp.x, y: gp.y, a: gp.a, flags: gp.f, dt });
+      // scintille e polvere, proiettate sulla tela del cruscotto
+      updateParts(paused ? 0 : dt);
+      screenSpace();
+      for (const p of parts) {
+        const q = V3.toScreen(p.x, p.kind === 0 ? 4 : 3, p.y);
+        if (!q) continue;
+        const a = 1 - p.t / p.life;
+        if (p.kind === 0) { ctx.fillStyle = `rgba(130,130,130,${(p.light ? 0.16 : 0.3) * a})`; ctx.beginPath(); ctx.arc(q[0], q[1], (p.light ? 1.5 + 3 * (1 - a) : 4 + 6 * (1 - a)) * q[2], 0, Math.PI * 2); ctx.fill(); }
+        else {
+          // scheggia che vola indietro: una linea corta
+          const q2 = V3.toScreen(p.x - p.vx * 0.035, 3 + p.t * 20, p.y - p.vy * 0.035);
+          ctx.globalAlpha = a; ctx.strokeStyle = sparkColor(p); ctx.lineWidth = clamp(0.7 * q[2], 1, 4 * hu); ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(q[0], q[1]); ctx.lineTo(q2 ? q2[0] : q[0], q2 ? q2[1] : q[1]); ctx.stroke();
+          ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+        }
+      }
+      // la fiammella alle ruote posteriori durante la derapata, del colore del mini-turbo pronto
+      if (mode !== 'idle') {
+        if (mode === 'replay') sparkFlame(rp.x, rp.y, rp.a, rp.f, 1, pv);
+        else sparkFlame(kart.x, kart.y, kart.a, kartFlags(kart), 1, pv);
+      }
+      if (showGhost && mode !== 'idle') sparkFlame(gp.x, gp.y, gp.a, gp.f, 0.5, gv);
+      // il nome sopra il fantasma
+      if (showGhost && mode !== 'idle') {
+        const q = V3.toScreen(gp.x, 38, gp.y);
+        if (q && q[2] > 0.15) {
+          ctx.globalAlpha = 0.85; ctx.fillStyle = BLUE; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          font(clamp(q[2] * 9, 9, 16), 'bold'); ctx.fillText(who(mode === 'replay' ? lastRace.ghost : ghostId), q[0], q[1]);
+          ctx.globalAlpha = 1;
+        }
+      }
+      // linee di velocità col turbo
+      if (mode === 'race' && kart.boost > 0 && !reduceMotion) {
+        ctx.strokeStyle = 'rgba(11,71,209,0.35)'; ctx.lineWidth = Math.max(1, 2 * hu);
+        ctx.beginPath();
+        for (let i = 0; i < 18; i++) {
+          const a = Math.random() * Math.PI * 2, r0 = Math.max(cw, ch) * (0.42 + Math.random() * 0.1), r1 = r0 + Math.max(cw, ch) * 0.2;
+          ctx.moveTo(cw / 2 + Math.cos(a) * r0, ch / 2 + Math.sin(a) * r0 * 0.7); ctx.lineTo(cw / 2 + Math.cos(a) * r1, ch / 2 + Math.sin(a) * r1 * 0.7);
+        }
+        ctx.stroke();
+      }
+    } else {
+      // ripiego senza WebGL: la pista vista dall'alto
+      if (mode === 'idle') overview();
+      else if (mode === 'replay') follow(rp.x, rp.y, rp.vx, rp.vy, reduceMotion ? 1.15 : 1.35, dt, 0.5);
+      else follow(kart.x, kart.y, Math.cos(kart.va) * kart.v, Math.sin(kart.va) * kart.v, 1 - 0.12 * Math.min(1, Math.abs(kart.v) / VMAX), dt, touchUI ? 0.42 : 0.5);
+      drawWorld();
+      if (showGhost) drawKart(gp.x, gp.y, gp.a, BLUE, mode === 'idle' ? 0.6 : 0.45, gp.f, mode === 'idle' ? '' : who(mode === 'replay' ? lastRace.ghost : ghostId));
+      updateParts(paused ? 0 : dt);
+      drawParts();
+      if (mode === 'replay') drawKart(rp.x, rp.y, rp.a, INK, 1, rp.f, '');
+      else if (mode !== 'idle') {
+        const shake = kart.hit > 0 && !reduceMotion ? (Math.random() - 0.5) * 3 : 0;
+        drawKart(kart.x + shake, kart.y, kart.a, INK, 1, kartFlags(kart), '');
+      }
+    }
+    overlay(inpSteer);
+  }
+
+  function overlay(steer) {
+    screenSpace();
+    const g = ghostOf();
+    if (mode === 'idle') {
+      const lines = [['Maths Kart', 34, 'bold'], [`Meadow Ring, ${LAPS} laps`, 16]];
+      if (g) lines.push([`vs ${theGhost()}: ${fmt(g.time)}`, 16, 'bold', BLUE]);
+      if (pb) lines.push([`your best: ${fmt(pb.time)}`, 14]);
+      lines.push([touchUI || matchMedia('(pointer: coarse)').matches ? 'Tap to race' : 'Click or press Enter to race', 16]);
+      textBox(lines, cw / 2, ch / 2);
+      return;
+    }
+    if (mode === 'replay') {
+      const r = lastRace;
+      // pellicola: viraggio caldo, grana, bande nere
+      ctx.fillStyle = 'rgba(214,180,128,0.22)'; ctx.fillRect(0, 0, cw, ch);
+      if (!reduceMotion) drawGrain(0.1);
+      const bar = ch * 0.11 * Math.min(1, modeT / 0.35);
+      ctx.fillStyle = INK; ctx.fillRect(0, 0, cw, bar); ctx.fillRect(0, ch - bar, cw, bar);
+      ctx.fillStyle = PAPER; ctx.textBaseline = 'middle';
+      font(15); ctx.textAlign = 'left'; ctx.fillText(`replay, lap ${LAPS}`, 14 * hu, bar / 2);
+      ctx.textAlign = 'right'; ctx.fillText(touchUI ? 'tap to skip' : 'click to skip', cw - 14 * hu, bar / 2);
+      ctx.textAlign = 'center'; font(18, 'bold');
+      const lt = clamp(replayT - (r.time - r.laps[LAPS - 1]), 0, r.laps[LAPS - 1]);
+      ctx.fillText(`${fmt(lt)}   ${r.verdict}`, cw / 2, ch - bar / 2);
+      return;
+    }
+    drawHUD();
+    drawTouch(steer);
+    if (mode === 'count') {
+      const n = 3 - Math.floor(modeT);
+      bigText(String(n), modeT % 1, INK, 1);
+      ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      font(14);
+      const tip = lastInput === 'touch' ? 'the kart accelerates by itself' : 'rocket start: accelerate as the 2 fades';
+      outline(tip, cw / 2, ch * 0.36 + 46 * hu);
+    }
+    if (mode === 'race' && race.t < 0.9) bigText('GO!', race.t, BLUE, 0.9);
+    if (mode === 'done' && modeT > 1.2) {
+      const r = race, gh = r.ghost && ghosts[r.ghost];
+      const best = Math.min(...r.laps);
+      const lines = [['Finish', 30, 'bold'], [`You ${fmt(r.time)}` + (gh ? `   ${who(r.ghost)} ${fmt(gh.time)}` : ''), 17, 'bold']];
+      lines.push([r.verdict, 17, 'bold', gh && r.time > gh.time ? BLUE : INK]);
+      lines.push([r.laps.map(l => `${fmt(l)}${l === best ? '*' : ''}`).join('  '), 14]);
+      if (r.newRecord || r.uploaded) lines.push(['New record! Your race is now the Record ghost', 15, 'bold', BLUE]);
+      if (r.newPb) lines.push(['New personal best!', 15, 'bold']);
+      if (!RECORD && playerName() === 'Anonymous') lines.push(['Type your first name below the track to join the leaderboard', 13, '', BLUE]);
+      else if (pb && !RECORD) lines.push([`your best: ${fmt(pb.time)}`, 14]);
+      if (RECORD) lines.push(['Save it below as a ghost file', 14, 'bold', BLUE]);
+      lines.push([touchUI ? 'Tap to race again' : 'Click or press Enter to race again', 14]);
+      textBox(lines, cw / 2, ch * 0.52);
+    }
+    if (paused) {
+      screenSpace();
+      ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillRect(0, 0, cw, ch);
+      ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      font(30, 'bold'); ctx.fillText('Paused', cw / 2, ch / 2 - 18 * hu);
+      font(16); ctx.fillText('Click the track to keep racing', cw / 2, ch / 2 + 18 * hu);
+    }
+  }
+
+  // ---------- loop ----------
+  let last = performance.now(), acc = 0, visible = true, running = false, countGas = false, countGasT = -1;
+  let lastInp = { gas: false, brake: false, steer: 0, drift: false };
+  function update(dt) {
+    modeT += dt;
+    if (flash) { flash.t += dt; if (flash.t > 2.4) flash = null; }
+    if (banner) { banner.t += dt; if (banner.t > 1.6) banner = null; }
+    if (pendingRecord) applyRecord();
+    paused = (mode === 'race' || mode === 'count') && lastInput === 'key' && !hasFocus;
+    if (paused) return;
+    if (mode === 'count' && modeT >= 3) {
+      setMode('race'); sfx('go');
+      // partenza a razzo: accelerare subito dopo la seconda luce; troppo presto e il motore si ingolfa
+      if (countGas && countGasT >= 1.6 && countGasT <= 2.3) { kart.boost = 1.0; kart.v = VMAX * 0.6; flash = { text: 'Rocket start!', sub: '', t: 0.8 }; sfx('boost'); }
+      else if (countGas && countGasT >= 0 && countGasT < 1.2) { kart.stall = 0.9; flash = { text: 'Too early: engine stalled', sub: '', t: 0.8 }; }
+    }
+    else if (mode === 'count' && Math.floor(modeT) !== Math.floor(modeT - dt)) sfx('beep');
+    if (mode === 'race' || mode === 'done') {
+      acc += Math.min(dt, 0.05);
+      while (acc >= STEP) {
+        if (!race.done) lastInp = readInput(STEP);
+        stepRace();
+        if (++skidTick % 2 === 0) addSkids(kart);
+        acc -= STEP;
+      }
+    } else acc = 0;
+    if (mode === 'count') {
+      const i = readInput(dt);
+      if (i.manual && !countGas) countGasT = modeT - dt;
+      countGas = i.manual;
+    }
+    // controller fuori dalla gara: A o Start per partire o saltare il replay
+    const p = pad();
+    if (p && p.start && !padPrev.start && mode !== 'race' && mode !== 'count') metaPress();
+    padPrev = p || {};
+  }
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    update(dt);
+    render(dt);
+    updateSound();
+    if (visible) requestAnimationFrame(frame); else running = false;
+  }
+  function start() { if (running) return; running = true; last = performance.now(); requestAnimationFrame(frame); }
+  new IntersectionObserver(es => { visible = es[0].isIntersecting; if (visible) start(); }).observe(canvas);
+  start();
+
+  // chiusura (pulsante Close o di nuovo la scheda): fuori dallo schermo intero, motore spento, gara lasciata,
+  // si torna alla pista vista dall'alto
+  function closeGame() {
+    exitFull();
+    keys.clear();
+    touch.steerId = touch.brakeId = touch.driftId = touch.itemId = null;
+    net.stop();
+    if (eng) for (const g of [eng.g.gain, eng.gs.gain]) { g.cancelScheduledValues(audio.currentTime); g.setValueAtTime(0, audio.currentTime); }
+    race = null; flash = null; banner = null;
+    kart = newKart(RECORD ? 1 : -1);
+    elIntro.hidden = true; stage.hidden = false;
+    canvas.classList.remove('playing');
+    setMode('idle');
+  }
+  return { close: closeGame };
+}

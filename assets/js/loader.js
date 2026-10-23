@@ -1,10 +1,13 @@
 (function () {
 
-  // sessionStorage lancia un errore se il browser blocca i dati del sito
+  // il loader si vede solo alla prima visita della sessione
+  // (sessionStorage lancia un errore se il browser blocca i dati del sito)
   let skip = false;
   try {
-    skip = sessionStorage.getItem('skip-home-loader') === 'true';
-    if (skip) sessionStorage.removeItem('skip-home-loader');
+    skip = sessionStorage.getItem('skip-home-loader') === 'true' ||
+      sessionStorage.getItem('home-loader-shown') === 'true';
+    sessionStorage.removeItem('skip-home-loader');
+    sessionStorage.setItem('home-loader-shown', 'true');
   } catch (e) {}
 
   // SKIP LOADER SE ARRIVO DAL BACK-LINK (o se l'utente preferisce meno animazioni)
