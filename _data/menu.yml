@@ -1,13 +1,13 @@
 entries:
-  - title: Publications and Preprints
+  - title: Publications and preprints
     id: publications
     url: publications.html
     content: |
       <ol>
         <li class="has-anim">
           <video class="paper-anim" src="assets/anims/EigSeq.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: a point p moves in a domain Omega and the matrix A(p) changes"></video>
-          <strong> Solving a sequence of eigenvalue problems using snapshot and row subsampling </strong><br>
-          <em> Francesco Hrobat, Yuji Nakatsukasa </em><br>
+          <strong>Solving a sequence of eigenvalue problems using snapshot and row subsampling</strong><br>
+          <em>Francesco Hrobat, Yuji Nakatsukasa</em><br>
           2026<br>
           <span class="paper-links"><a class="badge" href="https://arxiv.org/abs/2610.19326" target="_blank" rel="noopener">arXiv</a> <a class="badge" href="https://arxiv.org/pdf/2610.19326" target="_blank" rel="noopener">PDF</a> <a class="badge" href="https://github.com/fhrobat/SubApSnapEig" target="_blank" rel="noopener">Code</a> <a class="badge" href="https://fhrobat.github.io/jams_talk/" target="_blank" rel="noopener">Slides</a> <button type="button" class="badge bib-copy" title="Copy BibTeX">BibTeX</button></span>
           <pre class="bib-src" hidden>
@@ -23,8 +23,8 @@ entries:
         </li>
         <li class="has-anim">
           <video class="paper-anim" src="assets/anims/Perturbation.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: a generic perturbation moves the eigenvalue a lot, a commutator perturbation barely moves it"></video>
-          <strong> Matrix Perturbation Theory in the Tangent Space of Isospectral Matrices </strong><br>
-          <em> Francesco Hrobat, Yuji Nakatsukasa </em><br>
+          <strong>Matrix Perturbation Theory in the Tangent Space of Isospectral Matrices</strong><br>
+          <em>Francesco Hrobat, Yuji Nakatsukasa</em><br>
           2026<br>
           <span class="paper-links"><a class="badge" href="https://arxiv.org/abs/2602.22084" target="_blank" rel="noopener">arXiv</a> <a class="badge" href="https://arxiv.org/pdf/2602.22084" target="_blank" rel="noopener">PDF</a> <button type="button" class="badge bib-copy" title="Copy BibTeX">BibTeX</button></span>
           <pre class="bib-src" hidden>
@@ -40,8 +40,8 @@ entries:
         </li>
         <li class="has-anim">
           <video class="paper-anim" src="assets/anims/Friendship.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: random graphs where nodes whose friends have more friends on average turn red"></video>
-          <strong> Generalized Friendship Paradoxes in Network Science </strong><br>
-          <em> Desmond J. Higham, Francesco Hrobat, Francesco Tudisco </em><br>
+          <strong>Generalized Friendship Paradoxes in Network Science</strong><br>
+          <em>Desmond J. Higham, Francesco Hrobat, Francesco Tudisco</em><br>
           2026, to appear in SIMAX<br>
           <span class="paper-links"><a class="badge" href="https://arxiv.org/abs/2511.11742" target="_blank" rel="noopener">arXiv</a> <a class="badge" href="https://arxiv.org/pdf/2511.11742" target="_blank" rel="noopener">PDF</a> <button type="button" class="badge bib-copy" title="Copy BibTeX">BibTeX</button></span>
           <pre class="bib-src" hidden>
@@ -57,8 +57,8 @@ entries:
         </li>
         <li class="has-anim">
           <video class="paper-anim" src="assets/anims/LanczosComp.mp4" autoplay muted loop playsinline preload="metadata" aria-label="Animation: the basis Q_M is compressed by U_{M,k} and then extended again"></video>
-          <strong> Lanczos with compression for symmetric matrix Lyapunov equations </strong><br>
-          <em> Angelo A. Casulli, Francesco Hrobat, Daniel Kressner </em><br>
+          <strong>Lanczos with compression for symmetric matrix Lyapunov equations</strong><br>
+          <em>Angelo A. Casulli, Francesco Hrobat, Daniel Kressner</em><br>
           2025<br>
           <span class="paper-links"><a class="badge" href="https://arxiv.org/abs/2505.22498" target="_blank" rel="noopener">arXiv</a> <a class="badge" href="https://arxiv.org/pdf/2505.22498" target="_blank" rel="noopener">PDF</a> <a class="badge" href="https://github.com/fhrobat/lyap-compress" target="_blank" rel="noopener">Code</a> <button type="button" class="badge bib-copy" title="Copy BibTeX">BibTeX</button></span>
           <pre class="bib-src" hidden>
@@ -81,36 +81,36 @@ entries:
       <ol>
         <li>
           <strong>Solving a sequence of eigenvalue problems using snapshot and row subsampling</strong><br>
-          <em>20/10/2026 &emsp; Junior Applied Mathematics Seminar (JAMS), Oxford SIAM Student Chapter, Oxford, United Kingdom</em><br>
+          <em>20 Oct 2026 &emsp; Junior Applied Mathematics Seminar (JAMS), Oxford SIAM Student Chapter, Oxford, United Kingdom</em><br>
           <span class="paper-links"><a class="badge" href="https://fhrobat.github.io/jams_talk/" target="_blank" rel="noopener">Slides</a></span>
         </li>
         <li>
           <strong>Solving sequences of eigenvalue problems using snapshot and row subsampling</strong><br>
-          <em>14/09/2026 &emsp; Emerging Numerical Linear Algebra Research Gathering for Exchanging Developments (ENLARGED), Rutherford Appleton Laboratory, Didcot, United Kingdom</em><br>
+          <em>14 Sep 2026 &emsp; Emerging Numerical Linear Algebra Research Gathering for Exchanging Developments (ENLARGED), Rutherford Appleton Laboratory, Didcot, United Kingdom</em><br>
           <span class="paper-links"><a class="badge" href="assets/slides/HROBAT_slides_enlarged.pdf" target="_blank" rel="noopener">Slides</a></span>
         </li>
         <li>
           <strong>Are your friends more important than you?</strong><br>
-          <em>08/05/2026 &emsp; Italian Linacre Society Annual Meeting, Oxford, United Kingdom</em><br>
+          <em>8 May 2026 &emsp; Italian Linacre Society Annual Meeting, Oxford, United Kingdom</em><br>
           <span class="paper-links"><a class="badge" href="https://fhrobat.github.io/LinItaSocSlides/" target="_blank" rel="noopener">Slides</a></span>
         </li>
         <li>
           <strong>Lanczos with compression for symmetric Lyapunov equations</strong><br>
-          <em>12/03/2026 &emsp; Internal Seminar, Oxford, United Kingdom</em><br>
+          <em>12 Mar 2026 &emsp; Internal Seminar, Oxford, United Kingdom</em>
         </li>
         <li>
           <strong>Lanczos with compression for symmetric Lyapunov equations</strong><br>
-          <em>24/06/2025 &emsp; ILAS 2025, Kaohsiung, Taiwan</em><br>
-          Invited speaker at "Advances in Krylov Subspace Methods and their Applications" Minisymposium
+          <em>24 Jun 2025 &emsp; ILAS 2025, Kaohsiung, Taiwan</em><br>
+          Invited talk in the minisymposium “Advances in Krylov Subspace Methods and their Applications”
         </li>
         <li>
-          <strong> Lanczos with compression for symmetric Lyapunov equations </strong><br>
-          <em>20/01/2025 &emsp; Due giorni di Algebra Lineare Numerica, Pisa, Italy</em><br>
+          <strong>Lanczos with compression for symmetric Lyapunov equations</strong><br>
+          <em>20 Jan 2025 &emsp; Due giorni di Algebra Lineare Numerica, Pisa, Italy</em><br>
           Poster session
         </li>
         <li>
           <strong>Calcolo della SVD tramite funzioni di Zolotarev</strong><br>
-          <em>21/03/2024 &emsp; SIAM Student Chapter UniPi-SNS, Pisa, Italy</em>
+          <em>21 Mar 2024 &emsp; SIAM Student Chapter UniPi-SNS, Pisa, Italy</em>
         </li>
       </ol>
 
@@ -120,19 +120,19 @@ entries:
     content: |
       <ul>
         <li>
-          <em>Oct 2025 - Now</em> &emsp; <strong>Phd</strong>, University of Oxford, Linacre College and St Catherine's College, Oxford, United Kingdom
+          <em>Oct 2025 – now</em> &emsp; <strong>PhD</strong>, University of Oxford, St Catherine's College (previously Linacre College), Oxford, United Kingdom
         </li>
         <li>
-          <em>Jan 2025 - Feb 2025</em> &emsp; <strong>Visiting student</strong>, EPFL, Lausanne, Switzerland
+          <em>Jan 2025 – Feb 2025</em> &emsp; <strong>Visiting student</strong>, EPFL, Lausanne, Switzerland
         </li>
         <li>
-          <em>Jul 2023 - Jul 2025</em> &emsp; <strong>Master's degree</strong>, University of Pisa, Pisa, Italy. 110/110 cum laude
+          <em>Jul 2023 – Jul 2025</em> &emsp; <strong>Master's degree</strong>, University of Pisa, Pisa, Italy. 110/110 cum laude
         </li>
         <li>
-          <em>Sep 2020 - Jul 2025</em> &emsp; <strong>Diploma</strong>, Scuola Normale Superiore of Pisa, Pisa, Italy. 100/100 cum laude
+          <em>Sep 2020 – Jul 2025</em> &emsp; <strong>Diploma</strong>, Scuola Normale Superiore of Pisa, Pisa, Italy. 100/100 cum laude
         </li>
         <li>
-          <em>Sep 2020 - Jul 2023</em> &emsp; <strong>Bachelor's degree</strong>, University of Pisa, Pisa, Italy. 110/110 cum laude
+          <em>Sep 2020 – Jul 2023</em> &emsp; <strong>Bachelor's degree</strong>, University of Pisa, Pisa, Italy. 110/110 cum laude
         </li>
       </ul>
 
@@ -140,87 +140,87 @@ entries:
     id: teaching
     url: teaching.html
     content: |
-     <ul>
-       <li>
-         <strong>MT26:</strong> Tutor for Numerical Linear Algebra
-       </li>
-       <li>
-         <strong>TT26:</strong> Tutor for Numerical Linear Algebra (revision class)
-       </li>
-       <li>
-         <strong>MT25:</strong> TA for Practical Numerical Analysis
-       </li>
-     </ul>
-  
+      <ul>
+        <li>
+          <strong>MT26:</strong> Tutor for Numerical Linear Algebra
+        </li>
+        <li>
+          <strong>TT26:</strong> Tutor for Numerical Linear Algebra (revision class)
+        </li>
+        <li>
+          <strong>MT25:</strong> TA for Practical Numerical Analysis
+        </li>
+      </ul>
+
   - title: Extra activities and awards
     id: extra
     url: extra.html
     content: |
-     <ul>
-       <li>
-        <em>2026 - 2028</em> &emsp; <strong>College Scholarship in Sciences</strong> St Catherine's college
-      </li>
-      <li>
-        <em>2025 - 2029</em> &emsp; <strong>Mathematical Institute Scholarship</strong> 
-      </li>
-      <li>
-         <em>2020 - 2025</em> &emsp; <strong>Scuola Normale Superiore merit-based full Scholarship</strong> 
-      </li>
-      <li>
-        <em>Oct 2026 - Now</em> &emsp; <strong><a href="https://people.maths.ox.ac.uk/siamsc/">IT and Social Media Officer</a></strong> for Oxford SIAM Student Chapter
-      </li>
-      <li>
-         <em>June 2026</em> &emsp; <strong>Randomized Numerical Linear Algebra Workshop</strong>, EPFL, participant  
-      </li>
-      <li>
-         <em>May 2026</em> &emsp; <strong>Audience Favourite Prize</strong> Oxford Mathematical Institute Three Minute Thesis Competition  
-      </li>
-      <li>
-         <em>Jul 2026 - Sep 2026</em> &emsp; <strong><a href="https://www.maths.ox.ac.uk/outreach/miorpa">MIORPA 2026</a> Tutor</strong> for pre-PhD students based in sub-Saharan Africa 
-      </li>
-      <li>
-        <em>Nov 2024 - Jul 2025</em> &emsp; <strong><a href="https://pysanum.dm.unipi.it">SIAM Student Chapter officer</a></strong> for UniPi-SNS Student Chapter
-      </li>
-      <li>
-        <em>May 2025</em> &emsp; <strong>Prima Math Fest</strong> organized by Prima Assicurazioni for selected italian students
-      </li>
-      <li>
-         <em>Mar 2025</em> &emsp; <strong>Generali Spring Camp</strong> organized by Assicurazioni Generali for selected italian students
-      </li>
-      <li>
-        <em>Feb 2025</em> &emsp; <strong><a href = "https://sites.google.com/view/gncs-siam-chapters">GNCS-SIAM Chapters Meeting 2025</a></strong> co-organizer, Pavia, Italy
-      </li>
-      <li>
-        <em>Sep 2024</em> &emsp; <strong>CIME School on High-Dimensional Approximation, from Theoretical Foundations to Machine Learning and PDEs</strong>, Cetraro, Italy
-      </li>
-      <li>
-        <em>Mar 2024</em> &emsp; <strong>Spring into Quant Finance</strong> organized by G-Research for selected international students
-      </li>
-      <li>
-        <em>Mar 2023 - Jun 2023</em> &emsp; <strong>Parallel Computing (Calcolo Parallelo dall’Infrastruttura alla Matematica)</strong> organized by University of Pisa. The course consisted in theory and practice of parallel computing 
-      </li>
-      <li>
-        <em>Oct 2020</em> &emsp; <strong> 7th place – Italian Mathematical Kangourou </strong> - Student Category
-      </li>
-      <li>
-        <em>Mag 2020</em> &emsp; <strong>Silver Medal – Italian Mathematical Olympiads</strong>, awarded by UMI
-      </li>
-      <li>
-        <em>Mag 2019</em> &emsp; <strong>Silver Medal – Italian Mathematical Olympiads</strong>, awarded by UMI
-      </li>
-      <li>
-        <em>Mar 2019</em> &emsp; <strong>4th place – Applied Mathematics Grand Prix</strong>, awarded by Università Cattolica del Sacro Cuore
-      </li>
-      <li>
-        <em>Mag 2018</em> &emsp; <strong>Bronze Medal – Italian Mathematical Olympiads</strong>, awarded by UMI
-      </li>
-      <li>
-        <em>Mag 2018</em> &emsp; <strong>Silver Medal – European Union Science Olympiad (EUSO)</strong>, Ljubljana, Slovenia
-      </li>
-      <li>
-        <em>Mag 2017</em> &emsp; <strong>1st Place – Italian Team Mathematical Olympiads</strong>, awarded by UMI
-      </li>
-      <li>
-        <em>2017</em> &emsp; <strong>1st Place – International Championships of Mathematical Games - Teams</strong>, awarded by Bocconi University
-      </li>
-     </ul>
+      <ul>
+        <li>
+          <em>2026 – 2028</em> &emsp; <strong>College Scholarship in Sciences</strong>, St Catherine's College
+        </li>
+        <li>
+          <em>2025 – 2029</em> &emsp; <strong>Mathematical Institute Scholarship</strong>, University of Oxford
+        </li>
+        <li>
+          <em>2020 – 2025</em> &emsp; <strong>Scuola Normale Superiore full merit-based scholarship</strong>
+        </li>
+        <li>
+          <em>Oct 2026 – now</em> &emsp; <strong><a href="https://people.maths.ox.ac.uk/siamsc/" target="_blank" rel="noopener">IT and Social Media Officer</a></strong>, Oxford SIAM Student Chapter
+        </li>
+        <li>
+          <em>Jul 2026 – Sep 2026</em> &emsp; <strong><a href="https://www.maths.ox.ac.uk/outreach/miorpa" target="_blank" rel="noopener">MIORPA 2026</a> tutor</strong>, for pre-PhD students based in sub-Saharan Africa
+        </li>
+        <li>
+          <em>Jun 2026</em> &emsp; <strong>Randomized Numerical Linear Algebra Workshop</strong>, EPFL, Lausanne, Switzerland, participant
+        </li>
+        <li>
+          <em>May 2026</em> &emsp; <strong>Audience Favourite Prize</strong>, Oxford Mathematical Institute Three Minute Thesis Competition
+        </li>
+        <li>
+          <em>Nov 2024 – Jul 2025</em> &emsp; <strong><a href="https://pysanum.dm.unipi.it" target="_blank" rel="noopener">SIAM Student Chapter officer</a></strong>, UniPi-SNS SIAM Student Chapter
+        </li>
+        <li>
+          <em>May 2025</em> &emsp; <strong>Prima Math Fest</strong>, organized by Prima Assicurazioni for selected Italian students
+        </li>
+        <li>
+          <em>Mar 2025</em> &emsp; <strong>Generali Spring Camp</strong>, organized by Assicurazioni Generali for selected Italian students
+        </li>
+        <li>
+          <em>Feb 2025</em> &emsp; <strong><a href="https://sites.google.com/view/gncs-siam-chapters" target="_blank" rel="noopener">GNCS-SIAM Chapters Meeting 2025</a></strong>, co-organizer, Pavia, Italy
+        </li>
+        <li>
+          <em>Sep 2024</em> &emsp; <strong>CIME School on High-Dimensional Approximation, from Theoretical Foundations to Machine Learning and PDEs</strong>, Cetraro, Italy
+        </li>
+        <li>
+          <em>Mar 2024</em> &emsp; <strong>Spring into Quant Finance</strong>, organized by G-Research for selected international students, Saint-Jean-Cap-Ferrat, France
+        </li>
+        <li>
+          <em>Mar 2023 – Jun 2023</em> &emsp; <strong>Parallel Computing (Calcolo Parallelo dall’Infrastruttura alla Matematica)</strong>, University of Pisa: a course on the theory and practice of parallel computing
+        </li>
+        <li>
+          <em>Oct 2020</em> &emsp; <strong>7th place – Italian Mathematical Kangourou</strong>, student category
+        </li>
+        <li>
+          <em>May 2020</em> &emsp; <strong>Silver medal – Italian Mathematical Olympiads</strong>, awarded by UMI
+        </li>
+        <li>
+          <em>May 2019</em> &emsp; <strong>Silver medal – Italian Mathematical Olympiads</strong>, awarded by UMI
+        </li>
+        <li>
+          <em>Mar 2019</em> &emsp; <strong>4th place – Applied Mathematics Grand Prix</strong>, awarded by Università Cattolica del Sacro Cuore
+        </li>
+        <li>
+          <em>May 2018</em> &emsp; <strong>Bronze medal – Italian Mathematical Olympiads</strong>, awarded by UMI
+        </li>
+        <li>
+          <em>May 2018</em> &emsp; <strong>Silver medal – European Union Science Olympiad (EUSO)</strong>, Ljubljana, Slovenia
+        </li>
+        <li>
+          <em>May 2017</em> &emsp; <strong>1st place – Italian Team Mathematical Olympiads</strong>, awarded by UMI
+        </li>
+        <li>
+          <em>2017</em> &emsp; <strong>1st place – International Championships of Mathematical Games (team category)</strong>, awarded by Bocconi University
+        </li>
+      </ul>
