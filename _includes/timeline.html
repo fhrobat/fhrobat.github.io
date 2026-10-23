@@ -11,6 +11,7 @@
 -->
 <style>
   .tl {
+    position: relative;
     max-width: 800px;
     margin: 0 auto 2.75rem;
     padding: 0.6rem 1rem 0.4rem;
@@ -36,6 +37,7 @@
     display: block;
     position: relative;
     height: 72px;
+    overflow: hidden;
     touch-action: pan-y;
     cursor: pointer;
     -webkit-user-select: none;
@@ -178,6 +180,144 @@
   .tl-hint .touch { display: none; }
   @media (hover: none) { .tl-hint .mouse { display: none; } .tl-hint .touch { display: inline; } }
 
+  /* scheda che si apre dal segnaposto: cresce dal punto cliccato e copre la timeline */
+  .tl.tl-carding { z-index: 5; }
+  .tl-card {
+    position: absolute; left: 0; right: 0; z-index: 30;
+    padding: 0.8rem 1rem 0.9rem; border-radius: 14px;
+    background: #fff; border: 1px solid #c7d1de;
+    box-shadow: 0 18px 50px rgba(1, 42, 74, 0.18), 0 2px 6px rgba(1, 42, 74, 0.08);
+    transform: scale(0.04); opacity: 0; visibility: hidden;
+    transition: transform 0.4s cubic-bezier(0.5, 0, 0.75, 0), opacity 0.3s 0.1s, visibility 0s 0.4s;
+  }
+  .tl-card.open {
+    transform: none; opacity: 1; visibility: visible;
+    transition: transform 0.5s cubic-bezier(0.2, 0.9, 0.25, 1.05), opacity 0.15s;
+  }
+  .tl-card > * { opacity: 0; transition: opacity 0.15s; }
+  .tl-card.open > * { opacity: 1; transition: opacity 0.3s 0.22s; }
+  .tl-ck {
+    margin: 0 2.4rem 0.55rem 0; display: flex; align-items: center; gap: 0.6em;
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #6b7785;
+  }
+  .tl-ck .tl-s { display: inline-block; margin: 0; flex: none; }
+  .tl-x {
+    position: absolute; top: 0.45rem; right: 0.55rem; width: 30px; height: 30px; padding: 0;
+    border: 1px solid #c7d1de; border-radius: 50%; background: #fff; color: #012a4a;
+    font: inherit; font-size: 15px; line-height: 1; cursor: pointer;
+  }
+  .tl-x:hover, .tl-x:focus-visible { background: #e6edf6; }
+  .tl-stage { position: relative; height: min(260px, 54vw); border-radius: 10px; background: #f2f5f9; overflow: hidden; }
+  .tl-ct { margin: 0.65rem 0 0; font-size: 0.95em; line-height: 1.45; }
+  .tl-cl { margin: 0.5rem 0 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .tl-cl:empty { display: none; }
+
+  /* articoli: l'animazione Manim in grande */
+  .tl-stage video.tl-big {
+    display: block; float: none; width: 100%; height: 100%; max-width: none; margin: 0;
+    aspect-ratio: auto; object-fit: contain; border: 0; border-radius: 0; background: #fff;
+  }
+
+  /* viaggi: mappa a puntini con l'arco che vola da una città all'altra */
+  .tl-map canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .tl-route { position: absolute; left: 0.75rem; top: 0.6rem; font-size: 12px; color: #6b7785; letter-spacing: 0.04em; }
+  .tl-km { display: block; margin-top: 2px; font-size: 22px; font-weight: bold; color: #012a4a; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+  .tl-place {
+    position: absolute; transform: translate(-50%, -100%); margin-top: -9px; padding: 0 3px;
+    font-size: 11px; font-weight: bold; color: #012a4a; white-space: nowrap; border-radius: 3px;
+    background: rgba(242, 245, 249, 0.85); opacity: 0; transition: opacity 0.4s;
+  }
+  .tl-place.on { opacity: 1; }
+  .tl-ring { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border: 2px solid #0b47d1; border-radius: 50%; box-sizing: border-box; opacity: 0; }
+  .tl-ring.on { animation: tl-pulse 1.8s ease-out infinite; }
+
+  /* lauree: il voto che sale e il timbro */
+  .tl-deg { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .tl-deg-n { font-size: clamp(46px, 12vw, 76px); font-weight: bold; line-height: 1; color: #012a4a; font-variant-numeric: tabular-nums; }
+  .tl-deg-n span { margin-left: 0.08em; font-size: 0.42em; color: #6b7785; }
+  .tl-stamp {
+    margin-top: 0.9rem; padding: 0.12em 0.6em; border: 3px solid #0b47d1; border-radius: 6px;
+    color: #0b47d1; font-size: clamp(17px, 4vw, 25px); font-weight: bold; letter-spacing: 0.1em; text-transform: uppercase;
+    opacity: 0; transform: rotate(-8deg) scale(2.4);
+  }
+  .tl-deg.stamped .tl-stamp { animation: tl-stamp 0.42s cubic-bezier(0.3, 1.5, 0.5, 1) forwards; }
+  @keyframes tl-stamp { to { opacity: 1; transform: rotate(-8deg) scale(1); } }
+  .tl-bit { position: absolute; left: 50%; top: 50%; transition: transform 1s cubic-bezier(0.12, 0.7, 0.3, 1), opacity 1s ease-in; }
+  .tl-bit:nth-child(3n) { background: #0b47d1; border-color: #0b47d1; }
+
+  /* premi: la medaglia che scende e oscilla */
+  .tl-medal-wrap { position: absolute; inset: 0; display: flex; justify-content: center; align-items: flex-start; padding-top: 3%; }
+  .tl-medal { height: 92%; width: auto; overflow: visible; transform-origin: 50% 0; animation: tl-drop 0.85s cubic-bezier(0.3, 1.35, 0.5, 1) both, tl-swing 2.6s 0.85s ease-in-out forwards; }
+  @keyframes tl-drop { from { transform: translateY(-115%) rotate(-14deg); } to { transform: none; } }
+  @keyframes tl-swing { 25% { transform: rotate(7deg); } 55% { transform: rotate(-4deg); } 80% { transform: rotate(2deg); } 100% { transform: none; } }
+  .tl-medal .r1 { fill: #012a4a; }
+  .tl-medal .r2 { fill: #0b47d1; }
+  .tl-medal .disc { stroke-width: 3; }
+  .tl-medal .lab { font: bold 22px "Courier New", monospace; }
+  .tl-medal .shine { fill: rgba(255, 255, 255, 0.55); animation: tl-shine 1.7s 1s ease-in-out infinite; }
+  @keyframes tl-shine { from { transform: translateX(-40px) skewX(-20deg); } 60%, to { transform: translateX(120px) skewX(-20deg); } }
+  .tl-m-gold .disc { fill: #f2c14e; stroke: #c9952b; } .tl-m-gold .inner { fill: #f8d977; } .tl-m-gold .lab { fill: #7a5710; }
+  .tl-m-silver .disc { fill: #c3ccd5; stroke: #8f9ba8; } .tl-m-silver .inner { fill: #e4e9ee; } .tl-m-silver .lab { fill: #4f5b67; }
+  .tl-m-bronze .disc { fill: #c98a4b; stroke: #94602e; } .tl-m-bronze .inner { fill: #e2a874; } .tl-m-bronze .lab { fill: #5e3718; }
+  .tl-m-plain .disc { fill: #fff; stroke: #012a4a; } .tl-m-plain .inner { fill: #f2f5f9; } .tl-m-plain .lab { fill: #012a4a; }
+  /* in dark mode il sito inverte tutta la pagina: la medaglia si re-inverte per tenere oro, argento e bronzo */
+  body[a="dark"] #site-wrapper .tl-medal { filter: invert(1); }
+  @media (prefers-color-scheme: dark) { body[a="auto"] #site-wrapper .tl-medal { filter: invert(1); } }
+
+  /* talk: la slide del titolo che si scrive, oppure le slide vere quando ci sono */
+  .tl-slide {
+    position: absolute; top: 9%; bottom: 9%; left: 50%; transform: translateX(-50%); width: min(84%, 420px);
+    display: flex; flex-direction: column; justify-content: center; overflow: hidden;
+    padding: 0 6%; background: #fff; border: 1px solid #c7d1de; border-radius: 6px; box-shadow: 0 6px 18px rgba(1, 42, 74, 0.08);
+  }
+  .tl-sl-top { margin: 0; font-size: 10.5px; line-height: 1.35; letter-spacing: 0.05em; text-transform: uppercase; color: #6b7785; }
+  .tl-sl-title { margin: 0.55rem 0 0.65rem; min-height: 2.6em; font-size: clamp(14px, 2.7vw, 19px); line-height: 1.3; color: #012a4a; }
+  .tl-sl-auth { margin: 0; font-size: 12px; opacity: 0; transition: opacity 0.5s; }
+  .tl-sl-auth.on { opacity: 1; }
+  .tl-sl-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: #0b47d1; }
+  .tl-sl-bar.on { width: 100%; transition: width 2.6s linear; }
+  .tl-deck { position: absolute; inset: 0; }
+  .tl-deck span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #6b7785; }
+  .tl-deck iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; opacity: 0; transition: opacity 0.5s; }
+  .tl-deck iframe.on { opacity: 1; }
+
+  /* didattica: eliminazione di Gauss su una matrice 4x4, A = LU */
+  .tl-lu { position: absolute; inset: 0 0 1.8rem; display: flex; align-items: center; justify-content: center; gap: 1.4rem; font-size: clamp(12px, 2.6vw, 16px); }
+  .tl-lu-lab { margin-bottom: 0.3rem; text-align: center; font-size: 12px; color: #6b7785; }
+  .tl-mat {
+    display: grid; grid-template-columns: repeat(4, 2.1em); gap: 0.3em 0; padding: 0.3em 0.45em;
+    border-left: 2px solid #012a4a; border-right: 2px solid #012a4a; border-radius: 6px;
+    text-align: center; font-variant-numeric: tabular-nums;
+  }
+  .tl-mat span { border-radius: 4px; transition: color 0.3s, background 0.3s; }
+  .tl-mat span.zero { color: #a6b1bd; }
+  .tl-mat span.piv { background: rgba(11, 71, 209, 0.14); color: #0b47d1; font-weight: bold; }
+  .tl-mat span.flash { background: rgba(1, 42, 74, 0.1); }
+  .tl-mat span.mul { color: #0b47d1; font-weight: bold; }
+  .tl-lu-cap { position: absolute; left: 0; right: 0; bottom: 0.65rem; text-align: center; font-size: 12px; color: #6b7785; }
+
+  /* tutto il resto: la forma che si ingrandisce con delle onde */
+  .tl-pop { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  .tl-pop .tl-s { position: relative; margin: 0; transform: scale(0); animation: tl-popin 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) 0.05s forwards; }
+  @keyframes tl-popin { to { transform: scale(5); } }
+  .tl-wave { position: absolute; left: 50%; top: 50%; width: 80px; height: 80px; margin: -40px 0 0 -40px; border: 2px solid #012a4a; border-radius: 50%; opacity: 0; animation: tl-wave 2.4s ease-out infinite; }
+  .tl-wave + .tl-wave { animation-delay: 1.2s; }
+  @keyframes tl-wave { from { transform: scale(0.6); opacity: 0.45; } to { transform: scale(2.8); opacity: 0; } }
+  .tl-rays {
+    position: absolute; left: 50%; top: 50%; width: 260px; height: 260px; margin: -130px 0 0 -130px; border-radius: 50%;
+    background: repeating-conic-gradient(rgba(1, 42, 74, 0.13) 0 6deg, transparent 6deg 30deg);
+    -webkit-mask: radial-gradient(closest-side, transparent 28%, #000 42%, transparent 100%);
+    mask: radial-gradient(closest-side, transparent 28%, #000 42%, transparent 100%);
+    animation: tl-spin 14s linear infinite;
+  }
+  @keyframes tl-spin { to { transform: rotate(1turn); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tl-card, .tl-card.open, .tl-card > *, .tl-card.open > * { transition: none; }
+    .tl-medal, .tl-medal .shine, .tl-wave, .tl-rays, .tl-ring.on, .tl-pop .tl-s, .tl-deg.stamped .tl-stamp { animation: none; }
+    .tl-pop .tl-s { transform: scale(5); }
+    .tl-stamp { opacity: 1; transform: rotate(-8deg); }
+  }
   @media (prefers-reduced-motion: reduce) {
     .tl-pin i, .tl-bub b, .tl-now, .tl-year, .tl-band, .tl-bar, .tl-blabel { transition: none; }
     .tl-done .tl-pulse, .tl-caret { animation: none; }
@@ -189,33 +329,35 @@
     <h2 class="tl-title">Timeline</h2>
     <button type="button" class="badge tl-play" aria-pressed="false">▶ play</button>
   </div>
-  <!-- in ordine di data; data-to rende la tappa una durata, data-dur ne cambia la descrizione -->
+  <!-- in ordine di data; data-to rende la tappa una durata, data-dur ne cambia la descrizione.
+       Per la scheda: data-anim (video), data-map ("da>a", luoghi in PLACES), data-deck (slide), data-grade/of/honours
+       (voto di laurea), data-medal (gold, silver, bronze, plain) con data-rank -->
   <ol class="tl-data">
-    <li data-d="2017" data-k="prize"><span class="tl-when">2017</span><span class="tl-what">1st place at the International Championships of Mathematical Games (teams), Bocconi University</span></li>
-    <li data-d="2017-05" data-k="prize"><span class="tl-when">May 2017</span><span class="tl-what">1st place at the Italian Team Mathematical Olympiads, awarded by UMI</span></li>
-    <li data-d="2018-05" data-k="prize"><span class="tl-when">May 2018</span><span class="tl-what">Bronze medal at the Italian Mathematical Olympiads, awarded by UMI</span></li>
-    <li data-d="2018-05" data-k="prize"><span class="tl-when">May 2018</span><span class="tl-what">Silver medal at the European Union Science Olympiad (EUSO), Ljubljana, Slovenia</span></li>
-    <li data-d="2019-03" data-k="prize"><span class="tl-when">Mar 2019</span><span class="tl-what">4th place at the Applied Mathematics Grand Prix, awarded by Università Cattolica del Sacro Cuore</span></li>
-    <li data-d="2019-05" data-k="prize"><span class="tl-when">May 2019</span><span class="tl-what">Silver medal at the Italian Mathematical Olympiads, awarded by UMI</span></li>
-    <li data-d="2020-05" data-k="prize"><span class="tl-when">May 2020</span><span class="tl-what">Silver medal at the Italian Mathematical Olympiads, awarded by UMI</span></li>
-    <li data-d="2020-09" data-to="2023-07" data-k="edu"><span class="tl-when">Sep 2020 – Jul 2023</span><span class="tl-what">Bachelor’s degree, University of Pisa: 110/110 cum laude</span></li>
-    <li data-d="2020-09" data-to="2025-07" data-k="edu"><span class="tl-when">Sep 2020 – Jul 2025</span><span class="tl-what">Diploma, Scuola Normale Superiore of Pisa: 100/100 cum laude</span></li>
+    <li data-d="2017" data-k="prize" data-medal="gold" data-rank="1st"><span class="tl-when">2017</span><span class="tl-what">1st place at the International Championships of Mathematical Games (teams), Bocconi University</span></li>
+    <li data-d="2017-05" data-k="prize" data-medal="gold" data-rank="1st"><span class="tl-when">May 2017</span><span class="tl-what">1st place at the Italian Team Mathematical Olympiads, awarded by UMI</span></li>
+    <li data-d="2018-05" data-k="prize" data-medal="bronze"><span class="tl-when">May 2018</span><span class="tl-what">Bronze medal at the Italian Mathematical Olympiads, awarded by UMI</span></li>
+    <li data-d="2018-05" data-k="prize" data-medal="silver"><span class="tl-when">May 2018</span><span class="tl-what">Silver medal at the European Union Science Olympiad (EUSO), Ljubljana, Slovenia</span></li>
+    <li data-d="2019-03" data-k="prize" data-medal="plain" data-rank="4th"><span class="tl-when">Mar 2019</span><span class="tl-what">4th place at the Applied Mathematics Grand Prix, awarded by Università Cattolica del Sacro Cuore</span></li>
+    <li data-d="2019-05" data-k="prize" data-medal="silver"><span class="tl-when">May 2019</span><span class="tl-what">Silver medal at the Italian Mathematical Olympiads, awarded by UMI</span></li>
+    <li data-d="2020-05" data-k="prize" data-medal="silver"><span class="tl-when">May 2020</span><span class="tl-what">Silver medal at the Italian Mathematical Olympiads, awarded by UMI</span></li>
+    <li data-d="2020-09" data-to="2023-07" data-k="edu" data-grade="110" data-of="110" data-honours="cum laude"><span class="tl-when">Sep 2020 – Jul 2023</span><span class="tl-what">Bachelor’s degree, University of Pisa: 110/110 cum laude</span></li>
+    <li data-d="2020-09" data-to="2025-07" data-k="edu" data-grade="100" data-of="100" data-honours="cum laude"><span class="tl-when">Sep 2020 – Jul 2025</span><span class="tl-what">Diploma, Scuola Normale Superiore of Pisa: 100/100 cum laude</span></li>
     <li data-d="2020-09" data-to="2025-07" data-dur="5 years" data-k="prize"><span class="tl-when">2020 – 2025</span><span class="tl-what">Scuola Normale Superiore merit-based full scholarship</span></li>
-    <li data-d="2020-10" data-k="prize"><span class="tl-when">Oct 2020</span><span class="tl-what">7th place at the Italian Mathematical Kangourou, student category</span></li>
+    <li data-d="2020-10" data-k="prize" data-medal="plain" data-rank="7th"><span class="tl-when">Oct 2020</span><span class="tl-what">7th place at the Italian Mathematical Kangourou, student category</span></li>
     <li data-d="2023-03" data-to="2023-06" data-k="event"><span class="tl-when">Mar – Jun 2023</span><span class="tl-what">Parallel Computing course (Calcolo Parallelo dall’Infrastruttura alla Matematica), University of Pisa: theory and practice of parallel computing</span></li>
-    <li data-d="2023-07" data-to="2025-07" data-k="edu"><span class="tl-when">Jul 2023 – Jul 2025</span><span class="tl-what">Master’s degree, University of Pisa: 110/110 cum laude</span></li>
-    <li data-d="2024-03" data-k="event"><span class="tl-when">Mar 2024</span><span class="tl-what">Spring into Quant Finance, organized by G-Research for selected international students</span></li>
+    <li data-d="2023-07" data-to="2025-07" data-k="edu" data-grade="110" data-of="110" data-honours="cum laude"><span class="tl-when">Jul 2023 – Jul 2025</span><span class="tl-what">Master’s degree, University of Pisa: 110/110 cum laude</span></li>
+    <li data-d="2024-03" data-k="event" data-map="pisa>capferrat"><span class="tl-when">Mar 2024</span><span class="tl-what">Spring into Quant Finance, organized by G-Research for selected international students, Saint-Jean-Cap-Ferrat, France</span></li>
     <li data-d="2024-03-21" data-k="talk"><span class="tl-when">21 Mar 2024</span><span class="tl-what">Talk “Calcolo della SVD tramite funzioni di Zolotarev”, SIAM Student Chapter UniPi-SNS, Pisa</span></li>
-    <li data-d="2024-09" data-k="event"><span class="tl-when">Sep 2024</span><span class="tl-what">CIME School on High-Dimensional Approximation, from Theoretical Foundations to Machine Learning and PDEs, Cetraro</span></li>
+    <li data-d="2024-09" data-k="event" data-map="pisa>cetraro"><span class="tl-when">Sep 2024</span><span class="tl-what">CIME School on High-Dimensional Approximation, from Theoretical Foundations to Machine Learning and PDEs, Cetraro</span></li>
     <li data-d="2024-11" data-to="2025-07" data-k="role"><span class="tl-when">Nov 2024 – Jul 2025</span><span class="tl-what">SIAM Student Chapter officer, UniPi-SNS Student Chapter</span><span class="tl-links"><a class="badge" href="https://pysanum.dm.unipi.it" target="_blank" rel="noopener">Chapter</a></span></li>
-    <li data-d="2025-01" data-to="2025-02-28" data-dur="2 months" data-k="edu"><span class="tl-when">Jan – Feb 2025</span><span class="tl-what">Visiting student, EPFL, Lausanne</span></li>
+    <li data-d="2025-01" data-to="2025-02-28" data-dur="2 months" data-k="edu" data-map="pisa>lausanne"><span class="tl-when">Jan – Feb 2025</span><span class="tl-what">Visiting student, EPFL, Lausanne</span></li>
     <li data-d="2025-01-20" data-k="talk"><span class="tl-when">20 Jan 2025</span><span class="tl-what">Poster “Lanczos with compression for symmetric Lyapunov equations”, Due giorni di Algebra Lineare Numerica, Pisa</span></li>
-    <li data-d="2025-02" data-k="role"><span class="tl-when">Feb 2025</span><span class="tl-what">Co-organizer of the GNCS-SIAM Chapters Meeting 2025, Pavia</span><span class="tl-links"><a class="badge" href="https://sites.google.com/view/gncs-siam-chapters" target="_blank" rel="noopener">Meeting</a></span></li>
+    <li data-d="2025-02" data-k="role" data-map="pisa>pavia"><span class="tl-when">Feb 2025</span><span class="tl-what">Co-organizer of the GNCS-SIAM Chapters Meeting 2025, Pavia</span><span class="tl-links"><a class="badge" href="https://sites.google.com/view/gncs-siam-chapters" target="_blank" rel="noopener">Meeting</a></span></li>
     <li data-d="2025-03" data-k="event"><span class="tl-when">Mar 2025</span><span class="tl-what">Generali Spring Camp, organized by Assicurazioni Generali for selected Italian students</span></li>
     <li data-d="2025-05" data-k="paper" data-anim="assets/anims/LanczosComp.mp4"><span class="tl-when">May 2025</span><span class="tl-what">Lanczos with compression for symmetric matrix Lyapunov equations, with A. A. Casulli and D. Kressner (preprint)</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2505.22498" target="_blank" rel="noopener">arXiv</a><a class="badge" href="https://github.com/fhrobat/lyap-compress" target="_blank" rel="noopener">Code</a></span></li>
     <li data-d="2025-05" data-k="event"><span class="tl-when">May 2025</span><span class="tl-what">Prima Math Fest, organized by Prima Assicurazioni for selected Italian students</span></li>
-    <li data-d="2025-06-24" data-k="talk"><span class="tl-when">24 Jun 2025</span><span class="tl-what">Invited talk “Lanczos with compression for symmetric Lyapunov equations”, ILAS 2025, Kaohsiung, Taiwan, in the minisymposium “Advances in Krylov Subspace Methods and their Applications”</span></li>
-    <li data-d="2025-10" data-to="now" data-k="edu"><span class="tl-when">Oct 2025 – now</span><span class="tl-what">PhD, University of Oxford, Linacre College and St Catherine’s College</span></li>
+    <li data-d="2025-06-24" data-k="talk" data-map="pisa>kaohsiung"><span class="tl-when">24 Jun 2025</span><span class="tl-what">Invited talk “Lanczos with compression for symmetric Lyapunov equations”, ILAS 2025, Kaohsiung, Taiwan, in the minisymposium “Advances in Krylov Subspace Methods and their Applications”</span></li>
+    <li data-d="2025-10" data-to="now" data-k="edu" data-map="pisa>oxford"><span class="tl-when">Oct 2025 – now</span><span class="tl-what">PhD, University of Oxford, Linacre College and St Catherine’s College</span></li>
     <li data-d="2025-10" data-to="2029" data-dur="4 years" data-k="prize"><span class="tl-when">2025 – 2029</span><span class="tl-what">Mathematical Institute Scholarship, University of Oxford</span></li>
     <li data-d="2025-10" data-to="2025-12" data-dur="Michaelmas term" data-k="teach"><span class="tl-when">MT25</span><span class="tl-what">TA for Practical Numerical Analysis, Oxford</span></li>
     <li data-d="2025-11" data-k="paper" data-anim="assets/anims/Friendship.mp4"><span class="tl-when">Nov 2025</span><span class="tl-what">Generalized Friendship Paradoxes in Network Science, with D. J. Higham and F. Tudisco, to appear in SIMAX</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2511.11742" target="_blank" rel="noopener">arXiv</a></span></li>
@@ -223,15 +365,15 @@
     <li data-d="2026-02" data-k="paper" data-anim="assets/anims/Perturbation.mp4"><span class="tl-when">Feb 2026</span><span class="tl-what">Matrix Perturbation Theory in the Tangent Space of Isospectral Matrices, with Y. Nakatsukasa (preprint)</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2602.22084" target="_blank" rel="noopener">arXiv</a></span></li>
     <li data-d="2026-03-12" data-k="talk"><span class="tl-when">12 Mar 2026</span><span class="tl-what">Talk “Lanczos with compression for symmetric Lyapunov equations”, Internal Seminar, Oxford</span></li>
     <li data-d="2026-04" data-to="2026-06" data-dur="Trinity term" data-k="teach"><span class="tl-when">TT26</span><span class="tl-what">Tutor for Numerical Linear Algebra (revision class), Oxford</span></li>
-    <li data-d="2026-05" data-k="prize"><span class="tl-when">May 2026</span><span class="tl-what">Audience Favourite Prize at the Oxford Mathematical Institute Three Minute Thesis Competition</span></li>
-    <li data-d="2026-05-08" data-k="talk"><span class="tl-when">8 May 2026</span><span class="tl-what">Talk “Are your friends more important than you?”, Italian Linacre Society Annual Meeting, Oxford</span><span class="tl-links"><a class="badge" href="https://fhrobat.github.io/LinItaSocSlides/" target="_blank" rel="noopener">Slides</a></span></li>
-    <li data-d="2026-06" data-k="event"><span class="tl-when">Jun 2026</span><span class="tl-what">Randomized Numerical Linear Algebra Workshop, EPFL, participant</span></li>
+    <li data-d="2026-05" data-k="prize" data-medal="gold" data-rank="★"><span class="tl-when">May 2026</span><span class="tl-what">Audience Favourite Prize at the Oxford Mathematical Institute Three Minute Thesis Competition</span></li>
+    <li data-d="2026-05-08" data-k="talk" data-deck="https://fhrobat.github.io/LinItaSocSlides/"><span class="tl-when">8 May 2026</span><span class="tl-what">Talk “Are your friends more important than you?”, Italian Linacre Society Annual Meeting, Oxford</span><span class="tl-links"><a class="badge" href="https://fhrobat.github.io/LinItaSocSlides/" target="_blank" rel="noopener">Slides</a></span></li>
+    <li data-d="2026-06" data-k="event" data-map="oxford>lausanne"><span class="tl-when">Jun 2026</span><span class="tl-what">Randomized Numerical Linear Algebra Workshop, EPFL, participant</span></li>
     <li data-d="2026-07" data-to="2026-09" data-dur="3 months" data-k="role"><span class="tl-when">Jul – Sep 2026</span><span class="tl-what">MIORPA 2026 tutor, for pre-PhD students based in sub-Saharan Africa</span><span class="tl-links"><a class="badge" href="https://www.maths.ox.ac.uk/outreach/miorpa" target="_blank" rel="noopener">MIORPA</a></span></li>
-    <li data-d="2026-09-14" data-k="talk"><span class="tl-when">14 Sep 2026</span><span class="tl-what">Talk “Solving sequences of eigenvalue problems using snapshot and row subsampling”, ENLARGED, Rutherford Appleton Laboratory, Didcot</span><span class="tl-links"><a class="badge" href="assets/slides/HROBAT_slides_enlarged.pdf" target="_blank" rel="noopener">Slides</a></span></li>
+    <li data-d="2026-09-14" data-k="talk" data-map="oxford>didcot"><span class="tl-when">14 Sep 2026</span><span class="tl-what">Talk “Solving sequences of eigenvalue problems using snapshot and row subsampling”, ENLARGED, Rutherford Appleton Laboratory, Didcot</span><span class="tl-links"><a class="badge" href="assets/slides/HROBAT_slides_enlarged.pdf" target="_blank" rel="noopener">Slides</a></span></li>
     <li data-d="2026-10" data-to="now" data-k="role"><span class="tl-when">Oct 2026 – now</span><span class="tl-what">IT and Social Media Officer, Oxford SIAM Student Chapter</span><span class="tl-links"><a class="badge" href="https://people.maths.ox.ac.uk/siamsc/" target="_blank" rel="noopener">Chapter</a></span></li>
     <li data-d="2026-10" data-k="paper" data-anim="assets/anims/EigSeq.mp4"><span class="tl-when">Oct 2026</span><span class="tl-what">Solving a sequence of eigenvalue problems using snapshot and row subsampling, with Y. Nakatsukasa (preprint)</span><span class="tl-links"><a class="badge" href="https://arxiv.org/abs/2610.19326" target="_blank" rel="noopener">arXiv</a><a class="badge" href="https://github.com/fhrobat/SubApSnapEig" target="_blank" rel="noopener">Code</a></span></li>
     <li data-d="2026-10" data-to="2026-12" data-dur="Michaelmas term" data-k="teach"><span class="tl-when">MT26</span><span class="tl-what">Tutor for Numerical Linear Algebra, Oxford</span></li>
-    <li data-d="2026-10-20" data-k="talk"><span class="tl-when">20 Oct 2026</span><span class="tl-what">Talk “Solving a sequence of eigenvalue problems using snapshot and row subsampling”, Junior Applied Mathematics Seminar (JAMS), Oxford SIAM Student Chapter</span><span class="tl-links"><a class="badge" href="https://fhrobat.github.io/jams_talk/" target="_blank" rel="noopener">Slides</a></span></li>
+    <li data-d="2026-10-20" data-k="talk" data-deck="https://fhrobat.github.io/jams_talk/"><span class="tl-when">20 Oct 2026</span><span class="tl-what">Talk “Solving a sequence of eigenvalue problems using snapshot and row subsampling”, Junior Applied Mathematics Seminar (JAMS), Oxford SIAM Student Chapter</span><span class="tl-links"><a class="badge" href="https://fhrobat.github.io/jams_talk/" target="_blank" rel="noopener">Slides</a></span></li>
   </ol>
   <div class="tl-track" role="group" aria-label="Milestones, use the arrow keys to move along the line">
     <span class="tl-line"></span><span class="tl-fill"></span><span class="tl-future"></span>
@@ -249,7 +391,7 @@
     <span><i class="tl-s" data-k="role"></i>roles</span>
     <span><i class="tl-s" data-k="event"></i>schools</span>
     <span class="tl-legend-news" hidden><i class="tl-s tl-news" data-k="edu"></i>in the news</span>
-    <span class="tl-hint"><span class="mouse">hover to zoom, click to open</span><span class="touch">slide to zoom</span></span>
+    <span class="tl-hint"><span class="mouse">hover to zoom, click to open</span><span class="touch">slide to zoom, tap again to open</span></span>
   </p>
 </section>
 
@@ -384,11 +526,12 @@
     pin.tabIndex = -1;
     pin.setAttribute('aria-label', when + ': ' + text);
     pin.innerHTML = '<i class="tl-s" data-k="' + kind + '"></i>';
-    // col mouse o la tastiera il clic apre la sezione; col dito il tocco sceglie soltanto la tappa
+    // col mouse o la tastiera il clic apre la scheda; col dito il primo tocco sceglie la tappa, il secondo la apre
     pin.addEventListener('click', function () {
+      var again = selAtDown === i;
       stopAll();
       select(i);
-      if (SECTIONS[kind] && lastPointer !== 'touch') openSection(SECTIONS[kind]);
+      if (lastPointer !== 'touch' || again) openCard(i);
     });
     track.appendChild(pin);
     var t2 = to ? tOf(to) : null;
@@ -396,6 +539,9 @@
       kind: kind, from: from, when: when, text: text, links: links ? links.innerHTML : '', news: news,
       sec: SECTIONS[kind] || null, anim: li.getAttribute('data-anim'), video: null, pin: pin,
       t0: tOf(from), t2: t2, u2: t2 === null ? null : uOf(t2), open: to === 'now', dur: li.getAttribute('data-dur'),
+      map: li.getAttribute('data-map'), deck: li.getAttribute('data-deck'),
+      grade: +(li.getAttribute('data-grade') || 0), of: li.getAttribute('data-of'), honours: li.getAttribute('data-honours'),
+      medal: li.getAttribute('data-medal'), rank: li.getAttribute('data-rank'),
       hid: false, past: false, inn: false
     };
   });
@@ -579,9 +725,14 @@
       if (k < d.text.length) { typing = requestAnimationFrame(tick); return; }
       typing = null;
       var hasSec = d.sec && summaryOf(d.sec[0]);
-      if (!d.links && !hasSec) return;
       var l = el('tl-links', detail, caret);
-      l.innerHTML = d.links;
+      var op = document.createElement('button');
+      op.type = 'button';
+      op.className = 'badge';
+      op.textContent = '✦ open';
+      op.addEventListener('click', function () { openCard(i); });
+      l.appendChild(op);
+      l.insertAdjacentHTML('beforeend', d.links);
       if (hasSec) {
         var go = document.createElement('button');
         go.type = 'button';
@@ -637,9 +788,371 @@
     return best;
   }
 
+  // ---------------------------------------------------------------- scheda
+  // Si apre dal segnaposto (transform-origin sul punto cliccato) e copre la timeline; dentro, un "palco" con
+  // l'animazione adatta alla tappa. Si chiude con la ×, con Esc o con un clic fuori.
+  var NAVY = '#012a4a', BLUE = '#0b47d1';
+  var CATNAME = { edu: 'Studies', paper: 'Paper', talk: 'Talk', teach: 'Teaching', prize: 'Prize', role: 'Role', event: 'School & programme' };
+  var card = null, cardIdx = -1, cardTimers = [], cardRaf = null, cardStage = null;
+  function makeCard() {
+    card = document.createElement('div');
+    card.className = 'tl-card';
+    card.setAttribute('role', 'dialog');
+    card.innerHTML = '<button type="button" class="tl-x" aria-label="Close">×</button>' +
+      '<p class="tl-ck"></p><div class="tl-stage"></div><p class="tl-ct"></p><p class="tl-cl"></p>';
+    root.appendChild(card);
+    cardStage = card.querySelector('.tl-stage');
+    card.querySelector('.tl-x').addEventListener('click', closeCard);
+    document.addEventListener('pointerdown', function (e) { if (cardIdx >= 0 && !card.contains(e.target)) closeCard(); }, true);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && cardIdx >= 0) closeCard(); });
+  }
+  function stageFor(d) {
+    if (d.anim) return 'video';
+    if (d.map) return 'map';
+    if (d.deck) return 'deck';
+    if (d.grade) return 'degree';
+    if (d.medal) return 'medal';
+    if (d.kind === 'talk') return 'slide';
+    if (d.kind === 'teach') return 'lu';
+    return 'pop';
+  }
+  function clearCard() {
+    cardTimers.forEach(clearTimeout);
+    cardTimers = [];
+    if (cardRaf) cancelAnimationFrame(cardRaf);
+    cardRaf = null;
+    if (cardStage) cardStage.querySelectorAll('video').forEach(function (v) { v.pause(); });
+  }
+  function openCard(i) {
+    if (!card) makeCard();
+    stopAll();
+    clearCard();
+    var d = data[i];
+    cardIdx = i;
+    var ck = card.querySelector('.tl-ck');
+    ck.innerHTML = '<i class="tl-s" data-k="' + d.kind + '"></i>';
+    ck.appendChild(document.createTextNode(CATNAME[d.kind] + ' · ' + d.when));
+    card.querySelector('.tl-ct').textContent = d.text;
+    var cl = card.querySelector('.tl-cl');
+    cl.innerHTML = d.links;
+    if (d.sec && summaryOf(d.sec[0])) {
+      var go = document.createElement('button');
+      go.type = 'button';
+      go.className = 'badge';
+      go.textContent = '↓ ' + d.sec[1];
+      go.addEventListener('click', function () { closeCard(); openSection(d.sec); });
+      cl.appendChild(go);
+    }
+    card.setAttribute('aria-label', d.when + ': ' + d.text);
+    card.style.top = (track.offsetTop - 6) + 'px';
+    card.style.transformOrigin = (track.offsetLeft + XS[i]).toFixed(0) + 'px 51px';
+    cardStage.innerHTML = '';
+    root.classList.add('tl-carding');
+    card.classList.remove('open');
+    void card.offsetWidth;
+    card.classList.add('open');
+    var kind = stageFor(d);
+    cardTimers.push(setTimeout(function () { if (cardIdx === i) STAGES[kind](cardStage, d); }, REDUCED ? 0 : 300));
+    // se la scheda esce dal fondo dello schermo, si scorre quel tanto che basta
+    cardTimers.push(setTimeout(function () {
+      var r = card.getBoundingClientRect();
+      if (r.bottom > window.innerHeight - 8) window.scrollBy({ top: Math.min(r.bottom - window.innerHeight + 16, r.top - 60), behavior: REDUCED ? 'auto' : 'smooth' });
+    }, 500));
+    card.querySelector('.tl-x').focus({ preventScroll: true });
+  }
+  function closeCard() {
+    if (cardIdx < 0) return;
+    var i = cardIdx;
+    cardIdx = -1;
+    clearCard();
+    // si richiude verso il segnaposto, che nel frattempo può essersi spostato
+    card.style.transformOrigin = (track.offsetLeft + XS[i]).toFixed(0) + 'px 51px';
+    card.classList.remove('open');
+    setTimeout(function () {
+      if (cardIdx >= 0) return;
+      root.classList.remove('tl-carding');
+      cardStage.innerHTML = '';
+    }, 450);
+    data[i].pin.focus({ preventScroll: true });
+  }
+
+  // luoghi dei viaggi [lat, lon, nome] e maschera terra/mare (Natural Earth) per le mappe a puntini
+  var PLACES = {
+    pisa: [43.7167, 10.4036, 'Pisa'], oxford: [51.752, -1.2577, 'Oxford'], lausanne: [46.5191, 6.5668, 'Lausanne'],
+    cetraro: [39.5167, 15.9333, 'Cetraro'], pavia: [45.1847, 9.1582, 'Pavia'], kaohsiung: [22.6273, 120.3014, 'Kaohsiung'],
+    didcot: [51.5745, -1.3126, 'Didcot'], capferrat: [43.6886, 7.3306, 'Saint-Jean-Cap-Ferrat']
+  };
+  var MASK_URL = '/assets/timeline/land.png', mask = null, maskWait = [];
+  function loadMask(cb) {
+    if (mask) { cb(); return; }
+    maskWait.push(cb);
+    if (maskWait.length > 1) return;
+    var img = new Image();
+    function done(m) { mask = m; var w = maskWait; maskWait = []; w.forEach(function (f) { f(); }); }
+    img.onload = function () {
+      var c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      var g = c.getContext('2d');
+      g.drawImage(img, 0, 0);
+      var px = g.getImageData(0, 0, c.width, c.height).data, m = new Uint8Array(c.width * c.height);
+      for (var k = 0; k < m.length; k++) m[k] = px[k * 4] > 127 ? 1 : 0;
+      done({ w: c.width, h: c.height, d: m });
+    };
+    img.onerror = function () { done({ w: 1, h: 1, d: new Uint8Array(1) }); };
+    img.src = MASK_URL;
+  }
+  function isLand(lat, lon) {
+    var x = Math.floor(((lon + 180) / 360 % 1 + 1) % 1 * mask.w), y = Math.floor((90 - lat) / 180 * mask.h);
+    if (y < 0 || y >= mask.h) return false;
+    return mask.d[y * mask.w + x] === 1;
+  }
+  function vec(p) {
+    var la = p[0] * Math.PI / 180, lo = p[1] * Math.PI / 180;
+    return [Math.cos(la) * Math.sin(lo), Math.sin(la), Math.cos(la) * Math.cos(lo)];
+  }
+  function easeIO(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+
+  var STAGES = {
+    video: function (st, d) {
+      var v = document.createElement('video');
+      v.className = 'paper-anim tl-big';
+      v.src = d.anim;
+      v.muted = true; v.loop = true; v.playsInline = true;
+      v.setAttribute('aria-hidden', 'true');
+      st.appendChild(v);
+      if (!REDUCED) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+    },
+
+    // mappa: puntini di terra che compaiono, poi l'arco lungo la geodetica con la cometa e i km che contano
+    map: function (st, d) {
+      var ks = d.map.split('>'), A = PLACES[ks[0]], B = PLACES[ks[1]];
+      var box = el('tl-map', st), cv = document.createElement('canvas');
+      box.appendChild(cv);
+      var route = el('tl-route', box);
+      route.textContent = A[2] + ' → ' + B[2];
+      var kmEl = el('tl-km', route), labA = el('tl-place', box), labB = el('tl-place', box), ring = el('tl-ring', box);
+      labA.textContent = A[2]; labB.textContent = B[2];
+      kmEl.textContent = '0 km';
+      var va = vec(A), vb = vec(B);
+      var ang = Math.acos(Math.max(-1, Math.min(1, va[0] * vb[0] + va[1] * vb[1] + va[2] * vb[2]))), km = ang * 6371;
+      loadMask(function () {
+        if (cardIdx < 0) return;
+        var w = st.clientWidth, h = st.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+        cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+        var g = cv.getContext('2d');
+        g.scale(dpr, dpr);
+        var N = 64, path = [], k, s = Math.sin(ang) || 1;
+        for (k = 0; k <= N; k++) {
+          var t = k / N, wa = ang ? Math.sin((1 - t) * ang) / s : 1 - t, wb = ang ? Math.sin(t * ang) / s : t;
+          var v = [va[0] * wa + vb[0] * wb, va[1] * wa + vb[1] * wb, va[2] * wa + vb[2] * wb];
+          path.push([Math.asin(v[1] / Math.hypot(v[0], v[1], v[2])) * 180 / Math.PI, Math.atan2(v[0], v[2]) * 180 / Math.PI]);
+        }
+        var la = path.map(function (p) { return p[0]; }), lo = path.map(function (p) { return p[1]; });
+        var latC = (Math.min.apply(null, la) + Math.max.apply(null, la)) / 2, lonC = (Math.min.apply(null, lo) + Math.max.apply(null, lo)) / 2;
+        var kx = Math.cos(latC * Math.PI / 180);
+        var spLat = Math.max.apply(null, la) - Math.min.apply(null, la), spLon = (Math.max.apply(null, lo) - Math.min.apply(null, lo)) * kx;
+        // pixel per grado: il viaggio occupa circa due terzi della larghezza, ma si vedono sempre almeno ~5 gradi
+        var sc = Math.min(w * 0.62 / Math.max(spLon, 0.01), h * 0.5 / Math.max(spLat, 0.01), h / 5);
+        var cx = w / 2, cy = h / 2 + 14;
+        function P(lat, lon) { return [cx + (lon - lonC) * kx * sc, cy - (lat - latC) * sc]; }
+        var dots = [], gap = 7;
+        for (var y = gap / 2, row = 0; y < h; y += gap, row++) {
+          for (var x = (row % 2 ? gap : gap / 2); x < w; x += gap) {
+            var lat = latC - (y - cy) / sc, lon = lonC + (x - cx) / (kx * sc);
+            if (lat < 85 && lat > -85 && isLand(lat, lon)) dots.push([x, y, Math.random()]);
+          }
+        }
+        var pts = path.map(function (p) { return P(p[0], p[1]); });
+        var a = pts[0], b = pts[N], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+        var nx = dy / L, ny = -dx / L;
+        if (ny > 0) { nx = -nx; ny = -ny; }
+        var lift = Math.min(70, 0.22 * L + 8);
+        pts = pts.map(function (p, j) { var q = Math.sin(Math.PI * j / N) * lift; return [p[0] + nx * q, p[1] + ny * q]; });
+        [[labA, a], [labB, b], [ring, b]].forEach(function (e) { e[0].style.left = e[1][0] + 'px'; e[0].style.top = e[1][1] + 'px'; });
+        var t0 = performance.now();
+        function frame(ts) {
+          var t = REDUCED ? 9 : (ts - t0) / 1000;
+          g.clearRect(0, 0, w, h);
+          g.fillStyle = NAVY;
+          dots.forEach(function (q) {
+            var al = Math.max(0, Math.min(1, (t - q[2] * 0.6) / 0.35)) * (0.22 + 0.3 * q[2]);
+            if (al <= 0) return;
+            g.globalAlpha = al;
+            g.fillRect(q[0] - 1.4, q[1] - 1.4, 2.8, 2.8);
+          });
+          g.globalAlpha = 1;
+          var p = easeIO(Math.max(0, Math.min(1, (t - 0.55) / 1.5))), m = p * N, j;
+          g.strokeStyle = NAVY; g.lineWidth = 2;
+          g.beginPath(); g.arc(a[0], a[1], 4, 0, 7); g.stroke();
+          if (p > 0) {
+            g.strokeStyle = BLUE; g.lineWidth = 2.2; g.lineCap = 'round';
+            g.shadowColor = BLUE; g.shadowBlur = 6;
+            g.beginPath(); g.moveTo(a[0], a[1]);
+            for (j = 1; j <= Math.floor(m); j++) g.lineTo(pts[j][0], pts[j][1]);
+            var f = m - Math.floor(m), i0 = Math.min(N, Math.floor(m)), i1 = Math.min(N, i0 + 1);
+            var hx = pts[i0][0] + (pts[i1][0] - pts[i0][0]) * f, hy = pts[i0][1] + (pts[i1][1] - pts[i0][1]) * f;
+            g.lineTo(hx, hy); g.stroke();
+            g.shadowBlur = 14; g.fillStyle = BLUE;
+            g.beginPath(); g.arc(hx, hy, p < 1 ? 4 : 5, 0, 7); g.fill();
+            g.shadowBlur = 0;
+          }
+          kmEl.textContent = Math.round(km * p).toLocaleString('en-US') + ' km';
+          labA.classList.toggle('on', t > 0.3);
+          if (p >= 1) { labB.classList.add('on'); ring.classList.add('on'); }
+          cardRaf = t < 2.5 ? requestAnimationFrame(frame) : null;
+        }
+        cardRaf = requestAnimationFrame(frame);
+      });
+    },
+
+    deck: function (st, d) {
+      var box = el('tl-deck', st);
+      el('', box).textContent = 'loading slides…';
+      var f = document.createElement('iframe');
+      f.title = 'Slides';
+      f.setAttribute('allow', 'autoplay; fullscreen');
+      f.addEventListener('load', function () { f.classList.add('on'); });
+      f.src = d.deck;
+      box.appendChild(f);
+    },
+
+    // laurea: il voto conta fino al massimo, poi cade il timbro e partono i coriandoli (le forme della timeline)
+    degree: function (st, d) {
+      var box = el('tl-deg', st);
+      box.innerHTML = '<div class="tl-deg-n"><b>0</b><span>/' + d.of + '</span></div>' + (d.honours ? '<div class="tl-stamp"></div>' : '');
+      if (d.honours) box.querySelector('.tl-stamp').textContent = d.honours;
+      var num = box.querySelector('b'), t0 = performance.now(), dur = REDUCED ? 0 : 1100;
+      function frame(ts) {
+        var q = dur ? Math.min(1, (ts - t0) / dur) : 1;
+        num.textContent = String(Math.round(d.grade * (1 - Math.pow(1 - q, 3))));
+        if (q < 1) { cardRaf = requestAnimationFrame(frame); return; }
+        cardRaf = null;
+        box.classList.add('stamped');
+        if (!REDUCED) cardTimers.push(setTimeout(function () { confetti(box); }, 260));
+      }
+      cardRaf = requestAnimationFrame(frame);
+    },
+
+    medal: function (st, d) {
+      var wrap = el('tl-medal-wrap', st);
+      wrap.innerHTML = '<svg class="tl-medal tl-m-' + d.medal + '" viewBox="0 0 120 160" aria-hidden="true">' +
+        '<defs><clipPath id="tl-mclip"><circle cx="60" cy="108" r="40"/></clipPath></defs>' +
+        '<polygon class="r1" points="32,0 54,0 70,72 48,72"/><polygon class="r2" points="88,0 66,0 50,72 72,72"/>' +
+        '<circle class="disc" cx="60" cy="108" r="40"/><circle class="inner" cx="60" cy="108" r="31"/>' +
+        '<g clip-path="url(#tl-mclip)"><rect class="shine" x="0" y="60" width="16" height="100"/></g>' +
+        '<text class="lab" x="60" y="116" text-anchor="middle"></text></svg>';
+      wrap.querySelector('text').textContent = d.rank || '★';
+    },
+
+    // talk: la slide del titolo, scritta a macchina
+    slide: function (st, d) {
+      var o = d.text.indexOf('“'), c = d.text.indexOf('”');
+      var title = o >= 0 && c > o ? d.text.slice(o + 1, c) : d.text;
+      var venue = c > o ? d.text.slice(c + 1) : '';
+      while (venue.charAt(0) === ',' || venue.charAt(0) === ' ') venue = venue.slice(1);
+      var box = el('tl-slide', st);
+      box.innerHTML = '<p class="tl-sl-top"></p><h3 class="tl-sl-title"></h3><p class="tl-sl-auth">Francesco Hrobat</p><span class="tl-sl-bar"></span>';
+      box.querySelector('.tl-sl-top').textContent = (d.text.indexOf('Poster') === 0 ? 'Poster · ' : '') + (venue ? venue + ' · ' : '') + d.when;
+      var ht = box.querySelector('.tl-sl-title'), k = 0, step = Math.max(1, Math.ceil(title.length / 40));
+      function frame() {
+        k = REDUCED ? title.length : Math.min(title.length, k + step);
+        ht.textContent = title.slice(0, k);
+        if (k < title.length) { cardRaf = requestAnimationFrame(frame); return; }
+        cardRaf = null;
+        box.querySelector('.tl-sl-auth').classList.add('on');
+        box.querySelector('.tl-sl-bar').classList.add('on');
+      }
+      cardRaf = requestAnimationFrame(frame);
+    },
+
+    // didattica: eliminazione di Gauss vera su A = LU (moltiplicatori interi), passo dopo passo
+    lu: function (st, d) {
+      var L0 = [[1, 0, 0, 0], [2, 1, 0, 0], [-1, 3, 1, 0], [1, -2, 2, 1]];
+      var U0 = [[2, 1, -1, 3], [0, 1, 2, -1], [0, 0, 1, 2], [0, 0, 0, 3]];
+      var M = [], Lm = [], r, c, q;
+      for (r = 0; r < 4; r++) {
+        M.push([]); Lm.push([]);
+        for (c = 0; c < 4; c++) {
+          var s = 0;
+          for (q = 0; q < 4; q++) s += L0[r][q] * U0[q][c];
+          M[r].push(s);
+          Lm[r].push(r === c ? 1 : null);
+        }
+      }
+      var box = el('tl-lu', st);
+      box.innerHTML = '<div><div class="tl-lu-lab">L</div><div class="tl-mat tl-L"></div></div>' +
+        '<div><div class="tl-lu-lab">A → U</div><div class="tl-mat tl-U"></div></div>';
+      var cap = el('tl-lu-cap', st);
+      cap.textContent = 'Gaussian elimination';
+      function cells(sel) {
+        var out = [], g = box.querySelector(sel);
+        for (var k = 0; k < 16; k++) out.push(el('', g));
+        return out;
+      }
+      var cl = cells('.tl-L'), cu = cells('.tl-U');
+      function paint() {
+        for (var k = 0; k < 16; k++) {
+          var rr = Math.floor(k / 4), cc = k % 4;
+          cl[k].textContent = Lm[rr][cc] === null ? (rr < cc ? '0' : '·') : String(Lm[rr][cc]);
+          cu[k].textContent = String(M[rr][cc]);
+        }
+      }
+      paint();
+      cl.forEach(function (e, k) { if (Math.floor(k / 4) < k % 4) e.classList.add('zero'); });
+      var at = REDUCED ? 0 : 500;
+      [0, 1, 2].forEach(function (p) {
+        cardTimers.push(setTimeout(function () {
+          cu.forEach(function (e) { e.classList.remove('piv', 'flash'); });
+          cu[p * 4 + p].classList.add('piv');
+          cap.textContent = 'Gaussian elimination · step ' + (p + 1) + ' of 3';
+        }, at + p * 900));
+        cardTimers.push(setTimeout(function () {
+          for (var rr = p + 1; rr < 4; rr++) {
+            var mlt = M[rr][p] / M[p][p];
+            Lm[rr][p] = mlt;
+            for (var cc = p; cc < 4; cc++) M[rr][cc] -= mlt * M[p][cc];
+            cl[rr * 4 + p].classList.add('mul');
+            for (cc = p + 1; cc < 4; cc++) cu[rr * 4 + cc].classList.add('flash');
+            cu[rr * 4 + p].classList.add('zero');
+          }
+          paint();
+          if (p === 2) cardTimers.push(setTimeout(function () {
+            cu.forEach(function (e) { e.classList.remove('piv', 'flash'); });
+            cap.textContent = 'A = L U';
+          }, 700));
+        }, at + p * 900 + 380));
+      });
+    },
+
+    pop: function (st, d) {
+      var box = el('tl-pop', st);
+      box.innerHTML = (d.kind === 'prize' ? '<span class="tl-rays"></span>' : '') +
+        '<span class="tl-wave"></span><span class="tl-wave"></span><i class="tl-s" data-k="' + d.kind + '"></i>';
+    }
+  };
+  function confetti(box) {
+    var kinds = ['edu', 'paper', 'talk', 'prize', 'role', 'event', 'teach'];
+    for (var k = 0; k < 28; k++) {
+      var b = document.createElement('i');
+      b.className = 'tl-s tl-bit';
+      b.setAttribute('data-k', kinds[k % kinds.length]);
+      box.appendChild(b);
+      (function (b) {
+        var a = Math.random() * Math.PI * 2, r = 80 + Math.random() * 150;
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            b.style.transform = 'translate(' + (Math.cos(a) * r).toFixed(0) + 'px,' + (Math.sin(a) * r * 0.55).toFixed(0) + 'px) rotate(' + Math.round(Math.random() * 540) + 'deg)';
+            b.style.opacity = '0';
+          });
+        });
+      })(b);
+    }
+  }
+
   // ---------------------------------------------------------------- comandi
-  var down = false, restTimer = null;
+  var down = false, restTimer = null, selAtDown = -1;
   track.addEventListener('pointerdown', function (e) {
+    selAtDown = sel;
     lastPointer = e.pointerType;
     down = true;
     clearTimeout(restTimer);
@@ -684,6 +1197,7 @@
   }
   function play() {
     if (playTimer) { stopPlay(); return; }
+    closeCard();
     stopIntro();
     playBtn.textContent = '■ stop';
     playBtn.setAttribute('aria-pressed', 'true');
