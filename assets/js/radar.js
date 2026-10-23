@@ -487,7 +487,7 @@
 
     // ---------- data ----------
     function render() {
-      const counts = { arxiv: (data.arxiv || []).length, events: (data.events || []).filter((e) => e.nla).length,
+      const counts = { arxiv: (data.arxiv || []).length, events: (data.conferences || []).length,
         jobs: (data.jobs || []).length };
       for (const b of tabs.querySelectorAll('[role=tab]')) {
         const n = counts[b.dataset.tab];
