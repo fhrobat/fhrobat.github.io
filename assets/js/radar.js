@@ -472,16 +472,27 @@
       panel.classList.toggle('tall', name === 'events');
       panel.append(...PANELS[name]());
       // a new section starts from its top (the panel is the same box and would keep the old scroll)
+      // a second close button at the end of the section, for the long ones
+      const bottom = el('button', { type: 'button', class: 'rd-close', text: 'close the radar ↑' });
+      bottom.addEventListener('click', () => { hide(); box.scrollIntoView({ block: 'start' }); });
+      panel.append(el('p', { class: 'rd-closebottom' }, bottom));
       if (other) panel.scrollTop = 0;
       panel.hidden = false;
+      closeTop.hidden = false;
       panel.setAttribute('aria-labelledby', 'rd-tab-' + name);
       for (const b of tabs.querySelectorAll('[role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
     }
+    // closing: back to the scrolling line and the names of the sections
     function hide() {
       open = null;
       panel.hidden = true;
+      closeTop.hidden = true;
       for (const b of tabs.querySelectorAll('[role=tab]')) b.setAttribute('aria-selected', 'false');
     }
+    const closeTop = el('button', { type: 'button', class: 'rd-close', text: 'close ✕', 'aria-label': 'Close the radar' });
+    closeTop.hidden = true;
+    closeTop.addEventListener('click', hide);
+    tabs.append(closeTop);
 
     for (const b of tabs.querySelectorAll('[role=tab]')) {
       b.id = 'rd-tab-' + b.dataset.tab;

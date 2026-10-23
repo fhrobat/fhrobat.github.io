@@ -266,27 +266,36 @@
   .rd-sub { font-weight: normal; font-style: italic; margin-top: 0.5rem; }
 }
 
-// the button above the news that leads down to the radar
+// the button above the news that leads down to the radar: filled site blue (orange in the dark theme,
+// which inverts the page)
 .rd-jumpwrap {
   max-width: 800px;
-  margin: 0 auto 0.6rem;
-  text-align: left;
+  margin: 0 auto 0.9rem;
+  text-align: center;
 }
 
 .rd-jump {
   display: inline-block;
-  font-size: 0.85em;
-  padding: 0.3em 0.9em;
-  border: 1px solid #012a4a;
+  font-size: 0.9em;
+  font-weight: bold;
+  padding: 0.4em 1.1em;
   border-radius: 999px;
-  color: #012a4a;
+  background: #0b47d1;
+  color: white;
   text-decoration: none;
-  transition: background 150ms ease;
+  box-shadow: 0 2px 8px rgba(11, 71, 209, 0.25);
+  transition: background 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 
-  &:hover, &:focus-visible { background: #e6edf6; }
+  &:hover, &:focus-visible {
+    background: #0838a8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(11, 71, 209, 0.3);
+  }
+
+  &:focus-visible { outline: 2px solid #012a4a; outline-offset: 2px; }
 }
 
-.rd-jump-next { color: #595959; }
+.rd-jump-next { font-weight: normal; color: #dce6fb; }
 
 // the radar is reached through #radar: leave room above it
 .radar { scroll-margin-top: 1rem; }
@@ -351,3 +360,24 @@
 }
 
 .rd-ranges { margin-left: auto; }
+
+// closing the radar: back to the scrolling line and the section names
+.rd-close {
+  font: inherit;
+  font-size: 0.85em;
+  padding: 0.25em 0.7em;
+  border: 1px solid #c7d1de;
+  border-radius: 999px;
+  background: white;
+  color: #595959;
+  cursor: pointer;
+
+  &:hover, &:focus-visible { border-color: #012a4a; color: #012a4a; }
+}
+
+.rd-tabs .rd-close { margin-left: auto; color: #595959; }
+
+.rd-closebottom {
+  text-align: center;
+  margin: 0.8rem 0 0.2rem;
+}
