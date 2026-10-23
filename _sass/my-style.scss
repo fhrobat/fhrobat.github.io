@@ -42,6 +42,8 @@ body[a="dark"] #page-loader {
 
   #theme-toggle { color: #d6d6d6; }
   .minimal-footer { color: #9a9a9a; }
+  .more-dialog { background: #0f1113; }
+  .more-close { background: #1d2023; color: #eeeeee; border-color: #444444; }
 }
 
 body[a="dark"] { @include dark-chrome; }
