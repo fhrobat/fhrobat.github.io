@@ -698,8 +698,9 @@ function kartStart() {
       li.textContent = `${r.name} ${fmt(r.time)}, best lap ${fmt(r.lap)}, ${ago(r.at)}`;
     });
     fill(elRecent, recentCache, 'No races yet.', (li, r) => {
-      const g = ghosts[r.ghost], won = g && r.time < g.time;
-      li.textContent = `${r.name} ${fmt(r.time)} against ${ghostWord(r.ghost)}${g ? (won ? ': won' : ': lost') : ''}, ${ago(r.at)}`;
+      // contro il fantasma del record conta il record di allora (oggi il fantasma potrebbe essere proprio questa gara)
+      const g = ghosts[r.ghost], vs = r.ghost === 'record' ? r.recordThen : g && g.time, won = vs != null && r.time < vs;
+      li.textContent = `${r.name} ${fmt(r.time)} against ${ghostWord(r.ghost)}${vs != null ? (won ? ': won' : ': lost') : ''}, ${ago(r.at)}`;
       if (won) li.className = 'won';
     });
   }
@@ -763,6 +764,9 @@ function kartStart() {
           if (!v || !validGhost(v.ghost) || typeof v.time !== 'number' || typeof v.at !== 'number') return;
           list.push({ name: cleanName(v.name), ghost: v.ghost, time: v.time / 1000, lap: (+v.lap || 0) / 1000, at: v.at });
         });
+        // il record di quel momento: il miglior tempo tra le gare finite prima
+        let best = Infinity;
+        for (const r of list.slice().sort((a, b) => a.at - b.at)) { if (best < Infinity) r.recordThen = best; best = Math.min(best, r.time); }
         bestCache = leaderboard(list);
         recentCache = list.slice().sort((a, b) => b.at - a.at).slice(0, 5);
         renderBest();
