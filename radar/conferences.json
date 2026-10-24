@@ -279,6 +279,24 @@
     "label": "Contributed lectures, posters and minisymposium talk abstracts",
     "date": "2026-11-23",
     "url": "https://meetings.siam.org/start.cfm?CONFCODE=LA27"
+   },
+   {
+    "type": "grants",
+    "label": "Travel support application",
+    "date": "2027-02-22",
+    "url": "https://www.siam.org/conferences-events/siam-conferences/la27/"
+   },
+   {
+    "type": "registration",
+    "label": "Early registration",
+    "date": "2027-04-26",
+    "url": "https://www.siam.org/conferences-events/siam-conferences/la27/"
+   },
+   {
+    "type": "registration",
+    "label": "Hotel reservation",
+    "date": "2027-04-26",
+    "url": "https://www.siam.org/conferences-events/siam-conferences/la27/"
    }
   ]
  },

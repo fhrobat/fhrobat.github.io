@@ -1,6 +1,6 @@
 <ul style="list-style-type:none;">
   {%-for item in include.collection-%}
-    <li class="reveal">
+    <li class="reveal{% if item.kind %} st{% endif %}">{%- if item.kind -%}<span class="mk" data-k="{{ item.kind }}" aria-hidden="true"></span>{%- endif -%}
     {%- if item.url and item.content-%}
       <details class="smooth-toggle boxed-toggle">
         <summary class="boxed-summary"><h2 class="boxed-title">{{ item.title }}</h2></summary>

@@ -17,9 +17,11 @@ layout: default
   {%-endif-%}
 </header>
 
+<!-- la linea della home: ogni blocco è una tappa (.st) col suo segno (.mk), vedi _sass/organic.scss -->
+<div class="spine">
 {%-include radar-jump.html-%}
 
-<div class="news-row">
+<div class="news-row st"><span class="mk" data-k="now" aria-hidden="true"></span>
 {%-include news.html-%}
 {%-include radar-next.html-%}
 </div>
@@ -34,6 +36,8 @@ layout: default
 
 {% include minigames.html %}
 
+</div>
+
 {% include foosball.html %}
 
 {% include kart.html %}
@@ -42,3 +46,4 @@ layout: default
 
 <button id="theme-toggle" type="button" aria-pressed="false" aria-label="Toggle theme"><span id="theme-icon" aria-hidden="true">🌓</span></button>
 <script type="module" src="{{ '/assets/js/home.js' | relative_url }}"></script>
+<script defer src="{{ '/assets/js/organic.js' | relative_url }}"></script>

@@ -1,5 +1,6 @@
 entries:
   - title: Publications and preprints
+    kind: paper
     id: publications
     url: publications.html
     content: |
@@ -75,6 +76,7 @@ entries:
       </ol>
 
   - title: Talks
+    kind: talk
     id: talks
     url: talks.html
     content: |
@@ -115,6 +117,7 @@ entries:
       </ol>
 
   - title: Education
+    kind: edu
     id: education
     url: education.html
     content: |
@@ -137,6 +140,7 @@ entries:
       </ul>
 
   - title: Teaching
+    kind: teach
     id: teaching
     url: teaching.html
     content: |
@@ -153,6 +157,7 @@ entries:
       </ul>
 
   - title: Extra activities and awards
+    kind: prize
     id: extra
     url: extra.html
     content: |
