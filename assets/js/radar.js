@@ -114,15 +114,21 @@
     }
 
     // ---------- panels ----------
+    const CLASSIC_NOTE = {
+      'Nick Higham': 'From the "What Is" series by Nick Higham (1961–2024).',
+      'Cleve Moler': 'From Cleve’s Corner by Cleve Moler (1939–2026), creator of MATLAB.',
+      'Nick Trefethen': 'From the essays of Nick Trefethen: SIAM News pieces and his "Notes of a Numerical Analyst" in the LMS Newsletter.',
+      'Terence Tao': 'From Terence Tao’s blog: his career advice for young mathematicians and his posts on matrices and spectra.',
+    };
     function classic() {
       const pool = data.classics || [];
       if (!pool.length) return null;
-      // the same post for everybody on the same day, alternating Higham and Moler
-      const higham = pool.filter((c) => c.source === 'Nick Higham');
-      const moler = pool.filter((c) => c.source !== 'Nick Higham');
-      const n = dayIndex() + classicShift;
-      const list = (n % 2 && moler.length) || !higham.length ? moler : higham;
-      return list[Math.floor(n / 2) % list.length];
+      // the same post for everybody on the same day, taking the authors in turn
+      const order = ['Nick Higham', 'Nick Trefethen', 'Cleve Moler', 'Terence Tao'];
+      const lists = order.map((a) => pool.filter((c) => c.source === a)).filter((l) => l.length);
+      if (!lists.length) return pool[0];
+      const n = dayIndex() + classicShift, list = lists[n % lists.length];
+      return list[Math.floor(n / lists.length) % list.length];
     }
 
     // ---------- conferences: deadlines, calendar, map ----------
@@ -457,10 +463,8 @@
         const next = el('button', { type: 'button', class: 'rd-filter', text: 'another one' });
         next.addEventListener('click', () => { classicShift += 1; show('classic'); });
         return [el('p', { class: 'rd-classic' }, link(c.url, c.title)),
-          el('p', { class: 'rd-note', text: c.source + ', ' + c.date + '. ' }, next),
-          el('p', { class: 'rd-note', text: c.source === 'Nick Higham'
-            ? 'From the "What Is" series by Nick Higham (1961–2024).'
-            : 'From Cleve’s Corner by Cleve Moler (1939–2026), creator of MATLAB.' })];
+          el('p', { class: 'rd-note', text: [c.source, c.where, c.where && c.where.includes(c.date) ? '' : c.date].filter(Boolean).join(', ') + '. ' }, next),
+          el('p', { class: 'rd-note', text: CLASSIC_NOTE[c.source] || '' })];
       }
     };
 

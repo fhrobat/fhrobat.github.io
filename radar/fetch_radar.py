@@ -347,7 +347,26 @@ def jobs():
 
 
 def classics():
-    # archivi di chi non scrive più: i "What Is" di Nick Higham e i post di Cleve Moler
+    # i classici: i "What Is" di Nick Higham, i post di Cleve Moler, gli essay di Nick Trefethen (SIAM News e le
+    # "Notes of a Numerical Analyst" della LMS Newsletter), i consigli di carriera e i post di algebra lineare /
+    # analisi numerica di Terence Tao. Ogni fonte va per conto suo: se una non risponde si tiene quella di ieri
+    out = []
+    for fn in (classics_higham, classics_moler, classics_trefethen, classics_tao):
+        name = fn.__name__
+        try:
+            got = fn()
+            if not got:
+                raise ValueError('empty')
+            out += got
+        except Exception as e:
+            src = {'classics_higham': 'Nick Higham', 'classics_moler': 'Cleve Moler',
+                   'classics_trefethen': 'Nick Trefethen', 'classics_tao': 'Terence Tao'}[name]
+            print('  classics: %s FAILED (%s), kept yesterday\'s' % (src, e))
+            out += [c for c in OLD.get('classics', []) if c.get('source') == src]
+    return out
+
+
+def classics_higham():
     out = []
     s = get('https://nhigham.com/index-of-what-is-articles/').decode('utf-8', 'replace')
     seen = set()
@@ -355,6 +374,11 @@ def classics():
         if url not in seen:
             seen.add(url)
             out.append({'source': 'Nick Higham', 'title': text(title), 'url': url, 'date': url.split('/')[3]})
+    return out
+
+
+def classics_moler():
+    out = []
     for page in range(1, 6):
         try:
             posts = json.loads(get('https://blogs.mathworks.com/cleve/wp-json/wp/v2/posts?per_page=100&page=%d'
@@ -366,6 +390,47 @@ def classics():
         for p in posts:
             out.append({'source': 'Cleve Moler', 'title': text(p['title']['rendered']), 'url': p['link'],
                         'date': p['date'][:4]})
+    return out
+
+
+def classics_trefethen():
+    base = 'https://people.maths.ox.ac.uk/trefethen/'
+    s = get(base + 'essays.html').decode('utf-8', 'replace')
+    out = []
+    for href, body in re.findall(r'<LI>\s*<a href="([^"]+)">(.*?)(?=<LI>|<br>\s*<b>|</UL>)', s, flags=re.S | re.I):
+        title, rest = (body.split('</a>', 1) + [''])[:2]
+        # "O(<i>n</i><sup>2</sup>)" -> "O(n²)"
+        title = re.sub(r'<sup>(\d+)</sup>', lambda m: m.group(1).translate(str.maketrans('0123456789', '⁰¹²³⁴⁵⁶⁷⁸⁹')), title)
+        title = text(re.sub(r'</?i>', '', title, flags=re.I))
+        m = re.match(r'(\w+\.? \d{4}): (.*)', title)          # le Notes: "Sept 2026: Unstable instabilities"
+        if m:
+            year, title, where = m.group(1)[-4:], m.group(2), 'LMS Newsletter'
+        else:
+            y = re.findall(r'\b(19\d\d|20\d\d)\b', text(rest))
+            where = re.sub(r'\s+,', ',', text(rest)).strip(' (').split(')')[0]   # "SIAM News, Sept. 2023"
+            year = y[0] if y else ''
+        url = href if href.startswith('http') else base + href
+        if title:
+            out.append({'source': 'Nick Trefethen', 'title': title, 'url': url, 'date': year, 'where': where})
+    return out
+
+
+def classics_tao():
+    api = 'https://public-api.wordpress.com/rest/v1.1/sites/terrytao.wordpress.com/posts?fields=title,URL,date&number=100'
+    out = []
+    for c in json.loads(get(api + '&type=page'))['posts']:
+        if '/career-advice/' in c['URL']:
+            out.append({'source': 'Terence Tao', 'title': text(c['title']), 'url': c['URL'], 'date': c['date'][:4],
+                        'where': 'Career advice'})
+    seen = {c['url'] for c in out}
+    # i post di math.NA, math.RA e math.SP che parlano di matrici (in math.RA c'è anche algebra universale, in math.NA
+    # gli annunci di posti), più i "trucchi" (l'API vuole lo slug del sito, mathna, non quello che elenca, math-na)
+    lin = re.compile(r'matri|eigen|linear|spectr|determinant|singular|tensor|rank|schur|trace|operator norm', re.I)
+    for cat in ('mathna', 'mathra', 'mathsp', 'tricks'):
+        for c in json.loads(get(api + '&category=' + cat))['posts']:
+            if c['URL'] not in seen and (cat == 'tricks' or lin.search(text(c['title']))):
+                seen.add(c['URL'])
+                out.append({'source': 'Terence Tao', 'title': text(c['title']), 'url': c['URL'], 'date': c['date'][:4]})
     return out
 
 
