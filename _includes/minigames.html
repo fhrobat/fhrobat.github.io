@@ -33,12 +33,15 @@
   .mg-card:focus-visible { outline: 2px solid #0b47d1; outline-offset: 2px; }
   .mg-card[aria-expanded="true"] { border-width: 2px; padding: calc(0.7rem - 1px) calc(0.6rem - 1px) calc(0.65rem - 1px); }
   .mg-name { display: block; font-weight: bold; font-size: 0.95rem; margin-top: 0.45rem; }
+  .mg-beta { display: inline-block; font-size: 0.65rem; font-weight: bold; letter-spacing: 0.08em; text-transform: uppercase;
+    border: 1px solid currentColor; border-radius: 999px; padding: 0 0.4em; margin-left: 0.25em; vertical-align: 0.15em; color: #0b47d1; }
   .mg-sub { display: block; font-size: 0.75rem; opacity: 0.7; margin-top: 0.15rem; }
   /* piccole animazioni passandoci sopra: la pallina rotola, il kart sobbalza e fa scintille */
-  .mg-ball, .mg-kart, .mg-spark { transform-box: fill-box; transform-origin: center; }
+  .mg-ball, .mg-kart, .mg-runner, .mg-spark { transform-box: fill-box; transform-origin: center; }
   .mg-spark { opacity: 0; }
   .mg-card:hover .mg-ball, .mg-card:focus-visible .mg-ball { animation: mg-roll 0.9s ease-in-out infinite alternate; }
   .mg-card:hover .mg-kart, .mg-card:focus-visible .mg-kart { animation: mg-hop 0.5s ease-in-out infinite alternate; }
+  .mg-card:hover .mg-runner, .mg-card:focus-visible .mg-runner { animation: mg-hop 0.18s ease-in-out infinite alternate; }
   .mg-card:hover .mg-spark, .mg-card:focus-visible .mg-spark { animation: mg-spark 0.18s steps(2) infinite; }
   @keyframes mg-roll { from { transform: translate(0, 0); } to { transform: translate(-34px, 12px); } }
   @keyframes mg-hop { from { transform: translateY(0); } to { transform: translateY(-2.5px); } }
@@ -67,11 +70,6 @@
   }
   .mg-close:hover { text-decoration: underline; }
   .mg-close:focus-visible { outline: 2px solid #0b47d1; outline-offset: 2px; }
-  /* dark mode del sito: come per i giochi, il blu resta blu */
-  body[a="dark"] #mg { filter: hue-rotate(180deg); }
-  @media (prefers-color-scheme: dark) {
-    body[a="auto"] #mg { filter: hue-rotate(180deg); }
-  }
 </style>
 
 <div id="mg" class="st"><span class="mk" data-k="play" aria-hidden="true"></span>
@@ -135,6 +133,40 @@
       </svg>
       <span class="mg-name">Maths Kart</span>
       <span class="mg-sub">race my ghosts</span>
+    </button>
+    <button type="button" class="mg-card" id="run-open" aria-expanded="false" aria-controls="run">
+      <svg viewBox="0 0 160 100" aria-hidden="true">
+        <!-- tre binari verso l'orizzonte, il treno bianco a destra, il casello con le risposte e il Mii che corre -->
+        <rect x="0" y="0" width="160" height="38" fill="#dbe8f7"/>
+        <path d="M0 38 V30 L8 30 L10 24 L14 30 L30 30 L34 18 L38 30 L52 30 Q58 22 64 30 L84 30 L86 26 L88 30 L104 30 L108 14 L112 30 L130 30 Q136 23 142 30 L160 30 V38 Z" fill="#a9bcd3" stroke="#012a4a" stroke-width="1"/>
+        <rect x="0" y="38" width="160" height="62" fill="#fdfbf6"/>
+        <g stroke="#012a4a" stroke-width="1.6" fill="none">
+          <path d="M66 38 L18 100 M71 38 L44 100 M77 38 L70 100 M83 38 L90 100 M89 38 L116 100 M94 38 L142 100"/>
+        </g>
+        <g stroke="#012a4a" stroke-width="1.2" fill="#ffffff">
+          <path d="M104 44 L120 44 L156 92 L156 100 L124 100 Z"/>
+          <rect x="104" y="44" width="16" height="13" rx="2"/>
+        </g>
+        <path d="M120 57 L156 98" stroke="#0b47d1" stroke-width="2.5"/>
+        <g stroke="#012a4a" stroke-width="1" fill="#ffffff" font-family="Courier New, monospace" font-weight="bold" font-size="7" text-anchor="middle">
+          <rect x="50" y="40" width="16" height="9" rx="4.5"/><rect x="72" y="40" width="16" height="9" rx="4.5" fill="#0b47d1"/><rect x="94" y="40" width="16" height="9" rx="4.5"/>
+        </g>
+        <g font-family="Courier New, monospace" font-weight="bold" font-size="7" text-anchor="middle">
+          <text x="58" y="47" fill="#0b47d1">4</text><text x="80" y="47" fill="#ffffff">7</text><text x="102" y="47" fill="#0b47d1">2</text>
+        </g>
+        <g class="mg-runner">
+          <ellipse cx="78" cy="96" rx="9" ry="2.2" fill="rgba(1,42,74,0.18)"/>
+          <g stroke="#012a4a" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M75 85 L73 94 M81 85 L84 92" stroke-width="3.2"/>
+            <path d="M71 86 Q71 72 78 70 Q85 72 85 86 Z" fill="#002147"/>
+            <path d="M72 75 L68 82 M84 75 L88 80" stroke="#002147" stroke-width="3"/>
+            <ellipse cx="78" cy="63" rx="7.5" ry="8" fill="#fdfbf6"/>
+            <path d="M74 58 Q77 56 80 57" fill="none" stroke-width="0.8" opacity="0.5"/>
+          </g>
+        </g>
+      </svg>
+      <span class="mg-name">Maths Run <span class="mg-beta">beta</span></span>
+      <span class="mg-sub">solve it on the run</span>
     </button>
   </div>
 </div>

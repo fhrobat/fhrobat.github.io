@@ -1,0 +1,280 @@
+<!--
+  Maths Run sul sito: il gioco (React + three.js, impacchettato in un solo file da app/, vedi app/README) gira in un
+  iframe creato al primo click sulla scheda. A fine corsa il gioco manda il risultato a questa pagina
+  (postMessage { type: 'mathsrun', event: 'start' | 'end', score, dist, solved }), che lo scrive su Firebase:
+  ramo "run" dello stesso database del subotto e del kart, con le regole generate da foosball/build_names.py.
+  Classifiche: più punti e più lontano, il migliore di ogni giocatore. Il gioco è in beta: c'è un avviso.
+  Niente dollari né barre rovesciate con parentesi: sul sito KaTeX passa su tutto l'HTML.
+-->
+<style>
+  #run[hidden] { display: none; }
+  #run { width: 100%; max-width: 760px; margin: 28px auto 60px; font-family: 'Courier New', monospace; text-align: left; }
+  .mg-beta { display: inline-block; font-size: 0.7rem; font-weight: bold; letter-spacing: 0.08em; text-transform: uppercase;
+    border: 1px solid currentColor; border-radius: 999px; padding: 0 0.45em; margin-left: 0.4em; vertical-align: 0.1em; color: #0b47d1; }
+  #run-note { font-size: 0.8rem; border: 1px dashed #0b47d1; border-radius: 10px; padding: 0.45rem 0.7rem; margin: 0 0 0.7rem; }
+  #run-stage { position: relative; width: 100%; aspect-ratio: 16 / 10; border: 1px solid currentColor; border-radius: 10px; overflow: hidden; background: #fdfbf6; }
+  @media (max-width: 600px) and (orientation: portrait) { #run-stage { aspect-ratio: 4 / 5; } }
+  /* il gioco si inverte col resto della pagina nel tema scuro (il blu diventa arancione): niente filtro di ritorno */
+  #run-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+  .run-you { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; margin: 0.7rem 0 0; font-size: 0.85rem; }
+  .run-you input { font: inherit; width: 11em; margin-left: 0.4em; padding: 0.15em 0.4em; border: 1px solid currentColor; border-radius: 6px; background: transparent; color: inherit; }
+  #run-name-hint { opacity: 0.75; }
+  #run-board { margin-top: 1rem; font-size: 0.85rem; }
+  #run-board[hidden] { display: none; }
+  #run-live { margin: 0 0 0.6rem; }
+  .run-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 1.5rem; }
+  @media (max-width: 600px) { .run-cols { grid-template-columns: 1fr; } }
+  .run-board-title { font-weight: bold; margin: 0 0 0.3rem; }
+  #run ol { margin: 0; padding-left: 1.6em; max-width: none; list-style-position: outside; }
+  #run ol li { margin: 0.15rem 0; }
+  #run ol li.me { color: #0b47d1; font-weight: bold; }
+</style>
+
+<!-- si apre dalla sua scheda in minigames.html -->
+<div id="run" hidden>
+  <div class="mg-bar"><span class="mg-bar-title">Maths Run <span class="mg-beta">beta</span></span><button type="button" class="mg-close" aria-label="Close Maths Run">Close &#x2715;</button></div>
+  <p id="run-note"><b>Beta:</b> a brand new game. Things may still change while I tune it, and the leaderboards may be reset. If something looks broken, tell me.</p>
+  <div id="run-stage"></div>
+  <div class="run-you">
+    <label>Your first name<input id="run-name" type="text" maxlength="16" autocomplete="given-name" list="run-names" placeholder="Anonymous"></label>
+    <datalist id="run-names"></datalist>
+    <span id="run-name-hint"></span>
+  </div>
+  <div id="run-board" hidden>
+    <p id="run-live">Nobody else is running right now.</p>
+    <div class="run-cols">
+      <div><p class="run-board-title">Most points</p><ol id="run-best-score"></ol></div>
+      <div><p class="run-board-title">Furthest</p><ol id="run-best-dist"></ol></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// il gioco parte solo quando qualcuno apre la sua scheda
+minigame('run', runStart);
+
+function runStart() {
+  const box = document.getElementById('run'), stage = document.getElementById('run-stage');
+  const SRC = '{{ '/assets/games/mathsrun.html' | relative_url }}?v=b00afce3';
+  let frame = null;
+  function open() {
+    if (frame) return;
+    frame = document.createElement('iframe');
+    frame.id = 'run-frame';
+    frame.title = 'Maths Run';
+    frame.src = SRC;
+    frame.allow = 'fullscreen';
+    // il sito rimette dritti gli iframe nel tema scuro; questo no, così si inverte come il resto
+    frame.style.filter = 'none';
+    frame.addEventListener('load', () => { try { frame.contentWindow.focus(); } catch (e) {} });
+    stage.appendChild(frame);
+  }
+  open();
+
+  // ---------- nomi (stesso elenco del subotto e del kart) ----------
+  // @@NAMES-START (generato da build_names.py a partire da names.txt: non modificare a mano)
+  const NAMES = [
+    'Aaron', 'Abbie', 'Abhinav', 'Abhishek', 'Abigail', 'Achille', 'Ada', 'Adam', 'Adele', 'Adria', 'Adrian',
+    'Adriano', 'Adrien', 'Adva', 'Agnese', 'Agostino', 'Ahmed', 'Aidan', 'Aifang', 'Akash', 'Alain', 'Alan', 'Alba',
+    'Albert', 'Alberto', 'Aleksandra', 'Alessandra', 'Alessandro', 'Alessia', 'Alessio', 'Alex', 'Alexander',
+    'Alexandra', 'Alexandre', 'Alfie', 'Alfredo', 'Ali', 'Alice', 'Alif', 'Alireza', 'Alison', 'Alp', 'Alvaro',
+    'Amanda', 'Amber', 'Amedeo', 'Amelia', 'Amelie', 'Amy', 'Ana', 'Andras', 'Andre', 'Andrea', 'Andreas', 'Andrew',
+    'Andrey', 'Andries', 'Angela', 'Angelica', 'Angelo', 'Anita', 'Anna', 'Annalisa', 'Anne', 'Annie', 'Annika',
+    'Anthony', 'Antonella', 'Antonio', 'Anubhab', 'Apurva', 'Archi', 'Archie', 'Arianna', 'Armands', 'Arne', 'Arthur',
+    'Artur', 'Arturo', 'Augusto', 'Aurelie', 'Aurora', 'Austin', 'Ava', 'Balint', 'Barbara', 'Barnabas', 'Bartolomeo',
+    'Beatrice', 'Bella', 'Ben', 'Benedetta', 'Benedetto', 'Beniamino', 'Benjamin', 'Bernardo', 'Beth', 'Bethan',
+    'Bethany', 'Bianca', 'Bill', 'Blake', 'Blanka', 'Bob', 'Boris', 'Brandon', 'Branton', 'Brenda', 'Brian',
+    'Bridget', 'Bruno', 'Bryan', 'Caitlin', 'Callum', 'Calvin', 'Cameron', 'Camilla', 'Carla', 'Carles', 'Carlo',
+    'Carlotta', 'Carmela', 'Carol', 'Carolina', 'Caroline', 'Casey', 'Caterina', 'Catherine', 'Cecilia', 'Cedric',
+    'Celine', 'Cephas', 'Cesare', 'Charles', 'Charlie', 'Charlotte', 'Chenghao', 'Chenjing', 'Chiara', 'Chloe',
+    'Chris', 'Christian', 'Christiana', 'Christoph', 'Christopher', 'Chun', 'Claire', 'Clara', 'Claudia', 'Claudio',
+    'Clement', 'Clive', 'Coen', 'Colin', 'Connall', 'Connor', 'Coralia', 'Corentin', 'Cornelia', 'Corrado', 'Cosimo',
+    'Cristian', 'Cristiano', 'Cristina', 'Da', 'Daisy', 'Damian', 'Damiano', 'Dan', 'Daniel', 'Daniela', 'Daniele',
+    'Dario', 'Darren', 'Dave', 'David', 'Davide', 'Dawid', 'Dean', 'Debora', 'Den', 'Denise', 'Dennis', 'Derek',
+    'Diana', 'Diego', 'Dino', 'Dmitrii', 'Dmitry', 'Domenico', 'Dominic', 'Donald', 'Dylan', 'Dyrol', 'Eamonn',
+    'Edmund', 'Edoardo', 'Edward', 'Ehud', 'Eleanor', 'Elena', 'Eleonora', 'Elia', 'Elisa', 'Elisabetta', 'Elizabeth',
+    'Elizaveta', 'Ella', 'Ellie', 'Elliot', 'Elliott', 'Emanuele', 'Emil', 'Emilio', 'Emily', 'Emma', 'Emmanuel',
+    'Endre', 'Enrico', 'Enzo', 'Eric', 'Erica', 'Erik', 'Erin', 'Ethan', 'Ettore', 'Eva', 'Evan', 'Evie', 'Fabio',
+    'Fabrizio', 'Faith', 'Fanny', 'Farhad', 'Federica', 'Federico', 'Felice', 'Felix', 'Ferdinand', 'Ferdinando',
+    'Fernando', 'Filippo', 'Finlay', 'Finn', 'Flavio', 'Florence', 'Florian', 'Frances', 'Francesca', 'Francesco',
+    'Francis', 'Franco', 'Frank', 'Fred', 'Freddie', 'Fredrik', 'Freya', 'Gabriele', 'Gaetano', 'Gaia', 'Gal',
+    'Gargi', 'Gary', 'George', 'Georgia', 'Georgii', 'Georgina', 'Giacomo', 'Giada', 'Gianluca', 'Gianluigi',
+    'Gianmarco', 'Gianni', 'Gillian', 'Ginevra', 'Giorgia', 'Giorgio', 'Giovanna', 'Giovanni', 'Giulia', 'Giulio',
+    'Giuseppe', 'Glen', 'Glenys', 'Gobishayini', 'Gordon', 'Grace', 'Graeme', 'Graham', 'Graziella', 'Gregorio',
+    'Gregory', 'Grigori', 'Gui', 'Guido', 'Gunnar', 'Guoxi', 'Hannah', 'Hanneke', 'Hanqing', 'Hans', 'Haochen',
+    'Harald', 'Harriet', 'Harry', 'Harsh', 'Harvey', 'Heather', 'Helen', 'Helena', 'Henry', 'Hilary', 'Holly',
+    'Horace', 'Hsuan', 'Hugo', 'Hulya', 'Hussam', 'Ian', 'Ignazio', 'Ilaria', 'Ilona', 'Ilya', 'Imogen', 'India',
+    'Ioannis', 'Irene', 'Irina', 'Iris', 'Isaac', 'Isabel', 'Isabella', 'Isla', 'Itamar', 'Ivy', 'Jack', 'Jackson',
+    'Jacob', 'Jacopo', 'Jad', 'Jade', 'Jaka', 'Jake', 'Jakob', 'Jakub', 'James', 'Jamie', 'Jamshid', 'Jan', 'Jane',
+    'Janet', 'Jannis', 'Jared', 'Jaroslav', 'Jasmine', 'Jason', 'Jasper', 'Javier', 'Jean', 'Jennifer', 'Jeremy',
+    'Jesse', 'Jessica', 'Jesus', 'Jethro', 'Jia', 'Jianru', 'Jindong', 'Jinyuan', 'Joan', 'Joanna', 'Jochen', 'Joe',
+    'Johanna', 'John', 'Jolanta', 'Jon', 'Jona', 'Jonathan', 'Jordan', 'Joscha', 'Jose', 'Josep', 'Joseph', 'Joshua',
+    'Juan', 'Judd', 'Julia', 'Julius', 'Jun', 'Jung', 'Justin', 'Kaibo', 'Kansei', 'Karel', 'Karin', 'Karl', 'Karla',
+    'Karolina', 'Kars', 'Kasper', 'Kate', 'Katherine', 'Kathryn', 'Katie', 'Keisuke', 'Keith', 'Kelly', 'Kevin',
+    'Kieran', 'Konstantin', 'Kyle', 'Lajos', 'Lara', 'Laura', 'Lauren', 'Leah', 'Leandro', 'Lena', 'Leo', 'Leon',
+    'Leonardo', 'Letizia', 'Lewis', 'Liam', 'Licia', 'Lida', 'Lidia', 'Lila', 'Lily', 'Lin', 'Linda', 'Linus',
+    'Lionel', 'Lisa', 'Liz', 'Logan', 'Lola', 'Lorena', 'Lorenzo', 'Lorraine', 'Louis', 'Luc', 'Luca', 'Lucas',
+    'Lucia', 'Luciana', 'Luciano', 'Lucie', 'Lucio', 'Lucy', 'Ludovica', 'Ludovico', 'Luigi', 'Luis', 'Luisa',
+    'Lukas', 'Luke', 'Lydia', 'Mahin', 'Maisie', 'Malena', 'Manuel', 'Manuela', 'Mara', 'Marc', 'Marcello', 'Marco',
+    'Marcus', 'Margherita', 'Maria', 'Marina', 'Mario', 'Marjorie', 'Mark', 'Marta', 'Martin', 'Martina', 'Mason',
+    'Massimiliano', 'Massimo', 'Matija', 'Matilde', 'Matteo', 'Matthew', 'Mattia', 'Maurizio', 'Max', 'Maximilien',
+    'Maxwell', 'Megan', 'Mehrdad', 'Melanie', 'Melissa', 'Mia', 'Michael', 'Michalina', 'Michela', 'Michele', 'Mie',
+    'Mihriban', 'Mike', 'Millie', 'Mingdong', 'Mira', 'Mirko', 'Mitchell', 'Mohamed', 'Mohit', 'Molly', 'Monica',
+    'Monty', 'Mothibi', 'Muneera', 'Nadia', 'Naomi', 'Natalie', 'Nathan', 'Neil', 'Nestor', 'Niccolo', 'Nicholas',
+    'Nick', 'Nicola', 'Nicole', 'Nicolo', 'Nigel', 'Nikkita', 'Niklas', 'Nikolay', 'Noah', 'Noemi', 'Norris', 'Ojas',
+    'Olav', 'Oliver', 'Olivia', 'Olivio', 'Om', 'Oreste', 'Orlando', 'Orson', 'Oscar', 'Oskar', 'Ottavia', 'Ottavio',
+    'Owen', 'Pablo', 'Panagiotis', 'Paola', 'Paolo', 'Pasquale', 'Patricia', 'Patrick', 'Patrizia', 'Pau', 'Paul',
+    'Paula', 'Paz', 'Pehan', 'Peleg', 'Pengcheng', 'Peter', 'Petra', 'Philip', 'Phoebe', 'Pierluigi', 'Piero',
+    'Pierrick', 'Pietro', 'Po', 'Poppy', 'Puchun', 'Qian', 'Qiu', 'Rachael', 'Rachel', 'Radek', 'Radoslaw', 'Radu',
+    'Raeid', 'Raffaele', 'Rajath', 'Rama', 'Randy', 'Raphael', 'Rawan', 'Ray', 'Raz', 'Rebecca', 'Rebekah', 'Renato',
+    'Renaud', 'Renjing', 'Reuben', 'Rhuaidi', 'Riccardo', 'Richard', 'Ritesh', 'Riya', 'Robert', 'Roberta', 'Roberto',
+    'Robin', 'Rocco', 'Roger', 'Rohit', 'Rolf', 'Romeo', 'Rosa', 'Rosalind', 'Rosario', 'Rose', 'Rosie', 'Rossella',
+    'Ruby', 'Ruggero', 'Rui', 'Ruijia', 'Ruth', 'Ryan', 'Sabrina', 'Sakura', 'Sally', 'Salvador', 'Salvatore', 'Sam',
+    'Sameh', 'Samuel', 'Samuele', 'Sandro', 'Sara', 'Sarah', 'Saverio', 'Scarlett', 'Scott', 'Sean', 'Sebastian',
+    'Sebastiano', 'Serena', 'Sergio', 'Seth', 'Shaked', 'Shiv', 'Shubh', 'Shuchen', 'Shuoxing', 'Siddharth', 'Silvia',
+    'Silvio', 'Simon', 'Simona', 'Simone', 'Sireethon', 'Siting', 'Sofia', 'Sophia', 'Sophie', 'Stefania', 'Stefano',
+    'Stephanie', 'Stephen', 'Steve', 'Steven', 'Stuart', 'Sue', 'Suleika', 'Sun', 'Susan', 'Susannah', 'Svala',
+    'Swathi', 'Tabea', 'Tamas', 'Tao', 'Tasha', 'Tassilo', 'Tejas', 'Teresa', 'Terry', 'Tessa', 'Thea', 'Theo',
+    'Theodore', 'Thiziri', 'Thomas', 'Tim', 'Timothy', 'Tiziana', 'Tiziano', 'Tobias', 'Toby', 'Tom', 'Tomas',
+    'Tommaso', 'Tommi', 'Tommy', 'Tony', 'Torkel', 'Tung', 'Tyler', 'Ugo', 'Ulrike', 'Umberto', 'Uros', 'Ursula',
+    'Valentina', 'Valentino', 'Valeria', 'Valerio', 'Vanessa', 'Varad', 'Vedanta', 'Verena', 'Veronica', 'Victor',
+    'Victoria', 'Vidit', 'Viktoriia', 'Vincenzo', 'Viola', 'Vishal', 'Vittoria', 'Vittorio', 'Vlad', 'Vsevolod',
+    'Vukasin', 'Waldemar', 'Weiquan', 'Wen', 'Wenqi', 'Will', 'William', 'Wojciech', 'Xenia', 'Xiang', 'Xinyu',
+    'Xuanzuo', 'Yakov', 'Yao', 'Yizhou', 'Yuanqiong', 'Yue', 'Yuechen', 'Yuhan', 'Yuhang', 'Yuji', 'Yukun', 'Yunhao',
+    'Yunli', 'Yuyang', 'Yuying', 'Zacarias', 'Zach', 'Zachary', 'Zhongmin', 'Zihan', 'Zihao', 'Ziyang', 'Zoe',
+    'Zubin',
+  ];
+  // @@NAMES-END
+  const elName = document.getElementById('run-name'), elHint = document.getElementById('run-name-hint');
+  const NAME_KEY = n => n.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const NAME_OF = new Map(NAMES.map(n => [NAME_KEY(n), n]));
+  const knownName = n => (typeof n === 'string' && NAME_OF.get(NAME_KEY(n))) || '';
+  const cleanName = n => knownName(n) || 'Anonymous';
+  const playerName = () => knownName(elName.value) || 'Anonymous';
+  {
+    const dl = document.getElementById('run-names');
+    for (const n of NAMES) { const o = document.createElement('option'); o.value = n; dl.appendChild(o); }
+    const hint = () => {
+      const v = elName.value.trim(), k = knownName(v);
+      elHint.textContent = !v ? 'type it to appear on the leaderboards' : k ? `on the leaderboards as ${k}` : 'not in the list of first names: Anonymous';
+    };
+    try { elName.value = knownName(localStorage.getItem('foos-name') || ''); } catch (e) {}
+    elName.addEventListener('input', () => { const t = elName.value.replace(/[^\p{L} ]/gu, '').slice(0, 16); if (t !== elName.value) elName.value = t; hint(); });
+    elName.addEventListener('change', () => {
+      const k = knownName(elName.value);
+      if (k) elName.value = k;
+      try { localStorage.setItem('foos-name', k); } catch (e) {}
+      hint();
+      window.dispatchEvent(new CustomEvent('minigame-name', { detail: k }));
+    });
+    window.addEventListener('minigame-name', e => { if (e.detail !== knownName(elName.value)) { elName.value = e.detail; hint(); } });
+    hint();
+  }
+
+  // ---------- classifiche online ----------
+  // Stesso Realtime Database del subotto e del kart, ramo "run": chi sta correndo e i risultati delle corse.
+  const FIREBASE_CONFIG = {
+    apiKey: 'AIzaSyDfAOK9xxtThckSAwAGCRTDvuYtPF84sWM',
+    authDomain: 'online-foosball.firebaseapp.com',
+    databaseURL: 'https://online-foosball-default-rtdb.europe-west1.firebasedatabase.app',
+    projectId: 'online-foosball',
+    appId: '1:549951750830:web:0b587fb34345340bfe633f',
+  };
+  const net = { start() {}, end() {}, stop() {} };
+  const elBoard = document.getElementById('run-board'), elLive = document.getElementById('run-live');
+  const elScore = document.getElementById('run-best-score'), elDist = document.getElementById('run-best-dist');
+  const num = n => Math.round(n).toLocaleString('en-GB');
+  function ago(ms) {
+    const s = Math.max(0, (Date.now() - ms) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+    const d = Math.floor(s / 86400);
+    return d === 1 ? 'yesterday' : `${d} days ago`;
+  }
+  // il migliore di ogni giocatore secondo una chiave (gli anonimi contano uno per uno), i primi dieci
+  function top(list, key) {
+    const seen = new Set(), out = [];
+    for (const r of list.slice().sort((a, b) => b[key] - a[key] || a.at - b.at)) {
+      if (r.name !== 'Anonymous') { if (seen.has(r.name)) continue; seen.add(r.name); }
+      out.push(r);
+      if (out.length === 10) break;
+    }
+    return out;
+  }
+  let all = [];
+  function render() {
+    const me = playerName();
+    const fill = (el, rows, line) => {
+      el.textContent = '';
+      if (!rows.length) { const li = document.createElement('li'); li.textContent = 'No runs yet. Be the first.'; el.appendChild(li); return; }
+      for (const r of rows) { const li = document.createElement('li'); li.textContent = line(r); if (r.name === me && me !== 'Anonymous') li.className = 'me'; el.appendChild(li); }
+    };
+    fill(elScore, top(all, 'score'), r => `${r.name} ${num(r.score)} points, ${ago(r.at)}`);
+    fill(elDist, top(all, 'dist'), r => `${r.name} ${num(r.dist)} m, ${r.solved} solved, ${ago(r.at)}`);
+  }
+  setInterval(render, 60000);
+
+  (async () => {
+    try {
+      const base = 'https://www.gstatic.com/firebasejs/10.12.2/';
+      const { initializeApp } = await import(base + 'firebase-app.js');
+      const fdb = await import(base + 'firebase-database.js');
+      // app con un nome suo: se nella pagina sono aperti anche gli altri giochi, le loro app restano separate
+      const db = fdb.getDatabase(initializeApp(FIREBASE_CONFIG, 'run'));
+      const myId = 'r' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      const presRef = fdb.ref(db, 'run/presence/' + myId);
+      let running = false;
+      net.start = () => {
+        running = true;
+        fdb.onDisconnect(presRef).remove();
+        fdb.set(presRef, { name: playerName(), since: fdb.serverTimestamp() }).catch(() => {});
+      };
+      net.stop = () => { if (running) { running = false; fdb.remove(presRef).catch(() => {}); } };
+      net.end = r => {
+        net.stop();
+        if (!(r.dist >= 1)) return;
+        fdb.push(fdb.ref(db, 'run/scores'), { name: playerName(), score: r.score, dist: r.dist, solved: r.solved, at: fdb.serverTimestamp() }).catch(() => {});
+      };
+      fdb.onValue(fdb.ref(db, 'run/presence'), snap => {
+        const names = [];
+        snap.forEach(c => {
+          const v = c.val();
+          if (c.key === myId || !v) return;
+          if (typeof v.since === 'number' && Date.now() - v.since > 30 * 60 * 1000) return;   // sessioni rimaste appese
+          names.push(cleanName(v.name));
+        });
+        elLive.textContent = !names.length ? 'Nobody else is running right now.'
+          : `● ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` and ${names.length - 3} more` : ''} ${names.length > 1 ? 'are' : 'is'} running now.`;
+      });
+      fdb.onValue(fdb.ref(db, 'run/scores'), snap => {
+        const list = [];
+        snap.forEach(c => {
+          const v = c.val();
+          if (!v || typeof v.score !== 'number' || typeof v.dist !== 'number' || typeof v.at !== 'number') return;
+          list.push({ name: cleanName(v.name), score: v.score, dist: v.dist, solved: v.solved | 0, at: v.at });
+        });
+        all = list;
+        render();
+      });
+      elBoard.hidden = false;
+    } catch (e) {
+      console.warn('Maths Run leaderboard is offline:', e);
+    }
+  })();
+
+  // i messaggi del gioco: inizio e fine corsa
+  window.addEventListener('message', e => {
+    if (!frame || e.source !== frame.contentWindow || !e.data || e.data.type !== 'mathsrun') return;
+    const d = e.data;
+    if (d.event === 'start') net.start();
+    else if (d.event === 'end') net.end({ score: Math.max(0, Math.round(+d.score || 0)), dist: Math.max(0, Math.round(+d.dist || 0)), solved: Math.max(0, Math.round(+d.solved || 0)) });
+  });
+
+  // chiusura: via l'iframe (si ferma tutto); riaprendo si ricomincia dalla schermata iniziale
+  function closeGame() { net.stop(); if (frame) { frame.remove(); frame = null; } }
+  // riaperta la scheda dopo una chiusura, il gioco torna
+  document.getElementById('run-open').addEventListener('click', () => { if (!box.hidden) open(); });
+  return { close: closeGame };
+}
+</script>
