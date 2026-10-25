@@ -811,7 +811,16 @@ function kartStart() {
 
   function setMode(m) { mode = m; modeT = 0; }
 
+  // il fantasma del record parte 2 s dopo il traguardo (per avere anche la frenata), ma se si riparte,
+  // si guarda il replay o si chiude prima, va mandato subito: altrimenti il record si perde
+  function flushRecord() {
+    if (race && race.newRecord) { race.newRecord = false; race.uploaded = true; net.record(race); }
+  }
+  addEventListener('pagehide', flushRecord);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) flushRecord(); });
+
   function startRace() {
+    flushRecord();
     kart = newKart(RECORD ? 1 : -1);
     race = { steps: 0, t: 0, laps: [], lapStart: 0, trace: newTrace(), done: false, time: 0, best: 0, wrong: 0, after: 0 };
     skids.length = 0; parts.length = 0; flash = null; banner = null;
@@ -852,7 +861,7 @@ function kartStart() {
     race.t = race.steps * STEP;
     if (race.done) {
       race.after += STEP;
-      if (race.newRecord && race.after >= 2.1) { race.newRecord = false; race.uploaded = true; net.record(race); }
+      if (race.after >= 2.1) flushRecord();
       return;
     }
     const prev = kart.prog, d = track(kart);
@@ -1501,6 +1510,7 @@ function kartStart() {
   let replayT = 0, replayEnd = 0;
   const rp = {};
   function startReplay() {
+    flushRecord();
     const r = lastRace;
     replayT = r.time - r.laps[LAPS - 1];
     replayEnd = Math.min(r.time + 1.2, (r.trace.x.length - 1) / HZ);
@@ -2353,6 +2363,7 @@ function kartStart() {
     keys.clear();
     touch.steerId = touch.brakeId = touch.driftId = touch.itemId = null;
     net.stop();
+    flushRecord();
     if (eng) for (const g of [eng.g.gain, eng.gs.gain]) { g.cancelScheduledValues(audio.currentTime); g.setValueAtTime(0, audio.currentTime); }
     race = null; flash = null; banner = null;
     kart = newKart(RECORD ? 1 : -1);
