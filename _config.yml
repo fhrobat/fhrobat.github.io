@@ -92,6 +92,7 @@ exclude:
   - radar/
   - LICENSE.txt
   - README.md
+  - MANUTENZIONE.md
 
 jektex:
   cache_dir: ".jektex-cache"
