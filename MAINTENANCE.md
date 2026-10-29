@@ -160,7 +160,6 @@ There is no local Jekyll, so the final check is on the published site.
 
 - `logo.png` (3.4 MB) is no longer the favicon but is still published. It can be removed after checking that no file uses it.
 - Pages builds twice (classic build + Action): in *Settings → Pages* set *Source* to *GitHub Actions*.
-- `minigames/players_online.py` checks foosball and kart but **not Maths Run** (`run/presence`): it needs adding.
 - Kart "Francesco" ghost still to record (`kart.html?record=1`).
 
 ---
