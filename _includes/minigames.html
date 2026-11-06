@@ -37,20 +37,18 @@
     border: 1px solid currentColor; border-radius: 999px; padding: 0 0.4em; margin-left: 0.25em; vertical-align: 0.15em; color: #0b47d1; }
   .mg-sub { display: block; font-size: 0.75rem; opacity: 0.7; margin-top: 0.15rem; }
   /* piccole animazioni passandoci sopra: la pallina rotola, il kart sobbalza e fa scintille */
-  .mg-ball, .mg-kart, .mg-runner, .mg-spark, .mg-dart { transform-box: fill-box; transform-origin: center; }
+  .mg-ball, .mg-kart, .mg-runner, .mg-spark { transform-box: fill-box; transform-origin: center; }
   .mg-spark { opacity: 0; }
   .mg-card:hover .mg-ball, .mg-card:focus-visible .mg-ball { animation: mg-roll 0.9s ease-in-out infinite alternate; }
   .mg-card:hover .mg-kart, .mg-card:focus-visible .mg-kart { animation: mg-hop 0.5s ease-in-out infinite alternate; }
   .mg-card:hover .mg-runner, .mg-card:focus-visible .mg-runner { animation: mg-hop 0.18s ease-in-out infinite alternate; }
-  .mg-card:hover .mg-dart, .mg-card:focus-visible .mg-dart { animation: mg-wobble 0.12s ease-in-out infinite alternate; transform-origin: 0% 0%; }
   .mg-card:hover .mg-spark, .mg-card:focus-visible .mg-spark { animation: mg-spark 0.18s steps(2) infinite; }
   @keyframes mg-roll { from { transform: translate(0, 0); } to { transform: translate(-34px, 12px); } }
   @keyframes mg-hop { from { transform: translateY(0); } to { transform: translateY(-2.5px); } }
-  @keyframes mg-wobble { from { transform: rotate(-2deg); } to { transform: rotate(2deg); } }
   @keyframes mg-spark { from { opacity: 0.25; } to { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) {
     .mg-card, .mg-card:hover { transition: none; transform: none; }
-    .mg-card .mg-ball, .mg-card .mg-kart, .mg-card .mg-dart { animation: none !important; }
+    .mg-card .mg-ball, .mg-card .mg-kart { animation: none !important; }
     .mg-card:hover .mg-spark { animation: none; opacity: 1; }
   }
   /* la barra in cima a ogni gioco, col pulsante per chiuderlo */
@@ -181,52 +179,6 @@
       </svg>
       <span class="mg-name">Maths Run <span class="mg-beta">beta</span></span>
       <span class="mg-sub">solve it on the run</span>
-    </button>
-    <button type="button" class="mg-card" id="darts-open" aria-expanded="false" aria-controls="darts">
-      <svg viewBox="0 0 160 100" aria-hidden="true">
-        <!-- il bersaglio coi colori del sito e la lavagna col punteggio scritto a gesso -->
-        <rect x="0" y="0" width="160" height="100" fill="#fdfbf6"/>
-        <circle cx="50" cy="50" r="40" fill="#012a4a"/>
-        <g stroke="#fdfbf6" stroke-width="0">
-          <path d="M50 50 L50 17 A33 33 0 0 1 60.2 18.6 Z" fill="#fdfbf6"/>
-          <path d="M50 50 L69.4 23.3 A33 33 0 0 1 75.9 29.7 Z" fill="#fdfbf6"/>
-          <path d="M50 50 L81.4 39.8 A33 33 0 0 1 83 50 Z" fill="#fdfbf6"/>
-          <path d="M50 50 L81.4 60.2 A33 33 0 0 1 76.7 69.4 Z" fill="#fdfbf6"/>
-          <path d="M50 50 L69.4 76.7 A33 33 0 0 1 60.2 81.4 Z" fill="#fdfbf6"/>
-          <path d="M50 50 L50 83 A33 33 0 0 1 39.8 81.4 Z" fill="#fdfbf6"/>
-          <path d="M50 50 L30.6 76.7 A33 33 0 0 1 24.1 70.3 Z" fill="#fdfbf6"/>
-          <path d="M50 50 L18.6 60.2 A33 33 0 0 1 17 50 Z" fill="#fdfbf6"/>
-          <path d="M50 50 L18.6 39.8 A33 33 0 0 1 23.3 30.6 Z" fill="#fdfbf6"/>
-          <path d="M50 50 L30.6 23.3 A33 33 0 0 1 39.8 18.6 Z" fill="#fdfbf6"/>
-        </g>
-        <circle cx="50" cy="50" r="31.5" fill="none" stroke="#c8962e" stroke-width="3" stroke-dasharray="4.948 4.948"/>
-        <circle cx="50" cy="50" r="31.5" fill="none" stroke="#0b47d1" stroke-width="3" stroke-dasharray="4.948 4.948" stroke-dashoffset="4.948"/>
-        <circle cx="50" cy="50" r="19" fill="none" stroke="#c8962e" stroke-width="2.4" stroke-dasharray="2.985 2.985"/>
-        <circle cx="50" cy="50" r="19" fill="none" stroke="#0b47d1" stroke-width="2.4" stroke-dasharray="2.985 2.985" stroke-dashoffset="2.985"/>
-        <circle cx="50" cy="50" r="4" fill="#0b47d1"/><circle cx="50" cy="50" r="1.8" fill="#c8962e"/>
-        <!-- la freccetta piantata nel triplo 20 -->
-        <g class="mg-dart" stroke="#012a4a" stroke-linejoin="round" stroke-linecap="round">
-          <line x1="51" y1="32" x2="58" y2="26.5" stroke="#9aa7b6" stroke-width="1.6"/>
-          <line x1="58" y1="26.5" x2="71" y2="16.3" stroke="#012a4a" stroke-width="6"/>
-          <line x1="58" y1="26.5" x2="71" y2="16.3" stroke="#6f7884" stroke-width="4"/>
-          <line x1="71" y1="16.3" x2="78" y2="10.8" stroke-width="2"/>
-          <path d="M77 11.6 L86 2 L91 6 Z M77 11.6 L92 13 L90 7.5 Z" fill="#0b47d1" stroke-width="1"/>
-        </g>
-        <!-- la lavagna -->
-        <rect x="100" y="22" width="56" height="56" rx="2" fill="#26342f" stroke="#9b7b55" stroke-width="3"/>
-        <g fill="#f1efe6" font-family="Segoe Print, Comic Sans MS, cursive" font-size="10">
-          <text x="142" y="38" text-anchor="end">301</text>
-          <text x="118" y="54" text-anchor="end" fill="#a9c4ff" font-size="8">-60</text>
-          <text x="142" y="54" text-anchor="end">241</text>
-          <text x="118" y="69" text-anchor="end" fill="#a9c4ff" font-size="8">-81</text>
-          <text x="142" y="69" text-anchor="end">160</text>
-        </g>
-        <g stroke="#f1efe6" stroke-width="1" stroke-linecap="round">
-          <line x1="120" y1="35" x2="144" y2="33.5"/><line x1="120" y1="51" x2="144" y2="49.5"/>
-        </g>
-      </svg>
-      <span class="mg-name">Darts</span>
-      <span class="mg-sub">301, finish on a double</span>
     </button>
   </div>
 </div>
