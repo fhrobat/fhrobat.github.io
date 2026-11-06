@@ -192,6 +192,27 @@
     return { g: g, o: S('path', { 'class': 'tube-o', 'stroke-width': w + 2 * INK }, g), f: S('path', { 'class': 'tube-f', 'stroke-width': w }, g) };
   }
   function setTube(tb, pts) { var d = poly(pts); tb.o.setAttribute('d', d); tb.f.setAttribute('d', d); }
+  // arto "a tubo di gomma": una curva che passa per spalla, gomito e polso invece di due segmenti con lo spigolo
+  function hoseCtl(a, b, c) { return [2 * b[0] - (a[0] + c[0]) / 2, 2 * b[1] - (a[1] + c[1]) / 2]; }
+  function hoseD(a, b, c) { var q = hoseCtl(a, b, c); return 'M' + f1(a[0]) + ' ' + f1(a[1]) + ' Q' + f1(q[0]) + ' ' + f1(q[1]) + ' ' + f1(c[0]) + ' ' + f1(c[1]); }
+  function setHose(tb, a, b, c) { var d = hoseD(a, b, c); tb.o.setAttribute('d', d); tb.f.setAttribute('d', d); }
+  // punto e tangente (normalizzata) della curva a t
+  function hoseAt(a, b, c, t) {
+    var q = hoseCtl(a, b, c), u = 1 - t;
+    var p = [u * u * a[0] + 2 * t * u * q[0] + t * t * c[0], u * u * a[1] + 2 * t * u * q[1] + t * t * c[1]];
+    var d = [2 * u * (q[0] - a[0]) + 2 * t * (c[0] - q[0]), 2 * u * (q[1] - a[1]) + 2 * t * (c[1] - q[1])], L = Math.hypot(d[0], d[1]) || 1;
+    return [p, [d[0] / L, d[1] / L]];
+  }
+  // molla smorzata (semi-implicita, a passetti): x insegue il bersaglio con un piccolo rimbalzo
+  function spring(x, v, target, dt, w, z, wrap) {
+    var n = Math.max(1, Math.ceil(dt / 0.008)), h = dt / n;
+    for (var i = 0; i < n; i++) {
+      var d = wrap ? wrap180(target - x) : target - x;
+      v += (w * w * d - 2 * z * w * v) * h;
+      x += v * h;
+    }
+    return [x, v];
+  }
   // un tracciato fatto di soli M L C Q Z, scomposto una volta in comandi e coppie di numeri, poi piazzato a ogni
   // fotogramma in (x, y), specchiato se f = -1 e ruotato di r gradi attorno al punto
   function compile(d) {
@@ -232,6 +253,9 @@
     this.st = { x: 0, y: 0, s: 1, dir: 1, hipY: -100, bob: 0, lean: 0 };
     this.cache = {};
     var r = this.root = G(parent), i;
+    // ombra a terra: resta sul pavimento quando si salta, e si stringe e sbiadisce con l'altezza
+    this.shadow = S('ellipse', { cx: 0, cy: 0, rx: 46, ry: 8, 'class': 'shd' }, r);
+    if (o.noShadow) vis(this.shadow, false);
     this.back = G(r);
     this.legs = [tube(r, 25), tube(r, 25)];
     this.shoes = [P(r, ''), P(r, '')];
@@ -241,6 +265,11 @@
     this.armsBack = G(t);
     setTube(tube(t, 22), [[0, -80], [0, -94]]);
     P(t, BODY, o.fav ? 'k fav' : 'k');
+    // volume: luce dall'alto a sinistra, una lama chiara sul fianco sinistro e un'ombra su quello destro
+    var BIG = 'M -200 -300 H 200 V 200 H -200 Z ';
+    var vol = S('g', { 'clip-path': 'url(#tlt-bc)' }, t);
+    S('path', { d: BIG + BODY, transform: 'translate(10 4)', 'fill-rule': 'evenodd', 'class': 'hil' }, vol);
+    S('path', { d: BIG + BODY, transform: 'translate(-12 -3)', 'fill-rule': 'evenodd', 'class': 'shade' }, vol);
     P(t, BODY_L[o.shirt] || BODY_L.plain, o.fav ? 'l thin lt' : 'l thin');
     this.tAcc = G(t);
     var h = this.head = G(t);
@@ -249,12 +278,16 @@
     P(this.ears[0], EAR);
     P(G(this.ears[1], 'scale(-1 1)'), EAR);
     P(h, FACE);
+    S('path', { d: BIG + FACE, transform: 'translate(-9 -6)', 'fill-rule': 'evenodd', 'class': 'shade' }, S('g', { 'clip-path': 'url(#tlt-fc)' }, h));
     var ft = this.feat = G(h);
     this.eyes = [];
     for (i = 0; i < 2; i++) {
       var eg = G(ft, 'translate(' + (i ? 21 : -21) + ' -64)'), ee = G(eg);
       this.eyes.push({ g: ee, e: S('ellipse', { cx: 0, cy: 0, rx: 6.5, ry: 9.5, 'class': 'f' }, ee), s: C(ee, -2, -3.5, 2.2, 'pf'), l: P(eg, '', 'l') });
     }
+    this.blush = G(ft);
+    S('ellipse', { cx: -31, cy: -41, rx: 9, ry: 5, 'class': 'blush' }, this.blush);
+    S('ellipse', { cx: 31, cy: -41, rx: 9, ry: 5, 'class': 'blush' }, this.blush);
     this.brows = [P(ft, BROW, 'l bold'), P(G(ft, 'scale(-1 1)'), BROW, 'l bold')];
     P(ft, NOSE, 'l');
     this.mouth = P(ft, '');
@@ -270,10 +303,13 @@
     this.arms = [this.mkArm(), this.mkArm()];
   }
   Rig.prototype.mkArm = function () {
-    var g = G(this.armsFront);
-    var tb = tube(g, 17);
-    if (this.o.fav) tb.f.setAttribute('class', 'tube-f favs');
-    return { g: g, tube: tb, cuff: P(g, '', this.o.fav ? 'l thin lt' : 'l thin'), slot: G(g), hand: C(g, 0, 0, 10) };
+    // contorno, poi una toppa del colore della maglia sulla spalla (copre il tappo tondo del contorno e il bordo del
+    // busto), poi il riempimento: così la manica nasce dal busto senza cuciture
+    var g = G(this.armsFront), w = 17, fav = this.o.fav;
+    var tb = { g: g, o: S('path', { 'class': 'tube-o', 'stroke-width': w + 2 * INK }, g) };
+    var patch = S('circle', { cx: 0, cy: 0, r: w / 2 + INK + 0.4, 'class': fav ? 'fav' : 'pf', 'clip-path': 'url(#tlt-bc)' }, g);
+    tb.f = S('path', { 'class': fav ? 'tube-f favs' : 'tube-f', 'stroke-width': w }, g);
+    return { g: g, tube: tb, patch: patch, cuff: P(g, '', fav ? 'l thin lt' : 'l thin'), slot: G(g), hand: C(g, 0, 0, 10) };
   };
   Rig.prototype.setHair = function (k) {
     if (this.cache.hair === k) return;
@@ -302,8 +338,30 @@
     var hipY = -100 + 38 * sit, th = 50 - 38 * sit, sh = 42, lean = p.lean || 0;
     var bob = (p.bob || 0) + (sit ? 0 : 0.9 * Math.sin((T || 0) * 2.3 + this.bl * 3));
     this.st = { x: p.x, y: p.y, s: s, dir: dir, hipY: hipY, bob: bob, lean: lean };
-    var rootT = 'translate(' + f1(p.x) + ' ' + f1(p.y) + ') scale(' + (s * dir).toFixed(3) + ' ' + s.toFixed(3) + ')';
+    // lo stato delle molle si aggiorna una volta per istante: più chiamate con lo stesso T danno lo stesso risultato;
+    // dopo un salto nel tempo (o la prima volta) tutto si allinea subito alla posa
+    if (T !== this.curT) { this.prevT = this.curT; this.prev = this.out; this.curT = T; this.out = null; }
+    var dt = T - this.prevT, pv = this.prev, live = !!pv && dt > 0 && dt < 0.25 && !REDUCED;
+    var out = this.out = { arms: [null, null] };
+    // allungo nei salti e schiacciata all'atterraggio (una molla sulla velocità verticale), ombra sul pavimento
+    var vy = live ? (p.y - pv.y) / dt : 0, sq = 0, sqv = 0, gy = p.y, still = 0;
+    if (live) {
+      var tgt = sit || p.noSquash ? 0 : Math.min(0.1, Math.max(0, Math.abs(vy) - 90) / 1900);
+      var sr = spring(pv.sq, pv.sqv, tgt, dt, 30, 0.32);
+      sq = sr[0]; sqv = sr[1];
+      still = Math.abs(vy) < 25 ? pv.still + dt : 0;
+      gy = p.y > pv.gy || still > 0.12 ? p.y : pv.gy;
+    }
+    out.y = p.y; out.sq = sq; out.sqv = sqv; out.gy = gy; out.still = still;
+    var sx = 1 - 0.55 * sq, sy = 1 + sq;
+    var rootT = 'translate(' + f1(p.x) + ' ' + f1(p.y) + ') scale(' + (s * dir * sx).toFixed(3) + ' ' + (s * sy).toFixed(3) + ')';
     this.root.setAttribute('transform', rootT);
+    var up = Math.max(0, gy - p.y) / s, shk = 1 / (1 + up / 140);
+    vis(this.shadow, !sit && !this.o.noShadow && up < 600);
+    this.shadow.setAttribute('cy', f1(up / sy + 6));
+    this.shadow.setAttribute('rx', f1(48 * shk / sx));
+    this.shadow.setAttribute('ry', f1(8 * shk));
+    alpha(this.shadow, shk);
     for (i = 0; i < 2; i++) {
       sd = i ? 1 : -1;
       // di profilo le anche si avvicinano, così camminando le gambe non si incrociano a X
@@ -312,7 +370,7 @@
       var d1 = dirv(lg[0]), d2 = dirv(lg[0] + lg[1]);
       var kn = [hip[0] + th * d1[0], hip[1] + th * d1[1]], an = [kn[0] + sh * d2[0], kn[1] + sh * d2[1]];
       // il tubo della gamba finisce dentro la scarpa, così la sua punta tonda non spunta sotto la suola
-      setTube(this.legs[i], [hip, kn, [an[0] - 12 * d2[0], an[1] - 12 * d2[1]]]);
+      setHose(this.legs[i], hip, kn, [an[0] - 12 * d2[0], an[1] - 12 * d2[1]]);
       var side = Math.abs(turn) > 0.45, sp = side ? SHOE_SIDE : SHOE_FRONT, fs = side && turn < 0 ? -1 : 1;
       var fr = side ? Math.max(-30, Math.min(30, -lg[1] * 0.6)) : 0, fx = an[0] + (side ? 0 : sd * 2);
       this.shoes[i].setAttribute('d', place(sp[0], fx, an[1], fs, fr));
@@ -324,7 +382,15 @@
     if (o.armLayer) this.armsFront.setAttribute('transform', rootT + ' ' + torsoT);
 
     // testa: con "turn" i lineamenti scivolano di lato e l'orecchio dietro sparisce
-    tf(this.head, 0, -82, p.tilt || 0);
+    // la testa arriva un attimo dopo il corpo: si abbassa quando sale, ondeggia nei cambi di direzione
+    var vx = live ? (p.x - pv.x) / dt : 0, hd = 0, hdv = 0, ht = p.tilt || 0, htv = 0;
+    if (live) {
+      var r1 = spring(pv.hd, pv.hdv, Math.max(-6, Math.min(6, -vy * 0.014)), dt, 22, 0.42);
+      var r2 = spring(pv.ht, pv.htv, (p.tilt || 0) - Math.max(-7, Math.min(7, vx * dir * 0.012)), dt, 16, 0.4);
+      hd = r1[0]; hdv = r1[1]; ht = r2[0]; htv = r2[1];
+    }
+    out.x = p.x; out.hd = hd; out.hdv = hdv; out.ht = ht; out.htv = htv;
+    tf(this.head, 0, -82 + hd, ht);
     tf(this.feat, turn * 9, 0);
     tf(this.hairG, turn * 2.5, 0);
     tf(this.ears[0], turn > 0 ? turn * 6 : 0, 0);
@@ -354,6 +420,11 @@
     this.brows[0].setAttribute('transform', bt);
     this.brows[1].setAttribute('transform', bt);
     var m = p.mouth || 'smile';
+    // guance rosse quando è contento, come i Mii
+    var bt0 = p.blush !== undefined ? p.blush : (ey === 'happy' || m === 'grin' ? 1 : 0), bl = live ? pv.bl + (bt0 - pv.bl) * (1 - Math.exp(-dt * 6)) : bt0;
+    out.bl = bl;
+    vis(this.blush, bl > 0.02);
+    alpha(this.blush, bl);
     if (m === 'talk') m = TALK[Math.floor((T || 0) * 9) % TALK.length];
     if (m === 'chew') m = Math.floor((T || 0) * 7) % 2 ? 'o' : 'flat';
     if (this.cache.m !== m) {
@@ -366,24 +437,30 @@
     }
 
     // braccia: angoli (aL, aR), oppure un punto da raggiungere nel busto (tL, tR) o nella scena (wL, wR).
-    // Gli angoli non saltano: inseguono la posa voluta (un decimo di secondo circa), così i cambi di posa sono
-    // morbidi; dopo un salto nel tempo si allineano subito. Più chiamate nello stesso istante danno lo stesso risultato.
-    if (T !== this.curT) { this.prevT = this.curT; this.prevA = this.outA; this.curT = T; this.outA = [null, null]; }
-    var dt = T - this.prevT, follow = this.prevA && dt > 0 && dt < 0.25 ? 1 - Math.exp(-dt * 15) : 1;
+    // Gli angoli non saltano: li porta una molla smorzata (un quinto di secondo, con un piccolo rimbalzo), così i
+    // cambi di posa hanno slancio e assestamento; nei salti del corpo le braccia restano un attimo indietro.
+    var lag = live ? Math.max(-14, Math.min(14, vy * 0.035)) : 0;
     for (i = 0; i < 2; i++) {
       sd = i ? 1 : -1;
       var arm = this.arms[i], s0 = [sd * 34, -72], A = i ? p.aR : p.aL, w = i ? p.wR : p.wL, tg = i ? p.tR : p.tL;
       if (w) tg = this.torsoLocal(w[0], w[1]);
       if (tg) A = solve(s0, tg, 42, 40, i ? (p.bR === undefined ? 1 : p.bR) : (p.bL === undefined ? -1 : p.bL));
-      else A = [A[0] + sd * 2.2 * Math.sin((T || 0) * 1.7 + this.bl + i), A[1] + sd * 3 * Math.sin((T || 0) * 1.7 + this.bl + i - 0.6)];
-      var pa = this.prevA && this.prevA[i];
-      if (pa && follow < 1) A = [pa[0] + wrap180(A[0] - pa[0]) * follow, pa[1] + wrap180(A[1] - pa[1]) * follow];
-      this.outA[i] = A;
+      else A = [A[0] + sd * 2.2 * Math.sin((T || 0) * 1.7 + this.bl + i) + sd * lag, A[1] + sd * 3 * Math.sin((T || 0) * 1.7 + this.bl + i - 0.6) + sd * 0.6 * lag];
+      var pa = live && pv.arms[i];
+      if (pa) {
+        // bersagli presi con le mani (tL/wL) seguono più stretti, le pose libere hanno più rimbalzo
+        var W = tg ? 34 : 24, Z = tg ? 0.75 : 0.48;
+        var r0 = spring(pa.a[0], pa.v[0], A[0], dt, W, Z, true), r1 = spring(pa.a[1], pa.v[1], A[1], dt, W * 1.15, Z, true);
+        out.arms[i] = { a: [r0[0], r1[0]], v: [r0[1], r1[1]] };
+        A = out.arms[i].a;
+      } else out.arms[i] = { a: A.slice(), v: [0, 0] };
       var u = dirv(A[0]), v = dirv(A[0] + A[1]);
       var el = [s0[0] + 42 * u[0], s0[1] + 42 * u[1]], wr = [el[0] + 40 * v[0], el[1] + 40 * v[1]];
-      setTube(arm.tube, [s0, el, wr]);
-      var tee = o.shirt === 'tee', cv = tee ? u : v, cf = tee ? [s0[0] + 30 * u[0], s0[1] + 30 * u[1]] : [el[0] + 32 * v[0], el[1] + 32 * v[1]];
+      setHose(arm.tube, s0, el, wr);
+      arm.patch.setAttribute('cx', s0[0]); arm.patch.setAttribute('cy', s0[1]);
+      var tee = o.shirt === 'tee', ca = hoseAt(s0, el, wr, tee ? 0.36 : 0.86), cf = ca[0], cv = ca[1];
       arm.cuff.setAttribute('d', 'M' + f1(cf[0] - cv[1] * 10) + ' ' + f1(cf[1] + cv[0] * 10) + ' L' + f1(cf[0] + cv[1] * 10) + ' ' + f1(cf[1] - cv[0] * 10));
+      v = hoseAt(s0, el, wr, 1)[1];
       var hx = wr[0] + 4 * v[0], hy = wr[1] + 4 * v[1], rot = i ? p.rR : p.rL;
       arm.hand.setAttribute('cx', f1(hx));
       arm.hand.setAttribute('cy', f1(hy));
@@ -416,7 +493,7 @@
   }
   // braccia in alto che "pompano" a turno, col gomito che si piega di più quando il pugno scende
   function cheer(p, T, k) {
-    var a = Math.sin(T * 11), b = Math.sin(T * 11 + 2.4);
+    var a = Math.sin(T * 9), b = Math.sin(T * 9 + 2.4);
     p.aL = [lerp(p.aL[0], -146 + 9 * a, k), lerp(p.aL[1], -24 - 16 * Math.max(0, a), k)];
     p.aR = [lerp(p.aR[0], 146 + 9 * b, k), lerp(p.aR[1], 24 + 16 * Math.max(0, b), k)];
     p.wL = p.wR = p.tL = p.tR = null;
@@ -481,14 +558,14 @@
       vis(b.arm.g, !!o.raise); vis(b.hand, !!o.raise);
       if (o.raise) {
         var wv = Math.sin(T * 9) * 6;
-        setTube(b.arm, [[44, 34], [62, -40], [58 + wv, -112]]);
+        setHose(b.arm, [44, 34], [62, -40], [58 + wv, -112]);
         b.hand.setAttribute('cx', f1(58 + wv)); b.hand.setAttribute('cy', -120);
       }
       vis(b.clap, !!o.clap);
       if (o.clap) {
         var d = 9 + 12 * Math.abs(Math.sin(T * 9 + b.ph));
         [-1, 1].forEach(function (sd, i) {
-          setTube(b.ca[i], [[sd * 44, 36], [sd * 46, -40], [sd * d, -104]]);
+          setHose(b.ca[i], [sd * 44, 36], [sd * 46, -40], [sd * d, -104]);
           b.ch[i].setAttribute('cx', f1(sd * d)); b.ch[i].setAttribute('cy', -110);
         });
         alpha(b.cl, d < 13 ? 1 : 0);
@@ -709,19 +786,42 @@
       st.setAttribute('d', d);
     };
   }
-  // corona d'alloro: foglie lungo la metà davanti di un'ellisse attorno alla testa, alternate verso l'alto e il basso
-  function laurel(parent) {
-    var g = G(parent), leaves = [];
-    for (var i = 0; i < 14; i++) {
-      var th = (2 + i * 176 / 13) * D2R, x = -60 * Math.cos(th), y = -108 + 15 * Math.sin(th);
-      var ang = Math.atan2(15 * Math.cos(th), 60 * Math.sin(th)) / D2R;
-      var lf = G(g), lg = G(lf, 'rotate(' + f1(ang + (i % 2 ? -42 : 42) + (i < 7 ? 180 : 0)) + ')');
-      P(lg, 'M 0 0 C 9 -10 26 -10 34 0 C 26 10 9 10 0 0 Z', 'k acc');
-      P(lg, 'M 4 0 L 28 0', 'l thin acc');
-      tf(lf, x, y, 0, 0);
-      lf.x = x; lf.y = y;
-      leaves.push(lf);
+  // corona d'alloro: due rametti che partono dalla fronte (con due bacche dorate al centro), girano attorno alla
+  // testa sull'ellisse x = ±52 sin φ, y = -108 + 12 cos φ e si chiudono dietro, dove le punte spuntano sopra la nuca.
+  // La metà dietro va sotto la faccia (parent = la testa del pupazzo). Restituisce le foglie, dalla fronte verso la
+  // nuca e alternate fra i due lati, e grow(k) che disegna i rametti.
+  function laurel(rig) {
+    var h = rig.head, back = G(null), front = G(rig.hAcc), leaves = [], stems = [];
+    h.insertBefore(back, h.firstChild);
+    function at(sd, ph) { return [sd * 52 * Math.sin(ph), -108 + 12 * Math.cos(ph)]; }
+    var LEAF = 'M 0 0 C 6 -8 20 -9 29 0 C 20 9 6 8 0 0 Z', FRONT = 1.62, END = 2.95, N = 12;
+    [-1, 1].forEach(function (sd) {
+      [[0.12, FRONT, front], [FRONT - 0.05, END, back]].forEach(function (part) {
+        var pts = [];
+        for (var j = 0; j <= 16; j++) pts.push(at(sd, lerp(part[0], part[1], j / 16)));
+        stems.push(S('path', { d: poly(pts), 'class': 'stem', pathLength: 1, 'stroke-dasharray': '1 1', 'stroke-dashoffset': 1 }, part[2]));
+      });
+    });
+    for (var i = 0; i < N; i++) {
+      [-1, 1].forEach(function (sd) {
+        var ph = lerp(0.2, END - 0.05, i / (N - 1)), p = at(sd, ph), isBack = ph > FRONT;
+        var tx = sd * 52 * Math.cos(ph), ty = -12 * Math.sin(ph), ang = Math.atan2(ty, tx) / D2R;
+        // davanti si alternano sopra e sotto il rametto; dietro puntano in su, così spuntano sopra la testa
+        var off = isBack ? -sd * (48 + 10 * (i % 2)) : (i % 2 ? -sd * 38 : sd * 30);
+        var lf = G(isBack ? back : front), lg = G(lf, 'rotate(' + f1(ang + off) + ') scale(' + (isBack ? 1 : lerp(0.82, 1, i / (N - 1))).toFixed(2) + ')');
+        P(lg, LEAF, 'lv');
+        P(lg, 'M 4 0 Q 14 -1.5 23 0', 'lvv');
+        tf(lf, p[0], p[1], 0, 0);
+        lf.x = p[0]; lf.y = p[1];
+        leaves.push(lf);
+      });
     }
+    var berries = G(front);
+    C(berries, -6, -95, 5, 'k gold'); C(berries, 6, -95, 5, 'k gold');
+    tf(berries, 0, 0, 0, 0);
+    leaves.unshift(berries);
+    berries.x = 0; berries.y = 0;
+    leaves.grow = function (k) { stems.forEach(function (st) { st.setAttribute('stroke-dashoffset', f1(1 - clamp01(k))); }); };
     return leaves;
   }
   function labCoat(parent) {
@@ -1441,7 +1541,7 @@
     ground(g, 700, true);
     var cl = clouds(g, it.seed, 3);
     if (sns) carovana(g, 480, 700, 0.75); else { pisaTower(g, 400, 700, 1.0); tree(g, 170, 700, 0.8); }
-    var m = mkMe(g, {}, it), leaves = laurel(m.hAcc);
+    var m = mkMe(g, {}, it), leaves = laurel(m);
     var book = G(m.arms[0].slot);
     P(book, rect(-26, -36, 52, 64));
     P(book, 'M -18 -36 v 64 M -8 -20 h 26 M -8 -10 h 20', 'l thin');
@@ -1454,7 +1554,8 @@
     var a = { dur: 5.4, cam: { x: 800, y: 440, z: 1 }, focus: [820, 400] };
     a.update = function (t, T) {
       drift(cl, T);
-      leaves.forEach(function (lf, i) { tf(lf, lf.x, lf.y, 0, pop(t, 0.35 + i * 0.06)); });
+      leaves.grow(eOut(seg(t, 0.3, 1.0)));
+      leaves.forEach(function (lf, i) { tf(lf, lf.x, lf.y, 0, pop(t, 0.32 + Math.ceil(i / 2) * 0.055)); });
       cnt.textContent = Math.round(it.grade * eOut(seg(t, 1.0, 2.2))) + '/' + it.of;
       var sk = seg(t, 2.25, 2.45);
       vis(stamp, !!it.honours && t > 2.25);
@@ -2919,6 +3020,18 @@
     '.tlt .red{fill:var(--red)}.tlt .grn{fill:var(--grn)}.tlt .spk{fill:var(--gold);stroke:none}',
     '.tlt .fav{fill:var(--fav)}.tlt .tube-f.favs{stroke:var(--fav)}.tlt .lt{stroke:var(--paper)}',
     '.tlt .tlt-hl{stroke:var(--acc);stroke-width:3}',
+    '.tlt .hil{fill:#fff;fill-opacity:.13;stroke:none}.tlt .shade{fill:#0b2440;fill-opacity:.09;stroke:none}',
+    '.tlt-dark .hil{fill-opacity:.07}.tlt-dark .shade{fill:#000;fill-opacity:.28}',
+    '.tlt .blush{fill:#f08a8a;fill-opacity:.5;stroke:none}.tlt-dark .blush{fill-opacity:.32}',
+    '.tlt-grain,.tlt-vig{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:1}',
+    '.tlt-vig{background:radial-gradient(ellipse at 38% 30%,rgba(255,236,190,.16),rgba(255,236,190,0) 45%),radial-gradient(ellipse at 50% 50%,rgba(1,42,74,0) 58%,rgba(1,42,74,.13) 100%)}',
+    '.tlt-dark .tlt-vig{background:radial-gradient(ellipse at 38% 30%,rgba(120,150,200,.07),rgba(0,0,0,0) 45%),radial-gradient(ellipse at 50% 50%,rgba(0,0,0,0) 55%,rgba(0,0,0,.45) 100%)}',
+    '.tlt-grain{left:-160px;top:-160px;width:calc(100% + 320px);height:calc(100% + 320px);background-size:160px 160px;opacity:.42;will-change:transform;animation:tlt-gr .5s steps(1) infinite}.tlt-dark .tlt-grain{opacity:.3}',
+    '@keyframes tlt-gr{0%{transform:translate(0,0)}25%{transform:translate(-53px,21px)}50%{transform:translate(37px,-48px)}75%{transform:translate(-19px,66px)}}',
+    '@media (prefers-reduced-motion:reduce){.tlt-grain{animation:none}}',
+    '.tlt .shd{fill:var(--ink);fill-opacity:.11;stroke:none}.tlt-dark .shd{fill:#000;fill-opacity:.4}',
+    '.tlt .lv{fill:var(--grn);stroke:var(--ink);stroke-width:2.4;stroke-linejoin:round}.tlt .lvv{fill:none;stroke:var(--paper);stroke-width:1.6;stroke-linecap:round;opacity:.7}',
+    '.tlt .stem{fill:none;stroke:var(--ink);stroke-width:4;stroke-linecap:round}.tlt .stem2{fill:none;stroke:#7a5a2c;stroke-width:1.6;stroke-linecap:round}',
     '.tlt .tube-o{fill:none;stroke:var(--ink);stroke-linecap:round;stroke-linejoin:round}',
     '.tlt .tube-f{fill:none;stroke:var(--paper);stroke-linecap:round;stroke-linejoin:round}',
     ".tlt .tx{fill:var(--ink);stroke:none;font-family:'Courier New',Courier,monospace}",
@@ -2975,6 +3088,24 @@
     if (!st) { st = document.createElement('style'); st.id = 'tlt-css'; document.head.appendChild(st); }
     st.textContent = CSS;
   }
+  // grana della pellicola: puntini chiari e scuri a caso, generati una volta sola
+  var grainCache = '';
+  function grainURL() {
+    if (grainCache) return grainCache;
+    try {
+      var cv = document.createElement('canvas'), N = 160;
+      cv.width = cv.height = N;
+      var cx = cv.getContext('2d'), im = cx.createImageData(N, N), R = rng(11);
+      for (var i = 0; i < N * N; i++) {
+        var v = R(), dark = v < 0.5;
+        im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = dark ? 10 : 255;
+        im.data[i * 4 + 3] = Math.round(Math.pow(Math.abs(v - 0.5) * 2, 3) * 38);
+      }
+      cx.putImageData(im, 0, 0);
+      grainCache = cv.toDataURL('image/png');
+    } catch (e) { grainCache = 'data:,'; }
+    return grainCache;
+  }
   function isDark() {
     var a = document.body.getAttribute('a');
     return a === 'dark' || (a === 'auto' && !!window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -3019,8 +3150,12 @@
     ov.setAttribute('aria-label', 'Timeline, the animated version');
     ov.innerHTML =
       '<svg class="tlt-stage" aria-hidden="true"><defs><pattern id="tlt-hatch" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">' +
-      '<line class="tlt-hl" x1="0" y1="0" x2="0" y2="9"/></pattern></defs><g class="tlt-world"></g></svg>' +
-      '<div class="tlt-vids"></div><svg class="tlt-iris" aria-hidden="true"><path fill-rule="evenodd" d=""/></svg>' +
+      '<line class="tlt-hl" x1="0" y1="0" x2="0" y2="9"/></pattern>' +
+      // il busto appena ristretto (metà spessore del contorno): ritaglia la toppa della spalla
+      '<clipPath id="tlt-bc"><path transform="translate(0 -41.5) scale(0.958 0.96) translate(0 41.5)" d="' + BODY + '"/></clipPath>' +
+      '<clipPath id="tlt-fc"><path transform="translate(0 -65) scale(0.965 0.97) translate(0 65)" d="' + FACE + '"/></clipPath>' +
+      '</defs><g class="tlt-world"></g></svg>' +
+      '<div class="tlt-vids"></div><div class="tlt-vig"></div><div class="tlt-grain"></div><svg class="tlt-iris" aria-hidden="true"><path fill-rule="evenodd" d=""/></svg>' +
       '<div class="tlt-year" aria-hidden="true"></div>' +
       '<div class="tlt-top"><button type="button" class="tlt-b tlt-prev" aria-label="Previous" title="previous (←)">‹</button>' +
       '<button type="button" class="tlt-b tlt-pp" aria-label="Pause" title="pause (space)">❚❚</button>' +
@@ -3035,6 +3170,7 @@
       '<div class="tlt-cap" aria-live="polite"><b class="tlt-when"></b><span class="tlt-what"></span></div>' +
       '<div class="tlt-prog"><span class="tlt-line"></span><span class="tlt-fill"></span></div>';
     function q(s) { return ov.querySelector(s); }
+    q('.tlt-grain').style.backgroundImage = 'url(' + grainURL() + ')';
     var stage = q('.tlt-stage'), world = q('.tlt-world'), vids = q('.tlt-vids'), iris = q('.tlt-iris'), irisP = iris.querySelector('path');
     var yearEl = q('.tlt-year'), whenEl = q('.tlt-when'), whatEl = q('.tlt-what'), fillEl = q('.tlt-fill'), progEl = q('.tlt-prog');
     var ppBtn = q('.tlt-pp'), spBtn = q('.tlt-sp'), sndBtn = q('.tlt-snd'), menuEl = q('.tlt-menu'), endp = q('.tlt-endp'), toastEl = q('.tlt-toast');
@@ -3183,10 +3319,11 @@
       }
       var a = acts[ai], lt = t - a.t0;
       a.update(cur.it.outro || hold ? lt : Math.min(lt, a.dur), Tg);
-      var cx = a.cam.x + a.ox, cy = a.cam.y, cz = a.cam.z || 1;
+      // lenta carrellata in avanti durante ogni atto: dà profondità anche alle inquadrature ferme
+      var KB = REDUCED ? 0 : 0.04, cx = a.cam.x + a.ox, cy = a.cam.y, cz = (a.cam.z || 1) * (1 + KB * eIO(Math.min(1, lt / a.dur)));
       if (ai > 0 && lt < WHIP) {
         var pa = acts[ai - 1], qq = eIO(lt / WHIP);
-        cx = lerp(pa.cam.x + pa.ox, cx, qq); cy = lerp(pa.cam.y, cy, qq); cz = lerp(pa.cam.z || 1, cz, qq);
+        cx = lerp(pa.cam.x + pa.ox, cx, qq); cy = lerp(pa.cam.y, cy, qq); cz = lerp((pa.cam.z || 1) * (1 + KB), cz, qq);
       }
       if (portrait && a.focus) cx = lerp(cx, a.focus[0] + a.ox, 0.65);
       if (a.shake && !REDUCED && !paused) { cx += (Math.random() - 0.5) * 14 * a.shake; cy += (Math.random() - 0.5) * 14 * a.shake; }
