@@ -43,16 +43,18 @@ entries:
           <video class="paper-anim" src="assets/anims/Friendship.mp4" muted loop playsinline preload="none" aria-label="Animation: random graphs where nodes whose friends have more friends on average turn red"></video>
           <strong>Generalized Friendship Paradoxes in Network Science</strong><br>
           <em>Desmond J. Higham, Francesco Hrobat, Francesco Tudisco</em><br>
-          2026, to appear in SIMAX<br>
-          <span class="paper-links"><a class="badge" href="https://arxiv.org/abs/2511.11742" target="_blank" rel="noopener">arXiv</a> <a class="badge" href="https://arxiv.org/pdf/2511.11742" target="_blank" rel="noopener">PDF</a> <button type="button" class="badge bib-copy" title="Copy BibTeX">BibTeX</button></span>
+          2026, SIAM J. Matrix Anal. Appl., 47(4), pp. 1947–1972<br>
+          <span class="paper-links"><a class="badge" href="https://doi.org/10.1137/26M1845407" target="_blank" rel="noopener">DOI</a> <a class="badge" href="https://arxiv.org/abs/2511.11742" target="_blank" rel="noopener">arXiv</a> <a class="badge" href="https://arxiv.org/pdf/2511.11742" target="_blank" rel="noopener">PDF</a> <button type="button" class="badge bib-copy" title="Copy BibTeX">BibTeX</button></span>
           <pre class="bib-src" hidden>
-          @misc{higham2025friendship,
-            title         = {Generalized Friendship Paradoxes in Network Science},
-            author        = {Higham, Desmond J. and Hrobat, Francesco and Tudisco, Francesco},
-            year          = {2025},
-            eprint        = {2511.11742},
-            archivePrefix = {arXiv},
-            primaryClass  = {physics.soc-ph}
+          @article{higham2026friendship,
+            title   = {Generalized Friendship Paradoxes in Network Science},
+            author  = {Higham, Desmond J. and Hrobat, Francesco and Tudisco, Francesco},
+            journal = {SIAM Journal on Matrix Analysis and Applications},
+            volume  = {47},
+            number  = {4},
+            pages   = {1947--1972},
+            year    = {2026},
+            doi     = {10.1137/26M1845407}
           }
           </pre>
         </li>
@@ -81,6 +83,16 @@ entries:
     url: talks.html
     content: |
       <ol>
+        <li>
+          <strong>Solving a sequence of eigenvalue problems using snapshot and row subsampling</strong><br>
+          <em>18 Dec 2026 &emsp; UniPi-SNS SIAM Student Chapter, Pisa, Italy</em><br>
+          Invited talk
+        </li>
+        <li>
+          <strong>Solving a sequence of eigenvalue problems using snapshot and row subsampling</strong><br>
+          <em>17 Dec 2026 &emsp; NumPI Seminar, Department of Mathematics, University of Pisa, Italy</em><br>
+          Invited talk
+        </li>
         <li>
           <strong>Solving a sequence of eigenvalue problems using snapshot and row subsampling</strong><br>
           <em>20 Oct 2026 &emsp; Junior Applied Mathematics Seminar (JAMS), Oxford SIAM Student Chapter, Oxford, United Kingdom</em><br>

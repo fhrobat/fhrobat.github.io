@@ -1,4 +1,8 @@
 # Latest news shown at the top of the home page (newest first; the first 4 are shown).
+- date: Nov 2026
+  text: 'Invited talks in Pisa on “Solving a sequence of eigenvalue problems using snapshot and row subsampling”: NumPI Seminar (17 Dec) and UniPi-SNS SIAM Student Chapter (18 Dec)'
+- date: Nov 2026
+  text: 'Paper with Desmond J. Higham and Francesco Tudisco published in SIMAX: <a href="https://doi.org/10.1137/26M1845407" target="_blank" rel="noopener">Generalized Friendship Paradoxes in Network Science</a>'
 - date: Oct 2026
   text: 'Talk at the Junior Applied Mathematics Seminar, <a href="https://people.maths.ox.ac.uk/siamsc/" target="_blank" rel="noopener">Oxford SIAM Student Chapter</a> (<a href="https://fhrobat.github.io/jams_talk/" target="_blank" rel="noopener">slides</a>)'
 - date: Oct 2026
