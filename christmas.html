@@ -1,0 +1,471 @@
+---
+layout: null
+title: A Christmas tree
+---
+<!doctype html>
+<!--
+  Pagina a schermo intero con l'albero di Natale 3D in ASCII (non linkata dalla home).
+  Non usa il layout del sito: è una pagina autonoma, a tutto schermo.
+  Sorgente di lavoro: Desktop/Claude/ascii-art/albero-fullscreen.html — modifica lì e ricopiala qui
+  (tenendo questo front matter, il link Home con relative_url e il blocco goat_counter in fondo).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#03060d">
+<title>A Christmas tree</title>
+<meta name="description" content="A rotating 3D Christmas tree drawn entirely with ASCII characters.">
+<link rel="icon" type="image/svg+xml" href="{{ site.favicon | relative_url }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ '/favicon-32.png' | relative_url }}">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #03060d; }
+  #tree3d-wrap {
+    position: fixed; inset: 0; overflow: hidden;
+    touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none;
+    background:
+      radial-gradient(ellipse 70% 30% at 50% 68%, rgba(80, 110, 170, .10), transparent 70%),
+      linear-gradient(#03060d 0%, #07101f 58%, #0b1224 100%);
+  }
+  #tree3d-wrap:active { cursor: grabbing; }
+  #tree3d {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    line-height: 1; margin: 0; padding: 0; white-space: pre; color: #cfd8e6;
+  }
+  #tree3d-glow { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; mix-blend-mode: screen; }
+  .tree3d-ui {
+    position: fixed; z-index: 2; font: 13px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: rgba(225, 232, 245, .55); text-decoration: none; background: none; border: 0; padding: 10px;
+    transition: color .2s ease, opacity 1.2s ease;
+  }
+  a.tree3d-ui:hover, button.tree3d-ui:hover { color: rgba(255, 255, 255, .95); }
+  a.tree3d-ui:focus-visible, button.tree3d-ui:focus-visible { outline: 1px solid rgba(255, 255, 255, .7); border-radius: 4px; }
+  #tree3d-home { top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); }
+  #tree3d-fs { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); cursor: pointer; font-size: 18px; }
+  #tree3d-hint { bottom: max(14px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); pointer-events: none; white-space: nowrap; }
+  #tree3d-hint.gone { opacity: 0; }
+</style>
+</head>
+<body>
+<a class="tree3d-ui" id="tree3d-home" href="{{ '/' | relative_url }}">&larr; Home</a>
+<button class="tree3d-ui" id="tree3d-fs" type="button" aria-label="Enter full screen" hidden>&#x26F6;</button>
+<div class="tree3d-ui" id="tree3d-hint">drag to spin</div>
+<div id="tree3d-wrap" role="img" aria-label="A rotating 3D Christmas tree drawn with ASCII characters, with baubles, glowing garlands, a star, presents and falling snow. Drag to spin it.">
+  <pre id="tree3d" aria-hidden="true"></pre>
+  <canvas id="tree3d-glow" aria-hidden="true"></canvas>
+</div>
+<script>
+(() => {
+  const wrap = document.getElementById('tree3d-wrap'), el = document.getElementById('tree3d');
+  const cv = document.getElementById('tree3d-glow'), g2 = cv.getContext('2d');
+  const FPS = 30, NL = 8;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let seed = 7;
+  const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+
+  // ---------- materiali: [tonalità, saturazione, luminosità min, passo, rampa, lucido] ----------
+  const MAT = [
+    [132, 55, 9, 6.6, '.,:=+*%#', 0],   // 0 aghi
+    [210, 25, 48, 7, '.,:=+*%#', 0],    // 1 neve sui rami
+    [26, 40, 14, 6, '.:-=+*#%', 0],     // 2 tronco
+    [356, 82, 17, 6.3, ':=+*%#@@', 1],  // 3 pallina rossa
+    [42, 92, 21, 6.3, ':=+*%#@@', 1],   // 4 pallina oro
+    [215, 25, 32, 7, ':=+*%#@@', 1],    // 5 pallina argento
+    [356, 70, 14, 6.8, '.:-=+*#%', 0],  // 6 regalo rosso
+    [218, 70, 16, 6.8, '.:-=+*#%', 0],  // 7 regalo blu
+    [44, 90, 24, 6.8, '.:-=+*#%', 0],   // 8 nastro oro
+    [150, 45, 13, 6.4, '.:-=+*#%', 0],  // 9 regalo verde
+    [96, 58, 14, 7, '.,:=+*%#', 0],     // 10 punte dei rami
+    [200, 70, 18, 6.3, ':=+*%#@@', 1],  // 11 pallina blu
+  ];
+  const LIGHTS = ['#ff4d4d', '#ffd54f', '#5ab4ff', '#ff7ee2', '#ffffff'];
+  const GR_RAMP = ' ..--==+';
+  let css = '';
+  MAT.forEach(([h, s, l0, dl], m) => {
+    for (let i = 0; i < NL; i++) css += `#tree3d .m${m}_${i}{color:hsl(${h - (m === 0 || m === 10 ? i * 2.5 : 0)} ${s}% ${l0 + i * dl}%)}`;
+  });
+  for (let i = 0; i < NL; i++) css += `#tree3d .gr${i}{color:hsl(220 18% ${16 + i * 9}%)}#tree3d .gk${i}{color:hsl(38 42% ${18 + i * 9}%)}`;
+  LIGHTS.forEach((c, i) => css += `#tree3d .lc${i}{color:${c};font-weight:bold}`);
+  ['#6d5019', '#b8862a', '#f0b84a', '#ffe9a8'].forEach((c, i) => css += `#tree3d .gw${i}{color:${c}}`);
+  css += '#tree3d .hl{color:#fff6e0}#tree3d .lo{color:#3d4c3f}'
+       + '#tree3d .st{color:#ffe28a;font-weight:bold}#tree3d .sr{color:#d4aa4c}'
+       + '#tree3d .sf0{color:#6f7c96}#tree3d .sf1{color:#f2f6ff}'
+       + '#tree3d .sk0{color:#34425f}#tree3d .sk1{color:#aab6d6}'
+       + '#tree3d .ss0{color:#ffffff}#tree3d .ss1{color:#b9c7e6}#tree3d .ss2{color:#56658a}';
+  const styleEl = document.createElement('style'); styleEl.textContent = css; document.head.appendChild(styleEl);
+
+  // ---------- geometria (in coordinate del mondo, indipendente dallo schermo) ----------
+  const pts = [];
+  const add = (x, y, z, nx, ny, nz, mat, ao) => {
+    const l = Math.hypot(nx, ny, nz) || 1;
+    pts.push(x, y, z, nx / l, ny / l, nz / l, mat, ao);
+  };
+  const GROUND = -1.25, Y0 = -0.95, HT = 2.15;
+  const env = h => 0.98 * Math.pow(1 - h, 1.05) * (1 + 0.07 * ((h * 9) % 1)) + 0.015;
+  const clump = (h, th) => 0.5 + 0.5 * Math.sin(th * 9 + h * 23) * Math.sin(h * 31 - th * 5 + 1.7);
+
+  // 1) chioma di base: guscio spesso, più rado e scuro verso l'interno
+  for (let i = 0; i < 175000; i++) {
+    const h = Math.min(0.99, 1 - Math.sqrt(rnd())), th = rnd() * 2 * Math.PI, c = clump(h, th);
+    const d = 1 - 0.3 * Math.pow(rnd(), 2), r = env(h) * (0.78 + 0.18 * c) * d;
+    const nx = Math.cos(th) * 0.9 + (rnd() - 0.5) * 0.9, ny = 0.43 + (rnd() - 0.5) * 0.9, nz = Math.sin(th) * 0.9 + (rnd() - 0.5) * 0.9;
+    const snow = ny > 0.55 && d > 0.93 && rnd() < 0.15;
+    add(r * Math.cos(th), Y0 + HT * h, r * Math.sin(th), nx, ny, nz, snow ? 1 : 0, Math.pow(d, 6) * (0.5 + 0.4 * c));
+  }
+  // 2) rami a palchi che escono dal cono e si piegano verso il basso
+  const tips = [];
+  const WH = 17;
+  for (let w = 0; w < WH; w++) {
+    const h0 = 0.03 + 0.93 * Math.pow(w / (WH - 1), 1.08), nb = Math.round(5 + 10 * (1 - h0));
+    for (let b = 0; b < nb; b++) {
+      const th0 = (b + rnd() * 0.5) / nb * 2 * Math.PI + w * 0.9, L = env(h0) * (1.03 + 0.15 * rnd());
+      const cx = Math.cos(th0), cz = Math.sin(th0), tx = -cz, tz = cx;
+      const center = s => [L * s * cx, Y0 + HT * h0 + L * (0.1 * s - 0.3 * s * s), L * s * cz];
+      tips.push({ center, h: h0, L, cx, cz });
+      const nN = Math.round(1900 * L * L) + 40;
+      for (let k = 0; k < nN; k++) {
+        const s = 0.45 + 0.55 * Math.sqrt(rnd()), [px, py, pz] = center(s);
+        const spread = 0.16 * L * (1.15 - s) + 0.012;
+        const a = (rnd() - 0.5) * 2 * spread, v = (rnd() - 0.5) * spread * 0.7;
+        const nx = cx * 0.8 + (rnd() - 0.5) * 0.9, ny = 0.5 + (rnd() - 0.5) * 0.9, nz = cz * 0.8 + (rnd() - 0.5) * 0.9;
+        const m = ny > 0.65 && rnd() < 0.12 ? 1 : (s > 0.86 && rnd() < 0.55 ? 10 : 0);
+        add(px + tx * a, py + v, pz + tz * a, nx, ny, nz, m, 0.5 + 0.5 * s);
+      }
+    }
+  }
+  // 3) tronco
+  for (let j = 0; j < 160; j++) for (let i = 0; i < 20; i++) {
+    const th = j / 160 * 2 * Math.PI, y = GROUND + (Y0 + 0.1 - GROUND) * i / 19;
+    add(0.1 * Math.cos(th), y, 0.1 * Math.sin(th), Math.cos(th), 0, Math.sin(th), 2, 0.7);
+  }
+  // 4) palline appese alle punte dei rami: distanza minima tra loro (Poisson disk),
+  //    solo tra ~1/5 e ~4/5 dell'altezza, così nessuna arriva vicino al pavimento
+  const BM = [3, 4, 3, 5, 4, 3, 11, 4];
+  const cand = tips.filter(tp => tp.h > 0.18 && tp.h < 0.82).sort(() => rnd() - 0.5), placed = [];
+  for (const tip of cand) {
+    if (placed.length >= 30) break;
+    const rad = 0.06 + 0.025 * (1 - tip.h);
+    const [qx, qy, qz] = tip.center(0.9);
+    const cx = qx + tip.cx * 0.02, cy = qy - rad - 0.025, cz = qz + tip.cz * 0.02;
+    if (placed.some(([x, y, z]) => Math.hypot(x - cx, (y - cy) * 0.8, z - cz) < 0.29)) continue;
+    placed.push([cx, cy, cz]);
+    const b = placed.length - 1;
+    const n = Math.round(65000 * rad * rad) + 80, mat = BM[b % BM.length];
+    for (let k = 0; k < n; k++) {
+      const y = 1 - 2 * (k + 0.5) / n, rr = Math.sqrt(1 - y * y), ph = k * 2.399963;
+      const nx = Math.cos(ph) * rr, nz = Math.sin(ph) * rr;
+      add(cx + nx * rad, cy + y * rad, cz + nz * rad, nx, y, nz, mat, 1);
+    }
+    for (let k = 0; k < 40; k++) {
+      const a = k / 40 * 2 * Math.PI;
+      add(cx + Math.cos(a) * rad * 0.28, cy + rad * 1.02 + (k % 2) * 0.008, cz + Math.sin(a) * rad * 0.28, Math.cos(a), 0.3, Math.sin(a), 4, 1);
+    }
+  }
+  // 5) regali con nastro e fiocco
+  function box(cx, cz, w, hgt, d, rot, mat) {
+    const c = Math.cos(rot), s = Math.sin(rot), st = 0.006;
+    const put = (lx, ly, lz, nx, ny, nz, m) => {
+      const ribbon = Math.abs(lx) < 0.014 || Math.abs(lz) < 0.014;
+      add(cx + lx * c - lz * s, GROUND + ly, cz + lx * s + lz * c, nx * c - nz * s, ny, nx * s + nz * c, m ?? (ribbon ? 8 : mat), 1);
+    };
+    for (let a = -w / 2; a <= w / 2; a += st) for (let b = -d / 2; b <= d / 2; b += st) put(a, hgt, b, 0, 1, 0);
+    for (let a = -w / 2; a <= w / 2; a += st) for (let y = 0; y <= hgt; y += st) { put(a, y, -d / 2, 0, 0, -1); put(a, y, d / 2, 0, 0, 1); }
+    for (let b = -d / 2; b <= d / 2; b += st) for (let y = 0; y <= hgt; y += st) { put(-w / 2, y, b, -1, 0, 0); put(w / 2, y, b, 1, 0, 0); }
+    const R = Math.min(w, d) * 0.17;
+    for (const side of [-1, 1]) for (let k = 0; k < 260; k++) {
+      const a = k / 260 * 2 * Math.PI, lz = (k % 5 - 2) * 0.004;
+      put(side * R * (1 + Math.cos(a)), hgt + R * (0.8 + 0.8 * Math.sin(a)), lz, side * Math.cos(a), Math.sin(a), 0.3, 8);
+    }
+  }
+  box(0.62, -0.85, 0.32, 0.24, 0.3, 0.4, 6);
+  box(-0.75, -0.72, 0.26, 0.32, 0.26, -0.3, 7);
+  box(-1.05, 0.2, 0.34, 0.16, 0.28, 0.8, 9);
+  box(1.0, 0.35, 0.24, 0.2, 0.24, 0.2, 7);
+  box(-0.05, -1.08, 0.28, 0.14, 0.24, 1.1, 6);
+  box(0.2, 1.02, 0.3, 0.22, 0.26, 0.6, 9);
+  const PT = new Float32Array(pts), NP = PT.length / 8;
+
+  // ghirlande a festoni (due spirali) e luci colorate sulle punte dei rami
+  const beads = [];
+  for (let s = 0; s < 2; s++) for (let k = 0; k < 560; k++) {
+    const u = k / 560, h = 0.03 + 0.9 * u, th = h * 2 * Math.PI * 5 + s * Math.PI;
+    const r = env(h) * (0.86 + 0.18 * clump(h, th)) + 0.05;
+    const sag = 0.035 * env(h) * Math.sin(Math.PI * ((u * 40) % 1));
+    beads.push({ x: r * Math.cos(th), y: Y0 + HT * h - sag, z: r * Math.sin(th), s: u + s * 0.37 });
+  }
+  const lights = [];
+  for (let i = 0; i < 95; i++) {
+    const tip = tips[Math.floor(rnd() * tips.length)], [x, y, z] = tip.center(0.7 + rnd() * 0.3);
+    lights.push({ x: x + tip.cx * 0.02, y: y + 0.02, z: z + tip.cz * 0.02, c: Math.floor(rnd() * LIGHTS.length), p: rnd(), f: 0.4 + rnd() * 0.9 });
+  }
+  // neve in un volume più largo, perché lo schermo intero mostra più cielo ai lati
+  const flakes = Array.from({ length: 700 }, () => ({
+    x: (rnd() - 0.5) * 9, y: GROUND + rnd() * 3.6, z: (rnd() - 0.5) * 6, v: 0.1 + rnd() * 0.2, p: rnd() * 6.3 }));
+
+  // ---------- camera ----------
+  // KY: righe per unità di mondo. La dimensione dei caratteri è scelta in modo che l'albero
+  // stia sempre in verticale e in orizzontale; COLS e ROWS riempiono poi tutto lo schermo.
+  const D = 4.6, TILT = 0.05, KY = 118, YC = -0.08, TREE_ROWS = 92, TREE_COLS = 112;
+  const ct = Math.cos(TILT), st = Math.sin(TILT);
+  let Lx = -0.35, Ly = 0.6, Lz = -0.7; { const l = Math.hypot(Lx, Ly, Lz); Lx /= l; Ly /= l; Lz /= l; }
+  let Hx = Lx, Hy = Ly, Hz = Lz - 1; { const l = Math.hypot(Hx, Hy, Hz); Hx /= l; Hy /= l; Hz /= l; }
+
+  let COLS = 150, ROWS = 92, N = 0, CW = 0.6, KX = KY / 0.6;
+  let zb, cls, chs, gz, gc, gch, skyCells, sparkles;
+  let ca = 1, sa = 0, sx = 0, sy = 0;
+  const project = (x, y, z) => {
+    const x1 = x * ca + z * sa, z1 = -x * sa + z * ca;
+    const y2 = y * ct + z1 * st, z2 = z1 * ct - y * st, ooz = 1 / (z2 + D);
+    sx = Math.round(COLS / 2 + KX * x1 * ooz); sy = Math.round(ROWS / 2 - KY * (y2 - YC) * ooz);
+    return ooz;
+  };
+
+  // larghezza di un carattere in unità di "em" (dipende dal font monospazio usato)
+  (() => {
+    const p = document.createElement('span');
+    p.style.cssText = 'position:absolute;visibility:hidden;font-size:100px;white-space:pre';
+    p.textContent = 'M'.repeat(50); el.appendChild(p);
+    CW = p.getBoundingClientRect().width / 5000 || 0.6; p.remove();
+  })();
+
+  function layout() {
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    const fs = Math.min(H / TREE_ROWS, W / (TREE_COLS * CW));
+    COLS = Math.max(TREE_COLS, Math.floor(W / (fs * CW)));
+    ROWS = Math.max(TREE_ROWS, Math.floor(H / fs));
+    N = COLS * ROWS; KX = KY / CW;
+    el.style.fontSize = fs + 'px';
+    zb = new Float32Array(N); cls = new Array(N); chs = new Array(N);
+    gz = new Float32Array(N); gc = new Array(N).fill(''); gch = new Array(N).fill(' ');
+    skyCells = []; sparkles = [];
+    // terreno innevato: intersezione raggio-piano calcolata una volta per cella
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const idx = r * COLS + c, q = (ROWS / 2 - r) / KY, den = st - q * ct;
+      if (den > 1e-4) {
+        const z1 = (q * (D - GROUND * st) - GROUND * ct + YC) / den, w = z1 * ct - GROUND * st + D;
+        const x1 = (c - COLS / 2) * w / KX, rr = Math.hypot(x1, z1);
+        if (w > 0.5 && rr < 22) {
+          const glow = 0.4 * Math.exp(-rr * rr / 1.6);
+          const shade = 0.45 + 0.55 * Math.min(1, Math.max(0, (rr - 0.2) / 0.9));
+          const b = ((0.22 + 0.38 * rnd()) * Math.min(1.2, 5 / w) + glow) * shade;
+          const lv = Math.max(0, Math.min(NL - 1, Math.floor(b * NL)));
+          gz[idx] = 1 / w; gc[idx] = (glow > 0.12 ? 'gk' : 'gr') + lv; gch[idx] = GR_RAMP[lv];
+          if (w < 7 && rnd() < 0.03) sparkles.push([idx, rnd()]);
+          continue;
+        }
+      }
+      if (rnd() < 0.045) skyCells.push([idx, rnd(), rnd() < 0.15]);
+    }
+    measure();
+  }
+
+  // ---------- bagliore (canvas sopra il testo, in modalità "screen") ----------
+  const GS = 0.5, GLOW = 0.55, glows = [];   // GLOW: intensità generale del bagliore (0 = spento, 1 = pieno)
+  const SPR = ['#ffcf6b', '#ffb347', '#fff3d6', ...LIGHTS].map(col => {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, col); g.addColorStop(0.1, col + 'b0'); g.addColorStop(0.35, col + '30'); g.addColorStop(1, col + '00');
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64); return c;
+  });
+  let ox = 0, oy = 0, cw = 1, chh = 1;
+  // posizione delle celle calcolata dalle misure (il <pre> è centrato nello schermo)
+  function measure() {
+    const W = wrap.clientWidth, H = wrap.clientHeight, fs = parseFloat(el.style.fontSize);
+    cw = fs * CW; chh = fs; ox = (W - COLS * cw) / 2; oy = (H - ROWS * chh) / 2;
+    cv.width = Math.max(1, Math.round(W * GS)); cv.height = Math.max(1, Math.round(H * GS));
+  }
+  function drawGlow() {
+    g2.clearRect(0, 0, cv.width, cv.height);
+    g2.globalCompositeOperation = 'lighter';
+    for (const [x, y, r, s, a] of glows) {
+      const px = (ox + (x + 0.5) * cw) * GS, py = (oy + (y + 0.5) * chh) * GS, rr = r * chh * GS;
+      g2.globalAlpha = a * GLOW; g2.drawImage(SPR[s], px - rr, py - rr, 2 * rr, 2 * rr);
+    }
+    g2.globalAlpha = 1;
+  }
+
+  // ---------- disegno ----------
+  let angle = 0.15, shoot = null, nextShoot = 2.5;
+  const inB = () => sx >= 0 && sx < COLS && sy >= 0 && sy < ROWS;
+  function draw(t) {
+    ca = Math.cos(angle); sa = Math.sin(angle);
+    zb.set(gz); cls = gc.slice(); chs = gch.slice(); glows.length = 0;
+    for (const [idx, p, big] of skyCells) {
+      const tw = reduce ? 1 : 0.5 + 0.5 * Math.sin(t * (1 + p * 2) + p * 40);
+      cls[idx] = tw > 0.6 ? 'sk1' : 'sk0'; chs[idx] = big && tw > 0.5 ? '*' : '.';
+    }
+    for (let i = 0; i < NP; i++) {
+      const o = i * 8, ooz = project(PT[o], PT[o + 1], PT[o + 2]);
+      if (!inB()) continue;
+      const idx = sy * COLS + sx;
+      if (ooz <= zb[idx]) continue;
+      zb[idx] = ooz;
+      const nx = PT[o + 3], ny = PT[o + 4], nz = PT[o + 5];
+      const nx1 = nx * ca + nz * sa, nz1 = -nx * sa + nz * ca;
+      const ny2 = ny * ct + nz1 * st, nz2 = nz1 * ct - ny * st;
+      const diff = Math.max(0, nx1 * Lx + ny2 * Ly + nz2 * Lz);
+      const m = PT[o + 6];
+      let lum = PT[o + 7] * (0.12 + 0.88 * Math.pow(diff, 1.2));
+      if (MAT[m][5]) {
+        lum += 1.4 * Math.pow(Math.max(0, nx1 * Hx + ny2 * Hy + nz2 * Hz), 40);
+        if (lum > 1.02) { cls[idx] = 'hl'; chs[idx] = '@'; continue; }
+      }
+      const lv = Math.max(0, Math.min(NL - 1, Math.floor(lum * NL)));
+      cls[idx] = 'm' + m + '_' + lv; chs[idx] = MAT[m][4][lv];
+    }
+    for (let i = 0; i < N; i++) if (cls[i] === 'hl') glows.push([i % COLS, (i / COLS) | 0, 1.5, 2, 0.12]);
+    for (const b of beads) {
+      const ooz = project(b.x, b.y, b.z);
+      if (!inB()) continue;
+      const idx = sy * COLS + sx;
+      if (ooz < zb[idx] * 0.996) continue;
+      zb[idx] = ooz;
+      const k = reduce ? 2 : Math.max(0, Math.min(3, Math.floor((0.5 + 0.5 * Math.sin(b.s * 70 - t * 4)) * 4)));
+      cls[idx] = 'gw' + k; chs[idx] = '.ooO'[k];
+      if (k === 3) glows.push([sx, sy, 2.2, 1, 0.16]);
+    }
+    for (const l of lights) {
+      const ooz = project(l.x, l.y, l.z);
+      if (!inB()) continue;
+      const idx = sy * COLS + sx;
+      if (ooz < zb[idx] * 0.996) continue;
+      zb[idx] = ooz;
+      const on = reduce || ((t * l.f + l.p) % 1) < 0.65;
+      const c = (l.c + Math.floor(t * 0.12 + l.p * 5)) % LIGHTS.length;
+      cls[idx] = on ? 'lc' + c : 'lo'; chs[idx] = on ? '@' : 'o';
+      if (on) glows.push([sx, sy, 3.4, 3 + c, 0.55]);
+    }
+    for (const f of flakes) {
+      const ooz = project(f.x + Math.sin(t * 0.7 + f.p) * 0.08, f.y, f.z);
+      if (!inB()) continue;
+      const idx = sy * COLS + sx;
+      if (ooz <= zb[idx]) continue;
+      cls[idx] = ooz > 0.2 ? 'sf1' : 'sf0'; chs[idx] = ooz > 0.24 ? '*' : ooz > 0.2 ? '+' : '.';
+    }
+    for (const [idx, p] of sparkles) {
+      if (zb[idx] !== gz[idx] || reduce) continue;
+      if (Math.sin(t * 2.5 + p * 60) > 0.94) { cls[idx] = 'sf1'; chs[idx] = '*'; glows.push([idx % COLS, (idx / COLS) | 0, 1.6, 2, 0.4]); }
+    }
+    if (shoot) {
+      for (let i = 12; i >= 0; i--) {
+        const x = Math.round(shoot.x - shoot.vx * i * 0.014), y = Math.round(shoot.y - shoot.vy * i * 0.014);
+        if (x < 0 || x >= COLS || y < 0 || y >= ROWS) continue;
+        const idx = y * COLS + x;
+        if (zb[idx] !== 0) continue;
+        cls[idx] = i === 0 ? 'ss0' : i < 5 ? 'ss1' : 'ss2'; chs[idx] = i === 0 ? '*' : i < 5 ? '=' : i < 9 ? '-' : '.';
+      }
+      glows.push([shoot.x, shoot.y, 3, 2, 0.6]);
+    }
+    drawStar(t);
+    project(0, Y0 + HT * 0.35, 0);
+    glows.push([sx, sy, 60, 1, reduce ? 0.14 : 0.12 + 0.02 * Math.sin(t * 1.3)]);
+
+    let out = '';
+    for (let r = 0; r < ROWS; r++) {
+      let cur = '', run = '';
+      for (let c = 0; c < COLS; c++) {
+        const idx = r * COLS + c;
+        if (cls[idx] !== cur) { if (run) out += cur ? `<span class="${cur}">${run}</span>` : run; run = ''; cur = cls[idx]; }
+        run += chs[idx];
+      }
+      if (run) out += cur ? `<span class="${cur}">${run}</span>` : run;
+      out += '\n';
+    }
+    el.innerHTML = out;
+    drawGlow();
+  }
+
+  // stella a 5 punte (sempre rivolta verso chi guarda) con raggi tratteggiati
+  function drawStar(t) {
+    project(0, Y0 + HT + 0.1, 0);
+    const cx = sx, cy = sy, pulse = reduce ? 1 : 1 + 0.06 * Math.sin(t * 3);
+    const set = (x, y, ch, k) => { if (x >= 0 && x < COLS && y >= 0 && y < ROWS) { cls[y * COLS + x] = k; chs[y * COLS + x] = ch; } };
+    for (let a = 0; a < 8; a++) {
+      const th = a * Math.PI / 4, len = (a % 2 ? 8 : 14) * (reduce ? 1 : 0.9 + 0.15 * Math.sin(t * 2 + a));
+      const ch = ['|', '/', '-', '\\', '|', '/', '-', '\\'][a];
+      for (let s = 5; s < len; s += 0.5) {
+        if (!reduce && ((s * 2 - t * 10) % 4 + 4) % 4 > 2.6) continue;
+        set(Math.round(cx + Math.sin(th) * s / CW), Math.round(cy - Math.cos(th) * s), ch, 'sr');
+      }
+    }
+    const Ro = 4.4 * pulse, Ri = 1.9 * pulse;
+    for (let dy = -6; dy <= 6; dy++) for (let dx = -12; dx <= 12; dx++) {
+      const px = dx * CW, py = dy, r = Math.hypot(px, py);
+      const a = Math.atan2(px, -py) + Math.PI * 2;
+      const f = Math.abs(((a / (2 * Math.PI / 5)) % 1) - 0.5) * 2;
+      const b = Ri + (Ro - Ri) * Math.pow(f, 1.6);
+      if (r < b) set(cx + dx, cy + dy, r < b * 0.55 ? '@' : r < b * 0.85 ? '#' : '*', 'st');
+    }
+    glows.push([cx, cy, 26 * pulse, 0, 0.45], [cx, cy, 9 * pulse, 2, 0.8]);
+  }
+
+  function update(t, dt) {
+    for (const f of flakes) {
+      f.y -= f.v * dt;
+      if (f.y < GROUND) { f.y = GROUND + 3.6; f.x = (Math.random() - 0.5) * 9; f.z = (Math.random() - 0.5) * 6; }
+    }
+    if (!shoot && t > nextShoot) {
+      const dir = Math.random() < 0.5 ? -1 : 1, span = COLS * 0.35;
+      shoot = { x: COLS / 2 - dir * (15 + Math.random() * span), y: 3 + Math.random() * ROWS * 0.15,
+                vx: dir * (55 + Math.random() * 30), vy: 14 + Math.random() * 8, life: 0 };
+    }
+    if (shoot) {
+      shoot.x += shoot.vx * dt; shoot.y += shoot.vy * dt; shoot.life += dt;
+      if (shoot.life > 0.9) { shoot = null; nextShoot = t + 6 + Math.random() * 9; }
+    }
+  }
+
+  // ---------- trascinamento per ruotare (con inerzia) ----------
+  const hint = document.getElementById('tree3d-hint');
+  setTimeout(() => hint.classList.add('gone'), 4000);
+  let vel = 0.25, dragging = false, lastX = 0, lastMove = 0, dragVel = 0, tNow = 0.6;
+  wrap.addEventListener('pointerdown', e => {
+    dragging = true; lastX = e.clientX; lastMove = performance.now(); dragVel = 0;
+    wrap.setPointerCapture(e.pointerId); hint.classList.add('gone');
+  });
+  wrap.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const now = performance.now(), da = (e.clientX - lastX) * 0.01;
+    angle += da; dragVel = da / Math.max(0.016, (now - lastMove) / 1000);
+    lastX = e.clientX; lastMove = now;
+    if (reduce) draw(tNow);
+  });
+  const release = () => { if (!dragging) return; dragging = false; vel = Math.max(-5, Math.min(5, dragVel)); };
+  wrap.addEventListener('pointerup', release);
+  wrap.addEventListener('pointercancel', release);
+
+  // tasto per lo schermo intero vero e proprio (dove il browser lo permette)
+  const fsBtn = document.getElementById('tree3d-fs');
+  if (document.fullscreenEnabled) {
+    fsBtn.hidden = false;
+    fsBtn.addEventListener('click', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
+    document.addEventListener('fullscreenchange', () =>
+      fsBtn.setAttribute('aria-label', document.fullscreenElement ? 'Exit full screen' : 'Enter full screen'));
+  }
+
+  layout(); draw(tNow);
+  let lastW = wrap.clientWidth, lastH = wrap.clientHeight;
+  new ResizeObserver(() => {
+    if (wrap.clientWidth === lastW && wrap.clientHeight === lastH) return;
+    lastW = wrap.clientWidth; lastH = wrap.clientHeight;
+    layout(); draw(tNow);
+  }).observe(wrap);
+  if (reduce) return;
+  let last = 0, t0 = null;
+  (function loop(ts) {
+    requestAnimationFrame(loop);
+    if (ts - last < 1000 / FPS - 4) return;
+    const dt = last ? Math.min(0.1, (ts - last) / 1000) : 0;
+    last = ts; if (t0 === null) t0 = ts;
+    tNow = 0.6 + (ts - t0) / 1000;
+    if (!dragging) { vel += (0.25 - vel) * Math.min(1, dt * 0.8); angle += vel * dt; }
+    update(tNow, dt); draw(tNow);
+  })(0);
+})();
+</script>
+{%- if site.goat_counter and jekyll.environment == "production" -%}
+  {%- include goat_counter.html -%}
+{%- endif -%}
+</body>
+</html>

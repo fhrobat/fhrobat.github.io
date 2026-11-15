@@ -1,0 +1,101 @@
+<!--
+  Mini albero di Natale in alto a sinistra della home: è un link a christmas.html (l'albero 3D a schermo intero).
+  Sta fuori da #site-wrapper, quindi il tema scuro non lo inverte: ha il suo sfondo notturno in entrambi i temi.
+  Le lucine lampeggiano (se il visitatore non ha chiesto meno animazioni).
+-->
+<style>
+  #xmas-link {
+    position: absolute; top: 16px; left: 16px; z-index: 9998;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    color: inherit; text-decoration: none; font-family: 'Courier New', monospace;
+  }
+  #xmas-card {
+    display: block; padding: 6px 9px 4px; border-radius: 8px;
+    background: linear-gradient(#060b18, #0c1428);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(255, 255, 255, .08);
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  #xmas-mini {
+    margin: 0; font: bold 8px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color: #3fae55; white-space: pre; text-align: left;
+  }
+  #xmas-mini .xm-s { color: #ffd54f; text-shadow: 0 0 4px #ffb300; }
+  #xmas-mini .xm-t { color: #8d6e63; }
+  #xmas-mini .xm-w { color: #8fa3c0; font-weight: normal; }
+  #xmas-mini .xm-l0 { color: #ff5252; } #xmas-mini .xm-l1 { color: #ffd54f; }
+  #xmas-mini .xm-l2 { color: #64b5f6; } #xmas-mini .xm-l3 { color: #ff80e0; }
+  #xmas-mini .xm-off { color: #2d6b3a; }
+  #xmas-cta {
+    font-size: 11px; line-height: 1; white-space: nowrap;
+    border-bottom: 1px dashed currentColor; padding-bottom: 1px; opacity: .75;
+    transition: opacity .18s ease;
+  }
+  #xmas-link:hover #xmas-card, #xmas-link:focus-visible #xmas-card {
+    transform: translateY(-2px) rotate(-2deg);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .3), 0 0 14px rgba(255, 200, 90, .35), inset 0 0 0 1px rgba(255, 255, 255, .15);
+  }
+  #xmas-link:hover #xmas-cta, #xmas-link:focus-visible #xmas-cta { opacity: 1; border-bottom-style: solid; }
+  #xmas-link:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 8px; }
+  /* un piccolo "saltello" ogni tanto, per far capire che è cliccabile */
+  @keyframes xmas-nudge { 0%, 88%, 100% { transform: none; } 92% { transform: translateY(-3px) rotate(-3deg); } 96% { transform: translateY(0) rotate(2deg); } }
+  #xmas-card { animation: xmas-nudge 6s ease-in-out 2s infinite; }
+  #xmas-link:hover #xmas-card { animation: none; }
+  @media (prefers-reduced-motion: reduce) { #xmas-card { animation: none; transition: none; } }
+  /* telefono: alto 44px come il pulsante del tema, con "click me" di fianco, così resta sopra il nome */
+  @media (max-width: 600px) {
+    #xmas-link { top: 16px; left: 16px; flex-direction: row; gap: 7px; }
+    #xmas-card { padding: 3px 5px 2px; border-radius: 6px; }
+    #xmas-mini { font-size: 4.7px; }
+    #xmas-cta { font-size: 10px; }
+  }
+  .framed #xmas-link { display: none; }
+  /* tema scuro: stesso colore chiaro del pulsante del tema (il link sta fuori da #site-wrapper) */
+  body[a="dark"] #xmas-link { color: #d6d6d6; }
+  body[a="dark"] #xmas-card { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+  @media (prefers-color-scheme: dark) {
+    body[a="auto"] #xmas-link { color: #d6d6d6; }
+    body[a="auto"] #xmas-card { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+  }
+</style>
+<a id="xmas-link" href="{{ '/christmas.html' | relative_url }}" title="Open the 3D ASCII Christmas tree" aria-label="Open the 3D ASCII Christmas tree">
+  <span id="xmas-card"><pre id="xmas-mini" aria-hidden="true"></pre></span>
+  <span id="xmas-cta">click me</span>
+</a>
+<script>
+(() => {
+  const pre = document.getElementById('xmas-mini');
+  // l'albero: '*' in cima è la stella, 'o' sono le lucine, '|' il tronco, '.' la neve
+  const ART = [
+    '.   *   .',
+    '   /o\\   ',
+    '  /~o~\\ .',
+    ' /o~~~o\\ ',
+    '. /~o~\\  ',
+    ' /o~~~o\\ ',
+    '/~~o~o~~\\',
+    '   |_|  .',
+  ];
+  const nLights = ART.join('').split('o').length - 1;
+  const phase = Array.from({ length: nLights }, (_, i) => (i * 0.37) % 1);
+  function draw(t) {
+    let k = 0, out = '';
+    for (let r = 0; r < ART.length; r++) {
+      for (const ch of ART[r]) {
+        if (ch === 'o') {
+          const on = ((t * 0.9 + phase[k]) % 1) < 0.6, c = (k + Math.floor(t * 0.5 + phase[k] * 4)) % 4;
+          out += `<span class="${on ? 'xm-l' + c : 'xm-off'}">o</span>`; k++;
+        } else if (ch === '*') out += '<span class="xm-s">*</span>';
+        else if (ch === '|' || ch === '_') out += `<span class="xm-t">${ch}</span>`;
+        else if (ch === '.') out += '<span class="xm-w">.</span>';
+        else out += ch;
+      }
+      out += '\n';
+    }
+    pre.innerHTML = out.slice(0, -1);
+  }
+  draw(0);
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let t = 0;
+  setInterval(() => { if (!document.hidden) draw(t += 0.25); }, 250);
+})();
+</script>
