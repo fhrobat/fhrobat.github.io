@@ -1,5 +1,7 @@
 # Latest news shown at the top of the home page (newest first; the first 4 are shown).
 - date: Nov 2026
+  text: 'Contributed talk accepted at <a href="https://www.crm.cat/shaping-the-future-of-numerical-linear-algebra-in-europe-3/" target="_blank" rel="noopener">Shaping the Future of Numerical Linear Algebra in Europe</a>, CRM Barcelona (18–22 Jan 2027)'
+- date: Nov 2026
   text: 'Invited talks in Pisa on “Solving a sequence of eigenvalue problems using snapshot and row subsampling”: NumPI Seminar (17 Dec) and UniPi-SNS SIAM Student Chapter (18 Dec)'
 - date: Nov 2026
   text: 'Paper with Desmond J. Higham and Francesco Tudisco published in SIMAX: <a href="https://doi.org/10.1137/26M1845407" target="_blank" rel="noopener">Generalized Friendship Paradoxes in Network Science</a>'
